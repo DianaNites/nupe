@@ -177,7 +177,18 @@ pub enum MaybeMut<'data> {
     Mut(&'data mut [u8]),
 }
 
-#[derive(Debug)]
+impl<'a> From<&'a [u8]> for MaybeMut<'a> {
+    fn from(d: &'a [u8]) -> Self {
+        MaybeMut::Data(d)
+    }
+}
+
+impl<'a> From<&'a mut [u8]> for MaybeMut<'a> {
+    fn from(d: &'a mut [u8]) -> Self {
+        MaybeMut::Mut(d)
+    }
+}
+
 pub struct Pe<'bytes> {
     pe: MaybeMut<'bytes>,
 }
@@ -271,14 +282,20 @@ impl<'bytes> Pe<'bytes> {
             }
             //
         } else if header.magic == PE32_MAGIC {
+            todo!();
         } else {
             return Err(Error::InvalidPeMagic);
         }
         //
-        todo!();
         Ok(Self {
             pe: MaybeMut::Data(bytes),
         })
+    }
+}
+
+impl<'bytes> core::fmt::Debug for Pe<'bytes> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Pe").field("pe", &"...").finish()
     }
 }
 
@@ -291,16 +308,16 @@ mod tests {
     use super::*;
 
     // EFI Stub kernel
-    // static TEST_IMAGE: &[u8] = include_bytes!("/boot/vmlinuz-linux");
-    static TEST_IMAGE: &[u8] =
+    static _TEST_IMAGE: &[u8] =
         include_bytes!("../../uefi-stub/target/x86_64-unknown-uefi/debug/uefi-stub.efi");
+    // static TEST_IMAGE: &[u8] = include_bytes!("/boot/vmlinuz-linux");
+    static TEST_IMAGE: &[u8] = include_bytes!("/boot/EFI/Linux/linux.efi");
 
     #[test]
     fn dev() -> Result<()> {
         let pe = Pe::from_bytes(TEST_IMAGE);
         dbg!(&pe);
         let pe = pe?;
-        dbg!(&pe);
 
         panic!();
 
