@@ -8,11 +8,12 @@ pub enum Error {
     InvalidDosMagic,
     InvalidPeMagic,
     NotEnoughData,
+    MissingOpt,
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "")
+        write!(f, "{self:?}")
     }
 }
 

@@ -172,9 +172,10 @@ bitflags! {
 }
 
 #[derive(Debug)]
-pub enum MaybeMut<'data> {
+enum MaybeMut<'data> {
     Data(&'data [u8]),
     Mut(&'data mut [u8]),
+    None,
 }
 
 impl<'a> From<&'a [u8]> for MaybeMut<'a> {
@@ -189,10 +190,73 @@ impl<'a> From<&'a mut [u8]> for MaybeMut<'a> {
     }
 }
 
-pub struct Pe<'bytes> {
-    pe: MaybeMut<'bytes>,
+#[derive(Debug, Clone, Copy)]
+enum ImageHeader {
+    Raw32(RawPe32),
+    Raw64(RawPe32x64),
 }
 
+/// A PE Section
+#[derive(Debug)]
+pub struct Section {
+    header: RawSectionHeader,
+}
+
+/// A PE file
+#[derive(Debug)]
+pub struct Pe<'bytes> {
+    pe: MaybeMut<'bytes>,
+    coff: RawCoff,
+    opt: ImageHeader,
+}
+
+impl Pe<'static> {
+    /// Parse a byte slice of an entire PE file.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        if bytes.len() < MIN_SIZE {
+            return Err(Error::NotEnoughData);
+        }
+
+        let dos = unsafe { &*(bytes.as_ptr() as *const RawDos) };
+        if dos.magic != DOS_MAGIC {
+            return Err(Error::InvalidDosMagic);
+        }
+        let pe_offset = dos.pe_offset as usize;
+        let pe = bytes.get(pe_offset..).ok_or(Error::NotEnoughData)?;
+        if pe.len() < size_of::<RawCoff>() {
+            return Err(Error::NotEnoughData);
+        }
+        let raw = unsafe { &*(pe.as_ptr() as *const RawPe) };
+        if raw.sig != PE_MAGIC {
+            return Err(Error::InvalidPeMagic);
+        }
+        let opt = pe.get(size_of::<RawPe>()..).ok_or(Error::NotEnoughData)?;
+        if opt.len() < raw.coff.optional_size.into() {
+            return Err(Error::NotEnoughData);
+        }
+        let header = unsafe { &*(opt.as_ptr() as *const RawPeOptStandard) };
+        let opt = if header.magic == PE32_64_MAGIC {
+            let header = unsafe { &*(opt.as_ptr() as *const RawPe32x64) };
+            ImageHeader::Raw64(*header)
+        } else if header.magic == PE32_MAGIC {
+            todo!();
+        } else {
+            return Err(Error::InvalidPeMagic);
+        };
+        let coff = raw.coff;
+        Ok(Self {
+            pe: MaybeMut::None,
+            coff,
+            opt,
+        })
+    }
+
+    pub fn sections() {
+        //
+    }
+}
+
+#[cfg(no)]
 impl<'bytes> Pe<'bytes> {
     pub fn from_bytes(bytes: &'bytes [u8]) -> Result<Self> {
         if bytes.len() < MIN_SIZE {
@@ -293,6 +357,7 @@ impl<'bytes> Pe<'bytes> {
     }
 }
 
+#[cfg(no)]
 impl<'bytes> core::fmt::Debug for Pe<'bytes> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Pe").field("pe", &"...").finish()
