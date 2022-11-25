@@ -7,6 +7,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 pub enum Error {
     InvalidDosMagic,
     InvalidPeMagic,
+    NotEnoughData,
 }
 
 impl fmt::Display for Error {
