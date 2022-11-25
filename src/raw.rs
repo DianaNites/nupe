@@ -1,4 +1,16 @@
 //! Raw PE structures
+//!
+//! PE Files are laid out as so
+//!
+//! - [RawDos]
+//! - DOS Stub
+//! - Rich Header?
+//! - PE Header [RawPe]
+//!     - COFF Header [RawCoff]
+//! - Optional Header [RawPeOptStandard]
+//! - [RawPe32] or [RawPe32x64]
+//! - Variable number of [RawDataDirectory]
+//! - Variable number of [RawSectionHeader]
 use core::mem::{self, size_of};
 
 use crate::{CoffAttributes, DllCharacteristics, MachineType, SectionFlags, Subsystem};
