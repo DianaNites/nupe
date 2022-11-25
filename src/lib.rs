@@ -8,20 +8,13 @@
     unreachable_code
 )]
 pub mod error;
-
+pub mod raw;
 use core::mem::{self, size_of};
 
 use bitflags::bitflags;
+use raw::*;
 
 use crate::error::{Error, Result};
-
-const DOS_HEADER_SIZE: usize = 64;
-const MIN_SIZE: usize = size_of::<RawPe>() + DOS_HEADER_SIZE;
-const DOS_MAGIC: &[u8] = b"MZ";
-const DOS_PE_OFFSET: usize = 0x3C;
-const PE_MAGIC: &[u8] = b"PE\0\0";
-const PE32_MAGIC: u16 = 0x10B;
-const PE32_64_MAGIC: u16 = 0x20B;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
@@ -91,7 +84,7 @@ impl core::fmt::Debug for Subsystem {
 
 bitflags! {
     #[repr(transparent)]
-    struct CoffAttributes: u16 {
+    pub struct CoffAttributes: u16 {
         const RELOC_STRIPPED = 0x1;
         const IMAGE = 0x2;
         const COFF_LINE_STRIPPED = 0x4;
@@ -113,7 +106,7 @@ bitflags! {
 
 bitflags! {
     #[repr(transparent)]
-    struct DllCharacteristics: u16 {
+    pub struct DllCharacteristics: u16 {
         const RESERVED_1 = 0x1;
         const RESERVED_2 = 0x2;
         const RESERVED_3 = 0x4;
@@ -132,69 +125,50 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[repr(C, packed)]
-pub struct RawCoff {
-    machine: MachineType,
-    sections: u16,
-    time: u32,
-    sym_offset: u32,
-    num_sym: u32,
-    optional_size: u16,
-    attributes: CoffAttributes,
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(C, packed)]
-pub struct RawPe {
-    coff: RawCoff,
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(C, packed)]
-pub struct RawPeOptStandard {
-    magic: u16,
-    linker_major: u8,
-    linker_minor: u8,
-    code_size: u32,
-    init_size: u32,
-    uninit_size: u32,
-    entry_offset: u32,
-    code_base: u32,
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(C, packed)]
-pub struct RawPe32 {
-    standard: RawPeOptStandard,
-    data_base: u32,
-}
-
-#[derive(Debug, Clone, Copy)]
-#[repr(C, packed)]
-pub struct RawPe32x64 {
-    standard: RawPeOptStandard,
-    image_base: u64,
-    section_align: u32,
-    file_align: u32,
-    os_major: u16,
-    os_minor: u16,
-    image_major: u16,
-    image_minor: u16,
-    subsystem_major: u16,
-    subsystem_minor: u16,
-    _reserved_win32: u32,
-    image_size: u32,
-    headers_size: u32,
-    checksum: u32,
-    subsystem: Subsystem,
-    dll_characteristics: DllCharacteristics,
-    stack_reserve: u64,
-    stack_commit: u64,
-    heap_reserve: u64,
-    heap_commit: u64,
-    _reserved_loader_flags: u32,
-    number_of_rva_and_sizes: u32,
+bitflags! {
+    #[repr(transparent)]
+    pub struct SectionFlags: u32 {
+        const RESERVED_1 = 0x1;
+        const RESERVED_2 = 0x2;
+        const RESERVED_3 = 0x4;
+        const NO_PAD = 0x8;
+        const RESERVED_4 = 0x10;
+        const CODE = 0x20;
+        const INITIALIZED = 0x40;
+        const UNINITIALIZED = 0x80;
+        const RESERVED_OTHER = 0x100;
+        const INFO = 0x200;
+        const RESERVED_6 = 0x400;
+        const REMOVE = 0x800;
+        const COMDAT = 0x1000;
+        const GLOBAL_REL = 0x8000;
+        const RESERVED_MEM_PURGE = 0x20000;
+        const RESERVED_MEM_16BIT = 0x20000;
+        const RESERVED_MEM_LOCKED = 0x40000;
+        const RESERVED_MEM_PRELOAD = 0x80000;
+        const ALIGN_1 = 0x100000;
+        const ALIGN_2 = 0x200000;
+        const ALIGN_4 = 0x300000;
+        const ALIGN_8 = 0x400000;
+        const ALIGN_16 = 0x500000;
+        const ALIGN_32 = 0x600000;
+        const ALIGN_64 = 0x700000;
+        const ALIGN_128 = 0x800000;
+        const ALIGN_256 = 0x900000;
+        const ALIGN_512 = 0xA00000;
+        const ALIGN_1024 = 0xB00000;
+        const ALIGN_2048 = 0xC00000;
+        const ALIGN_4096 = 0xD00000;
+        const ALIGN_8192 = 0xE00000;
+        const EXTENDED_RELOC = 0x1000000;
+        const DISCARDABLE = 0x2000000;
+        const NO_CACHE = 0x4000000;
+        const NO_PAGE = 0x8000000;
+        const SHARED = 0x10000000;
+        const EXEC = 0x20000000;
+        const READ = 0x40000000;
+        const WRITE = 0x80000000;
+    }
 }
 
 #[derive(Debug)]
@@ -213,28 +187,88 @@ impl<'bytes> Pe<'bytes> {
         if bytes.len() < MIN_SIZE {
             return Err(Error::NotEnoughData);
         }
-        if &bytes[..2] != DOS_MAGIC {
+        let dos = unsafe { &*(bytes.as_ptr() as *const RawDos) };
+        dbg!(dos);
+        if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
         }
-        let pe_offset =
-            u32::from_ne_bytes(bytes[DOS_PE_OFFSET..][..4].try_into().unwrap()) as usize;
-        let pe = &bytes[pe_offset..];
-        dbg!(pe_offset);
-        if &pe[..4] != PE_MAGIC {
-            return Err(Error::InvalidPeMagic);
-        }
-        let pe = &pe[4..];
-        let raw = unsafe { &*(pe.as_ptr() as *const RawPe) };
-        let opt = raw.coff.optional_size;
-        dbg!(&raw);
-        let pe = &pe[size_of::<RawPe>()..];
-        if pe.len() < opt.into() {
+        let pe_offset = dos.pe_offset as usize;
+        let pe = bytes.get(pe_offset..).ok_or(Error::NotEnoughData)?;
+        if pe.len() < size_of::<RawCoff>() {
             return Err(Error::NotEnoughData);
         }
-        let header = unsafe { &*(pe.as_ptr() as *const RawPeOptStandard) };
+        let raw = unsafe { &*(pe.as_ptr() as *const RawPe) };
+        dbg!(&raw);
+        if raw.sig != PE_MAGIC {
+            return Err(Error::InvalidPeMagic);
+        }
+        let opt = pe.get(size_of::<RawPe>()..).ok_or(Error::NotEnoughData)?;
+        if opt.len() < raw.coff.optional_size.into() {
+            return Err(Error::NotEnoughData);
+        }
+        let header = unsafe { &*(opt.as_ptr() as *const RawPeOptStandard) };
         if header.magic == PE32_64_MAGIC {
-            let header = unsafe { &*(pe.as_ptr() as *const RawPe32x64) };
+            let header = unsafe { &*(opt.as_ptr() as *const RawPe32x64) };
             dbg!(&header);
+            let data = opt
+                .get(size_of::<RawPe32x64>()..)
+                .ok_or(Error::NotEnoughData)?;
+            let data_dirs = unsafe {
+                core::slice::from_raw_parts(
+                    data.as_ptr() as *const RawDataDirectory,
+                    header.data_dirs as usize,
+                )
+            };
+            let export = data_dirs.get(0);
+            let import = data_dirs.get(1);
+            let resource = data_dirs.get(2);
+            let exception = data_dirs.get(3);
+            let certificate = data_dirs.get(4);
+            let relocation = data_dirs.get(5);
+            let debug = data_dirs.get(6);
+            let _arch = data_dirs.get(7);
+            let _global_ptr = data_dirs.get(8);
+            let tls = data_dirs.get(9);
+            let load_config = data_dirs.get(10);
+            let bound = data_dirs.get(11);
+            let iat = data_dirs.get(12);
+            let delay_import = data_dirs.get(13);
+            let clr = data_dirs.get(14);
+            let reserved = data_dirs.get(15);
+            //
+            dbg!(
+                export,
+                import,
+                resource,
+                exception,
+                certificate,
+                relocation,
+                debug,
+                _arch,
+                _global_ptr,
+                tls,
+                load_config,
+                bound,
+                iat,
+                delay_import,
+                clr,
+                reserved,
+            );
+            let sections_bytes = data
+                .get(size_of::<RawDataDirectory>() * header.data_dirs as usize..)
+                .ok_or(Error::NotEnoughData)?;
+            let sections = unsafe {
+                core::slice::from_raw_parts(
+                    sections_bytes.as_ptr() as *const RawSectionHeader,
+                    raw.coff.sections.into(),
+                )
+            };
+            // dbg!(sections);
+            for section in sections {
+                let name = core::str::from_utf8(&section.name);
+                // dbg!(&name);
+                dbg!(&section);
+            }
             //
         } else if header.magic == PE32_MAGIC {
         } else {
