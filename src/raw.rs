@@ -18,6 +18,12 @@ use crate::{CoffAttributes, DllCharacteristics, MachineType, SectionFlags, Subsy
 /// DOS Magic signature
 pub const DOS_MAGIC: &[u8] = b"MZ";
 
+/// Size of a DOS page
+pub const DOS_PAGE: usize = 512;
+
+/// Size of a DOS paragraph
+pub const DOS_PARAGRAPH: usize = 16;
+
 /// File cannot possibly be valid if not at least this size.
 pub const MIN_SIZE: usize = size_of::<RawCoff>() + size_of::<RawDos>();
 
@@ -34,24 +40,61 @@ pub const PE32_64_MAGIC: u16 = 0x20B;
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawDos {
+    /// [DOS_MAGIC]
     pub magic: [u8; 2],
+
+    /// Number of bytes in the last [DOS_PAGE]
     pub last_bytes: u16,
+
+    /// Number of [DOS_PAGE]s
     pub pages: u16,
+
+    /// Number of entries in the relocations table
     pub relocations: u16,
+
+    /// Number of [DOS_PARAGRAPH] taken up by the header
     pub header_size: u16,
+
+    /// Min number of [DOS_PARAGRAPH]s required by the program
     pub min_alloc: u16,
+
+    /// Max number of [DOS_PARAGRAPH]s requested by the program
     pub max_alloc: u16,
+
+    /// Relocation segment
     pub initial_ss: u16,
+
+    /// Initial stack pointer
     pub initial_sp: u16,
+
+    /// Checksum
     pub checksum: u16,
+
+    /// Initial IP
     pub initial_ip: u16,
+
+    /// Relocatable CS segment address
     pub initial_cs: u16,
+
+    /// Absolute offset to relocation table
     pub relocation_offset: u16,
+
+    /// Overlay management
     pub overlay_num: u16,
+
+    /// Reserved in PE
     pub _reserved: [u16; 4],
+
+    /// Useless
     pub oem_id: u16,
+
+    /// Useless
     pub oem_info: u16,
-    pub _reserved2: [u16; 10],
+
+    /// Reserved in PE
+    pub _reserved2: [u8; 20],
+
+    /// Absolute offset to the PE header
     pub pe_offset: u32,
 }
 
