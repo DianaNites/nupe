@@ -198,9 +198,8 @@ pub struct Pe {
     sections: Vec<Section>,
 }
 
-#[cfg(no)]
-impl<'bytes> Pe<'bytes> {
-    pub fn from_bytes(bytes: &'bytes [u8]) -> Result<Self> {
+impl Pe {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         if bytes.len() < MIN_SIZE {
             return Err(Error::NotEnoughData);
         }
@@ -293,9 +292,14 @@ impl<'bytes> Pe<'bytes> {
             return Err(Error::InvalidPeMagic);
         }
         //
-        Ok(Self {
-            pe: MaybeMut::Data(bytes),
-        })
+        todo!();
+        // Ok(Self {
+        //     pe: MaybeMut::Data(bytes),
+        // })
+    }
+
+    pub fn sections(&self) -> impl Iterator<Item = &Section> {
+        self.sections.iter()
     }
 }
 
@@ -423,11 +427,9 @@ mod tests {
     // static TEST_IMAGE: &[u8] = include_bytes!("/boot/vmlinuz-linux");
     static TEST_IMAGE: &[u8] = include_bytes!("/boot/EFI/Linux/linux.efi");
 
-    #[cfg(no)]
     #[test]
     fn dev() -> Result<()> {
-        let mut bytes = Vec::from(TEST_IMAGE);
-        let pe = Pe::from_bytes_mut(&mut bytes);
+        let pe = Pe::from_bytes(TEST_IMAGE);
         dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
