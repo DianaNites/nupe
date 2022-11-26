@@ -266,10 +266,14 @@ impl PeHeader {
                     pe.coff.sections.into(),
                 )
             };
-            for section in sections {
-                dbg!(&section);
-            }
-            //
+
+            return Ok(Self {
+                dos: *dos,
+                coff: pe.coff,
+                opt: ImageHeader::Raw64(*header),
+                data_dirs: Vec::from(data_dirs),
+                sections: sections.iter().map(|s| Section { header: *s }).collect(),
+            });
         } else if opt.magic == PE32_MAGIC {
             todo!();
         } else {
@@ -277,9 +281,6 @@ impl PeHeader {
         }
         //
         todo!();
-        // Ok(Self {
-        //     pe: MaybeMut::Data(bytes),
-        // })
     }
 
     pub fn sections(&self) -> impl Iterator<Item = &Section> {
@@ -414,7 +415,7 @@ mod tests {
     #[test]
     fn dev() -> Result<()> {
         let pe = PeHeader::from_bytes(TEST_IMAGE);
-        dbg!(&pe);
+        // dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
             dbg!(section);
