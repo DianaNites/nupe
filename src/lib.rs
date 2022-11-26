@@ -448,9 +448,44 @@ impl<'bytes> Pe<'bytes> {
         todo!()
     }
 
+    /// Create a new [Pe] from a pointer and length to a PE image
+    ///
+    /// # Safety
+    ///
+    /// See [`Pe::from_ptr`]
+    pub unsafe fn from_ptr_mut(data: *mut u8, size: usize) -> Result<Self> {
+        Self::from_ptr(data, size)
+    }
+
     pub fn from_bytes(bytes: &'bytes [u8]) -> Result<Self> {
         // Safety: Trivially valid
         unsafe { Self::from_ptr(bytes.as_ptr(), bytes.len()) }
+    }
+
+    pub fn from_bytes_mut(bytes: &'bytes mut [u8]) -> Result<Self> {
+        // Safety: Trivially valid
+        unsafe { Self::from_ptr_mut(bytes.as_mut_ptr(), bytes.len()) }
+    }
+
+    /// Iterator over the sections in the file
+    pub fn sections(&self) -> impl Iterator<Item = Section> {
+        #[cfg(no)]
+        {
+            let sections_bytes = data
+                .get(size_of::<RawDataDirectory>() * header.data_dirs as usize..)
+                .ok_or(Error::NotEnoughData)?;
+            let sections = unsafe {
+                core::slice::from_raw_parts(
+                    sections_bytes.as_ptr() as *const RawSectionHeader,
+                    raw.coff.sections.into(),
+                )
+            };
+        }
+        let section_offset = ();
+        core::iter::from_fn(|| {
+            //
+            None
+        })
     }
 }
 
@@ -477,9 +512,13 @@ mod tests {
 
     #[test]
     fn dev() -> Result<()> {
-        let pe = Pe::from_bytes(TEST_IMAGE);
+        let mut bytes = Vec::from(TEST_IMAGE);
+        let pe = Pe::from_bytes_mut(&mut bytes);
         dbg!(&pe);
         let pe = pe?;
+        for section in pe.sections() {
+            dbg!(section);
+        }
 
         panic!();
 
