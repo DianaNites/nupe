@@ -188,6 +188,24 @@ pub struct Section {
     header: RawSectionHeader,
 }
 
+impl Section {
+    pub fn virtual_address(&self) -> u32 {
+        self.header.virtual_address
+    }
+
+    pub fn virtual_size(&self) -> u32 {
+        self.header.virtual_size
+    }
+
+    pub fn file_offset(&self) -> u32 {
+        self.header.raw_ptr
+    }
+
+    pub fn file_size(&self) -> u32 {
+        self.header.raw_size
+    }
+}
+
 /// A PE file
 #[derive(Debug)]
 pub struct PeHeader {
@@ -414,7 +432,7 @@ mod tests {
 
     #[test]
     fn dev() -> Result<()> {
-        let pe = PeHeader::from_bytes(TEST_IMAGE);
+        let mut pe = PeHeader::from_bytes(TEST_IMAGE);
         // dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
