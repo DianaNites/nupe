@@ -1,5 +1,5 @@
 //! PE image handling
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![allow(
     unused_variables,
     unused_imports,
@@ -9,8 +9,11 @@
     clippy::let_unit_value,
     unreachable_code
 )]
+extern crate alloc;
+
 pub mod error;
 pub mod raw;
+use alloc::vec::Vec;
 use core::mem::{self, size_of};
 
 use bitflags::bitflags;
@@ -173,45 +176,6 @@ bitflags! {
     }
 }
 
-enum MaybeMut<'data> {
-    Data(&'data [u8]),
-    Mut(&'data mut [u8]),
-    Ptr {
-        data: *const u8,
-        size: usize,
-        read: usize,
-    },
-    None,
-}
-
-impl<'data> core::fmt::Debug for MaybeMut<'data> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Data(_) => f.debug_tuple("Data").field(&"...").finish(),
-            Self::Mut(_) => f.debug_tuple("Mut").field(&"...").finish(),
-            Self::Ptr { data, size, read } => f
-                .debug_struct("Ptr")
-                .field("data", data)
-                .field("size", size)
-                .field("read", read)
-                .finish(),
-            Self::None => write!(f, "None"),
-        }
-    }
-}
-
-impl<'a> From<&'a [u8]> for MaybeMut<'a> {
-    fn from(d: &'a [u8]) -> Self {
-        MaybeMut::Data(d)
-    }
-}
-
-impl<'a> From<&'a mut [u8]> for MaybeMut<'a> {
-    fn from(d: &'a mut [u8]) -> Self {
-        MaybeMut::Mut(d)
-    }
-}
-
 #[derive(Debug, Clone, Copy)]
 enum ImageHeader {
     Raw32(RawPe32),
@@ -222,61 +186,16 @@ enum ImageHeader {
 #[derive(Debug)]
 pub struct Section {
     header: RawSectionHeader,
+    data: Vec<u8>,
 }
 
 /// A PE file
 #[derive(Debug)]
-pub struct Pe<'bytes> {
-    pe: MaybeMut<'bytes>,
+pub struct Pe {
     coff: RawCoff,
     opt: ImageHeader,
-}
-
-#[cfg(no)]
-impl Pe<'static> {
-    /// Parse a byte slice of an entire PE file.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < MIN_SIZE {
-            return Err(Error::NotEnoughData);
-        }
-
-        let dos = unsafe { &*(bytes.as_ptr() as *const RawDos) };
-        if dos.magic != DOS_MAGIC {
-            return Err(Error::InvalidDosMagic);
-        }
-        let pe_offset = dos.pe_offset as usize;
-        let pe = bytes.get(pe_offset..).ok_or(Error::NotEnoughData)?;
-        if pe.len() < size_of::<RawCoff>() {
-            return Err(Error::NotEnoughData);
-        }
-        let raw = unsafe { &*(pe.as_ptr() as *const RawPe) };
-        if raw.sig != PE_MAGIC {
-            return Err(Error::InvalidPeMagic);
-        }
-        let opt = pe.get(size_of::<RawPe>()..).ok_or(Error::NotEnoughData)?;
-        if opt.len() < raw.coff.optional_size.into() {
-            return Err(Error::NotEnoughData);
-        }
-        let header = unsafe { &*(opt.as_ptr() as *const RawPeOptStandard) };
-        let opt = if header.magic == PE32_64_MAGIC {
-            let header = unsafe { &*(opt.as_ptr() as *const RawPe32x64) };
-            ImageHeader::Raw64(*header)
-        } else if header.magic == PE32_MAGIC {
-            todo!();
-        } else {
-            return Err(Error::InvalidPeMagic);
-        };
-        let coff = raw.coff;
-        Ok(Self {
-            pe: MaybeMut::None,
-            coff,
-            opt,
-        })
-    }
-
-    pub fn sections() {
-        //
-    }
+    data_dirs: Vec<RawDataDirectory>,
+    sections: Vec<Section>,
 }
 
 #[cfg(no)]
@@ -380,6 +299,7 @@ impl<'bytes> Pe<'bytes> {
     }
 }
 
+#[cfg(no)]
 impl<'bytes> Pe<'bytes> {
     /// Create a new [Pe] from a pointer and length to a PE image
     ///
@@ -489,13 +409,6 @@ impl<'bytes> Pe<'bytes> {
     }
 }
 
-#[cfg(no)]
-impl<'bytes> core::fmt::Debug for Pe<'bytes> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("Pe").field("pe", &"...").finish()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{fs, path::Path};
@@ -510,6 +423,7 @@ mod tests {
     // static TEST_IMAGE: &[u8] = include_bytes!("/boot/vmlinuz-linux");
     static TEST_IMAGE: &[u8] = include_bytes!("/boot/EFI/Linux/linux.efi");
 
+    #[cfg(no)]
     #[test]
     fn dev() -> Result<()> {
         let mut bytes = Vec::from(TEST_IMAGE);
