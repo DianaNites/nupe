@@ -3,6 +3,8 @@
 #![allow(
     unused_variables,
     unused_imports,
+    unused_mut,
+    unused_assignments,
     dead_code,
     clippy::let_unit_value,
     unreachable_code
@@ -171,11 +173,31 @@ bitflags! {
     }
 }
 
-#[derive(Debug)]
 enum MaybeMut<'data> {
     Data(&'data [u8]),
     Mut(&'data mut [u8]),
+    Ptr {
+        data: *const u8,
+        size: usize,
+        read: usize,
+    },
     None,
+}
+
+impl<'data> core::fmt::Debug for MaybeMut<'data> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Data(_) => f.debug_tuple("Data").field(&"...").finish(),
+            Self::Mut(_) => f.debug_tuple("Mut").field(&"...").finish(),
+            Self::Ptr { data, size, read } => f
+                .debug_struct("Ptr")
+                .field("data", data)
+                .field("size", size)
+                .field("read", read)
+                .finish(),
+            Self::None => write!(f, "None"),
+        }
+    }
 }
 
 impl<'a> From<&'a [u8]> for MaybeMut<'a> {
@@ -210,6 +232,7 @@ pub struct Pe<'bytes> {
     opt: ImageHeader,
 }
 
+#[cfg(no)]
 impl Pe<'static> {
     /// Parse a byte slice of an entire PE file.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
@@ -354,6 +377,80 @@ impl<'bytes> Pe<'bytes> {
         Ok(Self {
             pe: MaybeMut::Data(bytes),
         })
+    }
+}
+
+impl<'bytes> Pe<'bytes> {
+    /// Create a new [Pe] from a pointer and length to a PE image
+    ///
+    /// # Safety
+    ///
+    /// - `data` must be a valid for reads of `size` bytes.
+    /// - `data` must be valid for the entire lifetime of `'bytes`.
+    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
+        // Data we've read, must always be less than or equal to size.
+        let mut read = 0;
+        if size <= size_of::<RawDos>() {
+            return Err(Error::NotEnoughData);
+        }
+        read += size_of::<RawDos>();
+        let dos = &*(data as *const RawDos);
+        if dos.magic != DOS_MAGIC {
+            return Err(Error::InvalidDosMagic);
+        }
+        let pe_offset = dos.pe_offset as usize;
+        let dos_size = pe_offset - size_of::<RawDos>();
+        read += dos_size;
+        if size <= read + size_of::<RawPe>() {
+            return Err(Error::NotEnoughData);
+        }
+        let pe = &*(data.wrapping_add(read) as *const RawPe);
+        read += size_of::<RawPe>();
+        if pe.sig != PE_MAGIC {
+            return Err(Error::InvalidPeMagic);
+        }
+        if size <= read + pe.coff.optional_size as usize {
+            return Err(Error::NotEnoughData);
+        }
+        if size_of::<RawPeOptStandard>() > pe.coff.optional_size as usize {
+            return Err(Error::NotEnoughData);
+        }
+        let opt = &*(data.wrapping_add(read) as *const RawPeOptStandard);
+        // Intentionally not "reading" the RawPeOptStandard here
+        if opt.magic == PE32_64_MAGIC {
+            if size <= read + size_of::<RawPe32x64>() {
+                return Err(Error::NotEnoughData);
+            }
+            let opt = &*(data.wrapping_add(read) as *const RawPe32x64);
+            read += size_of::<RawPe32x64>();
+            return Ok(Self {
+                pe: MaybeMut::Ptr { data, size, read },
+                coff: pe.coff,
+                opt: ImageHeader::Raw64(*opt),
+            });
+            //
+        } else if opt.magic == PE32_MAGIC {
+            if size <= read + size_of::<RawPe32>() {
+                return Err(Error::NotEnoughData);
+            }
+            let opt = &*(data.wrapping_add(read) as *const RawPe32);
+            read += size_of::<RawPe32>();
+            todo!();
+            return Ok(Self {
+                pe: MaybeMut::Ptr { data, size, read },
+                coff: pe.coff,
+                opt: ImageHeader::Raw32(*opt),
+            });
+        } else {
+            return Err(Error::InvalidPeMagic);
+        }
+
+        todo!()
+    }
+
+    pub fn from_bytes(bytes: &'bytes [u8]) -> Result<Self> {
+        // Safety: Trivially valid
+        unsafe { Self::from_ptr(bytes.as_ptr(), bytes.len()) }
     }
 }
 
