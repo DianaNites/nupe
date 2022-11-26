@@ -192,6 +192,7 @@ pub struct Section {
 /// A PE file
 #[derive(Debug)]
 pub struct Pe {
+    dos: RawDos,
     coff: RawCoff,
     opt: ImageHeader,
     data_dirs: Vec<RawDataDirectory>,
@@ -200,34 +201,53 @@ pub struct Pe {
 
 impl Pe {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < MIN_SIZE {
-            return Err(Error::NotEnoughData);
-        }
-        let dos = unsafe { &*(bytes.as_ptr() as *const RawDos) };
-        dbg!(dos);
+        let dos = unsafe {
+            &*(bytes
+                .get(..size_of::<RawDos>())
+                .ok_or(Error::NotEnoughData)?
+                .as_ptr() as *const RawDos)
+        };
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
         }
-        let pe_offset = dos.pe_offset as usize;
-        let pe = bytes.get(pe_offset..).ok_or(Error::NotEnoughData)?;
-        if pe.len() < size_of::<RawCoff>() {
-            return Err(Error::NotEnoughData);
-        }
-        let raw = unsafe { &*(pe.as_ptr() as *const RawPe) };
-        dbg!(&raw);
-        if raw.sig != PE_MAGIC {
+        let pe_bytes = bytes
+            .get(dos.pe_offset as usize..)
+            .ok_or(Error::NotEnoughData)?;
+        let pe = unsafe {
+            &*(pe_bytes
+                .get(..size_of::<RawPe>())
+                .ok_or(Error::NotEnoughData)?
+                .as_ptr() as *const RawPe)
+        };
+        if pe.sig != PE_MAGIC {
             return Err(Error::InvalidPeMagic);
         }
-        let opt = pe.get(size_of::<RawPe>()..).ok_or(Error::NotEnoughData)?;
-        if opt.len() < raw.coff.optional_size.into() {
-            return Err(Error::NotEnoughData);
-        }
-        let header = unsafe { &*(opt.as_ptr() as *const RawPeOptStandard) };
-        if header.magic == PE32_64_MAGIC {
-            let header = unsafe { &*(opt.as_ptr() as *const RawPe32x64) };
+        let opt_size = pe.coff.optional_size as usize;
+        let opt_bytes = pe_bytes
+            .get(size_of::<RawPe>()..)
+            .ok_or(Error::NotEnoughData)?
+            .get(..opt_size)
+            .ok_or(Error::NotEnoughData)?;
+        let opt = unsafe {
+            &*(opt_bytes
+                .get(..size_of::<RawPeOptStandard>())
+                .ok_or(Error::NotEnoughData)?
+                .as_ptr() as *const RawPeOptStandard)
+        };
+        if opt.magic == PE32_64_MAGIC {
+            let header = unsafe {
+                &*(opt_bytes
+                    .get(..size_of::<RawPe32x64>())
+                    .ok_or(Error::NotEnoughData)?
+                    .as_ptr() as *const RawPe32x64)
+            };
             dbg!(&header);
-            let data = opt
+            let data_size = size_of::<RawDataDirectory>() * header.data_dirs as usize;
+
+            let data = opt_bytes
                 .get(size_of::<RawPe32x64>()..)
+                .ok_or(Error::NotEnoughData)?
+                .get(..data_size)
                 .ok_or(Error::NotEnoughData)?;
             let data_dirs = unsafe {
                 core::slice::from_raw_parts(
@@ -235,58 +255,23 @@ impl Pe {
                     header.data_dirs as usize,
                 )
             };
-            let export = data_dirs.get(0);
-            let import = data_dirs.get(1);
-            let resource = data_dirs.get(2);
-            let exception = data_dirs.get(3);
-            let certificate = data_dirs.get(4);
-            let relocation = data_dirs.get(5);
-            let debug = data_dirs.get(6);
-            let _arch = data_dirs.get(7);
-            let _global_ptr = data_dirs.get(8);
-            let tls = data_dirs.get(9);
-            let load_config = data_dirs.get(10);
-            let bound = data_dirs.get(11);
-            let iat = data_dirs.get(12);
-            let delay_import = data_dirs.get(13);
-            let clr = data_dirs.get(14);
-            let reserved = data_dirs.get(15);
-            //
-            dbg!(
-                export,
-                import,
-                resource,
-                exception,
-                certificate,
-                relocation,
-                debug,
-                _arch,
-                _global_ptr,
-                tls,
-                load_config,
-                bound,
-                iat,
-                delay_import,
-                clr,
-                reserved,
-            );
-            let sections_bytes = data
-                .get(size_of::<RawDataDirectory>() * header.data_dirs as usize..)
+            let sections_size = size_of::<RawSectionHeader>() * pe.coff.sections as usize;
+            let sections_bytes = pe_bytes
+                .get(opt_size + size_of::<RawPe>()..)
+                .ok_or(Error::NotEnoughData)?
+                .get(..sections_size)
                 .ok_or(Error::NotEnoughData)?;
             let sections = unsafe {
                 core::slice::from_raw_parts(
                     sections_bytes.as_ptr() as *const RawSectionHeader,
-                    raw.coff.sections.into(),
+                    pe.coff.sections.into(),
                 )
             };
-            // dbg!(sections);
             for section in sections {
-                let name = core::str::from_utf8(&section.name);
-                // dbg!(&name);
                 dbg!(&section);
             }
             //
-        } else if header.magic == PE32_MAGIC {
+        } else if opt.magic == PE32_MAGIC {
             todo!();
         } else {
             return Err(Error::InvalidPeMagic);
