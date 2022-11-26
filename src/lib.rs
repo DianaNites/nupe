@@ -186,12 +186,11 @@ enum ImageHeader {
 #[derive(Debug)]
 pub struct Section {
     header: RawSectionHeader,
-    data: Vec<u8>,
 }
 
 /// A PE file
 #[derive(Debug)]
-pub struct Pe {
+pub struct PeHeader {
     dos: RawDos,
     coff: RawCoff,
     opt: ImageHeader,
@@ -199,7 +198,7 @@ pub struct Pe {
     sections: Vec<Section>,
 }
 
-impl Pe {
+impl PeHeader {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let dos = unsafe {
             &*(bytes
@@ -289,7 +288,7 @@ impl Pe {
 }
 
 #[cfg(no)]
-impl<'bytes> Pe<'bytes> {
+impl<'bytes> PeHeader<'bytes> {
     /// Create a new [Pe] from a pointer and length to a PE image
     ///
     /// # Safety
@@ -414,7 +413,7 @@ mod tests {
 
     #[test]
     fn dev() -> Result<()> {
-        let pe = Pe::from_bytes(TEST_IMAGE);
+        let pe = PeHeader::from_bytes(TEST_IMAGE);
         dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
