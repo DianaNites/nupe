@@ -56,17 +56,18 @@ impl<'data> SectionBuilder<'data> {
     }
 
     /// Attributes for the section
-    pub fn attribues(&mut self, attr: SectionFlags) -> &mut Self {
+    pub fn attributes(&mut self, attr: SectionFlags) -> &mut Self {
         self.attr = Some(attr);
         self
     }
 
     pub fn build(&mut self) -> Result<Section<'static>> {
+        let len = self.data.unwrap().len().try_into().unwrap();
         let mut header = RawSectionHeader {
             name: self.name,
-            virtual_size: self.data.unwrap().len().try_into().unwrap(),
+            virtual_size: len,
             virtual_address: todo!(),
-            raw_size: self.data.unwrap().len().try_into().unwrap(),
+            raw_size: len,
             raw_ptr: todo!(),
             reloc_ptr: todo!(),
             line_ptr: todo!(),
