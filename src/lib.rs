@@ -410,7 +410,7 @@ impl<'data> Section<'data> {
 
 /// A PE file
 #[derive(Debug)]
-pub struct PeHeader<'data> {
+pub struct Pe<'data> {
     dos: &'data RawDos,
     coff: &'data RawCoff,
     opt: ImageHeader<'data>,
@@ -420,7 +420,7 @@ pub struct PeHeader<'data> {
     _phantom: PhantomData<&'data u8>,
 }
 
-impl<'data> PeHeader<'data> {
+impl<'data> Pe<'data> {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
@@ -450,7 +450,7 @@ impl<'data> PeHeader<'data> {
     }
 }
 
-impl<'data> PeHeader<'data> {
+impl<'data> Pe<'data> {
     /// Get a [`PeHeader`] from `data`, checking to make sure its valid.
     ///
     /// # Safety
@@ -477,7 +477,7 @@ impl<'data> PeHeader<'data> {
     }
 }
 
-impl<'data> PeHeader<'data> {
+impl<'data> Pe<'data> {
     /// Get a [`Section`] by `name`. Ignores nul.
     ///
     /// Note that PE section names can only be 8 bytes, total.
@@ -513,7 +513,7 @@ impl<'data> PeHeader<'data> {
     }
 }
 
-impl<'data> PeHeader<'data> {
+impl<'data> Pe<'data> {
     /// Raw COFF header for this PE file
     ///
     /// This is only for advanced users.
@@ -547,7 +547,7 @@ mod tests {
     #[test]
     fn dev() -> Result<()> {
         // let mut pe = PeHeader::from_bytes(TEST_IMAGE);
-        let mut pe = unsafe { PeHeader::from_ptr(TEST_IMAGE.as_ptr(), TEST_IMAGE.len()) };
+        let mut pe = unsafe { Pe::from_ptr(TEST_IMAGE.as_ptr(), TEST_IMAGE.len()) };
         dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
@@ -568,7 +568,7 @@ mod tests {
     /// test ability to read rustup-init.exe
     #[test]
     fn read_rustup() -> Result<()> {
-        let mut pe = PeHeader::from_bytes(RUSTUP_IMAGE)?;
+        let mut pe = Pe::from_bytes(RUSTUP_IMAGE)?;
         dbg!(&pe);
         assert_eq!(pe.machine_type(), MachineType::AMD64);
         assert_eq!(pe.sections().count(), 6);
