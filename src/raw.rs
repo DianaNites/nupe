@@ -153,7 +153,9 @@ impl RawDos {
             return Err(Error::InvalidDosMagic);
         }
         let pe_ptr = data.wrapping_add(dos.pe_offset as usize);
-        let pe_size = size - dos.pe_offset as usize;
+        let pe_size = size
+            .checked_sub(dos.pe_offset as usize)
+            .ok_or(Error::NotEnoughData)?;
         Ok((dos, (pe_ptr, pe_size)))
     }
 
@@ -202,7 +204,11 @@ impl RawPe {
     pub unsafe fn from_ptr<'data>(
         data: *const u8,
         size: usize,
-    ) -> Result<(&'data Self, (*const u8, usize), (*const u8, usize))> {
+    ) -> Result<(
+        &'data Self,
+        (*const u8, usize),
+        (*const RawSectionHeader, usize),
+    )> {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
@@ -216,9 +222,19 @@ impl RawPe {
         let opt_size = pe.coff.optional_size as usize;
         let opt_ptr = data.wrapping_add(size_of::<RawPe>());
 
-        let section_size = size_of::<RawSectionHeader>() * pe.coff.sections as usize;
-        let section_ptr = data.wrapping_add(size_of::<RawPe>() + opt_size);
-        Ok((pe, (opt_ptr, opt_size), (section_ptr, section_size)))
+        let _section_size = size_of::<RawSectionHeader>()
+            .checked_mul(pe.coff.sections as usize)
+            .ok_or(Error::NotEnoughData)?;
+        let section_ptr = data.wrapping_add(
+            size_of::<RawPe>()
+                .checked_add(opt_size)
+                .ok_or(Error::NotEnoughData)?,
+        ) as *const RawSectionHeader;
+        Ok((
+            pe,
+            (opt_ptr, opt_size),
+            (section_ptr, pe.coff.sections as usize),
+        ))
     }
 
     /// Get a [`RawPe`] from `bytes`. Checks for the PE magic.
