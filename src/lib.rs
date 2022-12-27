@@ -594,8 +594,8 @@ pub struct PeBuilder<'data, State> {
     /// Type state
     state: PhantomData<State>,
 
-    sections: Option<&'data [Section<'data>]>,
-    data_dirs: Option<&'data [RawDataDirectory]>,
+    sections: VecOrSlice<'data, Section<'data>>,
+    data_dirs: VecOrSlice<'data, RawDataDirectory>,
     // Required
     machine: MachineType,
     timestamp: Option<u32>,
@@ -632,8 +632,8 @@ impl<'data> PeBuilder<'data, states::Empty> {
         Self {
             //
             state: PhantomData,
-            sections: None,
-            data_dirs: None,
+            sections: VecOrSlice::Vec(Vec::new()),
+            data_dirs: VecOrSlice::Vec(Vec::new()),
             machine: MachineType::UNKNOWN,
             timestamp: None,
             image_base: DEFAULT_IMAGE_BASE,
@@ -706,12 +706,7 @@ impl<'data, State> PeBuilder<'data, State> {
         let data_dirs = size_of::<RawDataDirectory>() * 0;
         #[allow(clippy::erasing_op)]
         let sections = size_of::<RawSectionHeader>() * 0;
-        let sections_sum: u32 = self
-            .sections
-            .unwrap()
-            .iter()
-            .map(|s| s.header.raw_size)
-            .sum();
+        let sections_sum: u32 = self.sections.iter().map(|s| s.header.raw_size).sum();
         let sections_sum = sections_sum as usize;
         size_of::<RawDos>()
             + DOS_STUB
@@ -809,6 +804,11 @@ impl<'data, State> PeBuilder<'data, State> {
     /// Truncates `out` and writes [`Pe`] to it
     pub fn write(&mut self, out: &mut Vec<u8>) -> Result<()> {
         /// The way we create and write a PE file is primarily virtually.
+        /// This means we pretend we've written a file and fill things in based
+        /// on that.
+        ///
+        /// This should be exactly the same as just writing the file (correctly)
+        /// and then reading it.
         ///
         /// The first and most basic things needed are the sections and data
         /// directories.
@@ -817,11 +817,14 @@ impl<'data, State> PeBuilder<'data, State> {
         /// information from or about these.
         ///
         /// The first structure we can create is [`RawDos`]
+        ///
+        /// The next is the optional header.
+        /// This needs to go through all sections to sum up their sizes
         struct _DummyHoverWriteDocs;
         out.clear();
         let machine = self.machine;
-        let s_sections = self.sections.unwrap_or_default();
-        let data_dirs = self.data_dirs.unwrap_or(&[]);
+        let s_sections = &self.sections;
+        let data_dirs = &self.data_dirs;
 
         let dos = OwnedOrRef::Owned(RawDos::new(size_of::<RawDos>() as u32));
 
@@ -833,7 +836,7 @@ impl<'data, State> PeBuilder<'data, State> {
             let mut uninit_sum = 0;
             let mut code_base = 0;
             let mut data_base = 0;
-            for section in s_sections {
+            for section in s_sections.iter() {
                 match section.flags() {
                     SectionFlags::CODE => {
                         code_sum += section.virtual_size();
@@ -928,7 +931,7 @@ impl<'data, State> PeBuilder<'data, State> {
             dos,
             coff,
             opt,
-            data_dirs: VecOrSlice::Slice(data_dirs),
+            data_dirs: VecOrSlice::Slice(&data_dirs),
             sections: VecOrSlice::Vec(s_sections.iter().map(|s| *s.header).collect()),
             base: None,
             _phantom: PhantomData,
