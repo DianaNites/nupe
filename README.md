@@ -24,6 +24,8 @@ A `no_std` library for handling PE files
 
 - Given a (mutable) byte slice to a (partial??) image
   - Read the header
+  - Find the location of other sections on disk
+    - And where they would be in memory offset from the base address?
   - Add sections
   - Remove sections
   - Re-order sections
