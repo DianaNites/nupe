@@ -191,6 +191,26 @@ pub struct RawCoff {
     pub attributes: CoffAttributes,
 }
 
+impl RawCoff {
+    pub fn new(
+        machine: MachineType,
+        sections: u16,
+        time: u32,
+        optional_size: u16,
+        attributes: CoffAttributes,
+    ) -> Self {
+        Self {
+            machine,
+            sections,
+            time,
+            sym_offset: 0,
+            num_sym: 0,
+            optional_size,
+            attributes,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPe {
@@ -291,6 +311,28 @@ pub struct RawPeOptStandard {
 }
 
 impl RawPeOptStandard {
+    pub fn new(
+        magic: u16,
+        linker_major: u8,
+        linker_minor: u8,
+        code_size: u32,
+        init_size: u32,
+        uninit_size: u32,
+        entry_offset: u32,
+        code_base: u32,
+    ) -> Self {
+        Self {
+            magic,
+            linker_major,
+            linker_minor,
+            code_size,
+            init_size,
+            uninit_size,
+            entry_offset,
+            code_base,
+        }
+    }
+
     /// Get a [`RawPeOptStandard`] from `bytes`. Checks for the magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
         let opt = unsafe {
@@ -388,6 +430,53 @@ pub struct RawPe32x64 {
 }
 
 impl RawPe32x64 {
+    pub fn new(
+        standard: RawPeOptStandard,
+        image_base: u64,
+        section_align: u32,
+        file_align: u32,
+        os_major: u16,
+        os_minor: u16,
+        image_major: u16,
+        image_minor: u16,
+        subsystem_major: u16,
+        subsystem_minor: u16,
+        image_size: u32,
+        headers_size: u32,
+        subsystem: Subsystem,
+        dll_characteristics: DllCharacteristics,
+        stack_reserve: u64,
+        stack_commit: u64,
+        heap_reserve: u64,
+        heap_commit: u64,
+        data_dirs: u32,
+    ) -> Self {
+        Self {
+            standard,
+            image_base,
+            section_align,
+            file_align,
+            os_major,
+            os_minor,
+            image_major,
+            image_minor,
+            subsystem_major,
+            subsystem_minor,
+            _reserved_win32: 0,
+            image_size,
+            headers_size,
+            checksum: 0,
+            subsystem,
+            dll_characteristics,
+            stack_reserve,
+            stack_commit,
+            heap_reserve,
+            heap_commit,
+            _reserved_loader_flags: 0,
+            data_dirs,
+        }
+    }
+
     /// Get a [`RawPe32x64`] from `data`. Checks for the magic.
     ///
     /// # Safety
@@ -418,6 +507,12 @@ impl RawPe32x64 {
 pub struct RawDataDirectory {
     pub address: u32,
     pub size: u32,
+}
+
+impl RawDataDirectory {
+    pub fn new(address: u32, size: u32) -> Self {
+        Self { address, size }
+    }
 }
 
 #[derive(Clone, Copy)]

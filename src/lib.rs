@@ -8,6 +8,8 @@
     dead_code,
     clippy::let_unit_value,
     clippy::diverging_sub_expression,
+    clippy::new_without_default,
+    clippy::too_many_arguments,
     unreachable_code
 )]
 extern crate alloc;
@@ -26,6 +28,12 @@ use bitflags::bitflags;
 use raw::*;
 
 use crate::error::{Error, Result};
+
+/// Windows PE Section alignment
+const AMD64_SECTION_ALIGN: u32 = 4096;
+
+/// Windows PE Section alignment
+const AMD64_FILE_ALIGN: u32 = 512;
 
 /// Machine type, or architecture, of the PE file.
 ///
@@ -526,6 +534,129 @@ impl<'data> Pe<'data> {
     /// This is only for advanced users.
     pub fn opt(&self) -> &'data ImageHeader {
         &self.opt
+    }
+}
+
+/// Builder for a [`Pe`] file
+#[derive(Debug)]
+pub struct PeBuilder<'data> {
+    sections: Option<&'data [Section<'data>]>,
+    // Required
+    machine: Option<MachineType>,
+    timestamp: Option<u32>,
+    attributes: CoffAttributes,
+}
+
+impl<'data> PeBuilder<'data> {
+    /// Create a new [`PeBuilder`]
+    pub fn new() -> Self {
+        Self {
+            //
+            sections: None,
+            machine: None,
+            timestamp: None,
+            attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
+        }
+    }
+
+    /// Machine Type. This is required.
+    pub fn machine(&mut self, machine: MachineType) -> &mut Self {
+        self.machine = Some(machine);
+        self
+    }
+
+    /// Attributes for the [`Pe`] file.
+    ///
+    /// If unset, this defaults to `IMAGE | LARGE_ADDRESS_AWARE`.
+    ///
+    /// This completely overwrites the attributes.
+    pub fn attribues(&mut self, attr: CoffAttributes) -> &mut Self {
+        self.attributes = attr;
+        self
+    }
+
+    /// Build the [`Pe`]
+    pub fn build(&mut self) -> Result<Pe> {
+        let address = 0;
+        let size = 0;
+        let data_dir = RawDataDirectory::new(address, size);
+
+        let code_sum = 0;
+        let init_sum = 0;
+        let uninit_sum = 0;
+        let entry = 0;
+        let code_base = 0;
+        let opt = RawPeOptStandard::new(
+            match self.machine.unwrap() {
+                MachineType::AMD64 => Ok(PE32_64_MAGIC),
+                MachineType::I386 => Ok(PE32_MAGIC),
+                _ => Err(Error::InvalidData),
+            }?,
+            0,
+            0,
+            code_sum,
+            init_sum,
+            uninit_sum,
+            entry,
+            code_base,
+        );
+        let image_base = 0;
+        let os_major = 0;
+        let os_minor = 0;
+        let image_major = 0;
+        let image_minor = 0;
+        let subsystem_major = 0;
+        let subsystem_minor = 0;
+        let image_size = 0;
+        let headers_size = 0;
+        let subsystem = Subsystem::UNKNOWN;
+        let dll_characteristics = DllCharacteristics::DYNAMIC_BASE;
+        let stack_reserve = 0;
+        let stack_commit = 0;
+        let heap_reserve = 0;
+        let heap_commit = 0;
+        let data_dirs = 0;
+        let opt64 = RawPe32x64::new(
+            opt,
+            image_base,
+            AMD64_SECTION_ALIGN,
+            AMD64_FILE_ALIGN,
+            os_major,
+            os_minor,
+            image_major,
+            image_minor,
+            subsystem_major,
+            subsystem_minor,
+            image_size,
+            headers_size,
+            subsystem,
+            dll_characteristics,
+            stack_reserve,
+            stack_commit,
+            heap_reserve,
+            heap_commit,
+            data_dirs,
+        );
+
+        let sections = 0;
+        let time = 0;
+        let optional_size = size_of::<RawPeOptStandard>() as u16;
+        let pe = Pe {
+            dos: &RawDos::new(size_of::<RawDos>() as u32),
+            coff: &RawCoff::new(
+                self.machine.unwrap(),
+                sections,
+                time,
+                optional_size,
+                self.attributes,
+            ),
+            opt: todo!(),
+            data_dirs: todo!(),
+            sections: todo!(),
+            base: todo!(),
+            _phantom: PhantomData,
+        };
+        todo!()
     }
 }
 
