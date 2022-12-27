@@ -205,6 +205,11 @@ impl Section {
     pub fn file_size(&self) -> u32 {
         self.header.raw_size
     }
+
+    pub fn name(&self) -> &str {
+        // TODO: Validate UTF-8 early on and use unchecked?
+        core::str::from_utf8(&self.header.name).unwrap()
+    }
 }
 
 /// A PE file
@@ -416,7 +421,7 @@ mod tests {
         // dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
-            dbg!(section);
+            dbg!(section.name());
         }
 
         panic!();
