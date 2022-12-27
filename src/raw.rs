@@ -34,7 +34,7 @@ pub const DOS_PARAGRAPH: usize = 16;
 /// File cannot possibly be valid if not at least this size.
 pub const MIN_SIZE: usize = size_of::<RawCoff>() + size_of::<RawDos>();
 
-/// PE Magic signature
+/// PE COFF Magic signature
 pub const PE_MAGIC: &[u8] = b"PE\0\0";
 
 /// PE32 Magic signature
@@ -374,28 +374,84 @@ impl RawPeOptStandard {
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPe32 {
+    /// Standard/common subset
     pub standard: RawPeOptStandard,
+
+    /// Offset to beginning-of-data section, relative to image base.
     pub data_base: u32,
+
+    /// Preferred base address of the image when loaded in memory.
     pub image_base: u32,
+
+    /// Alignment, in bytes, of the section in memory.
+    ///
+    /// Must be greater or equal to file_align.
+    ///
+    /// Default is architecture page size.
     pub section_align: u32,
+
+    /// Alignment, in bytes, of the section on disk.
+    ///
+    /// Must be a power of two, between 512 and 64K inclusive.
+    ///
+    /// Default is 512
     pub file_align: u32,
+
+    /// Required OS major version
     pub os_major: u16,
+    /// Required OS minor version
     pub os_minor: u16,
+
+    /// Image major version
     pub image_major: u16,
+
+    /// Image minor version
     pub image_minor: u16,
+
+    /// Subsystem major version
     pub subsystem_major: u16,
+
+    /// Subsystem minor version
     pub subsystem_minor: u16,
+
+    /// Reserved, 0.
     pub _reserved_win32: u32,
+
+    /// Size in bytes of the image as loaded in memory, aligned to
+    /// section_align.
     pub image_size: u32,
+
+    /// Combined size of the DOS stub, PE header, and section headers, aligned
+    /// to file_align.
     pub headers_size: u32,
+
+    /// A checksum
     pub checksum: u32,
+
+    /// Subsystem required to run image
     pub subsystem: Subsystem,
+
+    /// Flags for windows
     pub dll_characteristics: DllCharacteristics,
+
+    /// Size of the stack to reserve.
     pub stack_reserve: u32,
+
+    /// Size of the stack to commit. Made available one page at a time until
+    /// reserve.
     pub stack_commit: u32,
+
+    /// Size of the heap to reserve.
     pub heap_reserve: u32,
+
+    /// Size of the heap to commit. Made available one page at a time until
+    /// reserve.
     pub heap_commit: u32,
+
+    /// Reserved, 0.
     pub _reserved_loader_flags: u32,
+
+    /// Number of data directories following the header.
     pub data_dirs: u32,
 }
 
@@ -429,27 +485,81 @@ impl RawPe32 {
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPe32x64 {
+    /// Standard/common subset
     pub standard: RawPeOptStandard,
+
+    /// Preferred base address of the image when loaded in memory.
     pub image_base: u64,
+
+    /// Alignment, in bytes, of the section in memory.
+    ///
+    /// Must be greater or equal to file_align.
+    ///
+    /// Default is architecture page size.
     pub section_align: u32,
+
+    /// Alignment, in bytes, of the section on disk.
+    ///
+    /// Must be a power of two, between 512 and 64K inclusive.
+    ///
+    /// Default is 512
     pub file_align: u32,
+
+    /// Required OS major version
     pub os_major: u16,
+    /// Required OS minor version
     pub os_minor: u16,
+
+    /// Image major version
     pub image_major: u16,
+
+    /// Image minor version
     pub image_minor: u16,
+
+    /// Subsystem major version
     pub subsystem_major: u16,
+
+    /// Subsystem minor version
     pub subsystem_minor: u16,
+
+    /// Reserved, 0.
     pub _reserved_win32: u32,
+
+    /// Size in bytes of the image as loaded in memory, aligned to
+    /// section_align.
     pub image_size: u32,
+
+    /// Combined size of the DOS stub, PE header, and section headers, aligned
+    /// to file_align.
     pub headers_size: u32,
+
+    /// A checksum
     pub checksum: u32,
+
+    /// Subsystem required to run image
     pub subsystem: Subsystem,
+
+    /// Flags for windows
     pub dll_characteristics: DllCharacteristics,
+
+    /// Size of the stack to reserve.
     pub stack_reserve: u64,
+
+    /// Size of the stack to commit. Made available one page at a time until
+    /// reserve.
     pub stack_commit: u64,
+
+    /// Size of the heap to reserve.
     pub heap_reserve: u64,
+
+    /// Size of the heap to commit. Made available one page at a time until
+    /// reserve.
     pub heap_commit: u64,
+
+    /// Reserved, 0.
     pub _reserved_loader_flags: u32,
+
+    /// Number of data directories following the header.
     pub data_dirs: u32,
 }
 
