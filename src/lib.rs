@@ -857,8 +857,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 .try_into()
                 .map_err(|_| Error::InvalidData)?,
             0, // TODO: Times
-            // optional_size.try_into().map_err(|_| Error::InvalidData)?,
-            0,
+            optional_size.try_into().map_err(|_| Error::InvalidData)?,
             self.attributes,
         ));
 
@@ -1000,7 +999,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 from_raw_parts(ptr, size_of::<RawSectionHeader>() * self.sections.len())
             };
             out.extend_from_slice(bytes);
-            dbg!(&s.header);
         }
         // TODO: Section data
 

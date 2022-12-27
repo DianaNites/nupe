@@ -11,7 +11,10 @@
 //! - [RawPe32] or [RawPe32x64]
 //! - Variable number of [RawDataDirectory]
 //! - Variable number of [RawSectionHeader]
-use core::mem::{self, size_of};
+use core::{
+    fmt,
+    mem::{self, size_of},
+};
 
 use crate::{
     error::{Error, Result},
@@ -44,7 +47,7 @@ pub const PE32_MAGIC: u16 = 0x10B;
 pub const PE32_64_MAGIC: u16 = 0x20B;
 
 /// Raw DOS header
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawDos {
     /// [DOS_MAGIC]
@@ -173,6 +176,63 @@ impl RawDos {
                 .get(dos.pe_offset as usize..)
                 .ok_or(Error::NotEnoughData)?,
         ))
+    }
+}
+
+impl fmt::Debug for RawDos {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("RawDos");
+        if self.magic == DOS_MAGIC {
+            struct Helper;
+            impl fmt::Debug for Helper {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    write!(f, r#"b"MZ""#)
+                }
+            }
+            s.field("magic", &Helper);
+        } else {
+            s.field("magic", &{ self.magic });
+        }
+
+        s.field("last_bytes", &{ self.last_bytes })
+            .field("pages", &{ self.pages })
+            .field("relocations", &{ self.relocations })
+            .field("header_size", &{ self.header_size })
+            .field("min_alloc", &{ self.min_alloc })
+            .field("max_alloc", &{ self.max_alloc })
+            .field("initial_ss", &{ self.initial_ss })
+            .field("initial_sp", &{ self.initial_sp })
+            .field("checksum", &{ self.checksum })
+            .field("initial_ip", &{ self.initial_ip })
+            .field("initial_cs", &{ self.initial_cs })
+            .field("relocation_offset", &{ self.relocation_offset })
+            .field("overlay_num", &{ self.overlay_num });
+        if { self._reserved } == [0; 4] {
+            struct Helper;
+            impl fmt::Debug for Helper {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    write!(f, "[0u16; 4]")
+                }
+            }
+            s.field("_reserved", &Helper);
+        } else {
+            s.field("_reserved", &{ self._reserved });
+        }
+
+        s.field("oem_id", &{ self.oem_id })
+            .field("oem_info", &{ self.oem_info });
+        if { self._reserved2 } == [0; 20] {
+            struct Helper;
+            impl fmt::Debug for Helper {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    write!(f, "[0u8; 20]")
+                }
+            }
+            s.field("_reserved2", &Helper);
+        } else {
+            s.field("_reserved2", &{ self._reserved2 });
+        }
+        s.field("pe_offset", &{ self.pe_offset }).finish()
     }
 }
 
@@ -694,8 +754,8 @@ impl RawSectionHeader {
     }
 }
 
-impl core::fmt::Debug for RawSectionHeader {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Debug for RawSectionHeader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("RawSectionHeader");
         if let Ok(s) = self.name() {
             f.field("name(str)", &s);
