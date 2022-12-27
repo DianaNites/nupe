@@ -236,6 +236,7 @@ impl<'data> ImageHeader<'data> {
         }
     }
 
+    /// Subsystem
     fn subsystem(&self) -> Subsystem {
         match self {
             ImageHeader::Raw32(h) => h.subsystem,
