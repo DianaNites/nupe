@@ -1053,7 +1053,19 @@ mod tests {
         Ok(())
     }
 
-    /// test ability to read rustup-init.exe
+    /// Test ability to write a copy of rustup-init.exe, from our own parsed
+    /// data structures.
+    #[test]
+    fn write_rustup() -> Result<()> {
+        let mut in_pe = Pe::from_bytes(RUSTUP_IMAGE)?;
+        dbg!(&in_pe);
+        let mut pe = PeBuilder::new()
+            .machine(MachineType::AMD64)
+            .subsystem(Subsystem::WINDOWS_CLI);
+        Ok(())
+    }
+
+    /// Test ability to read rustup-init.exe
     #[test]
     fn read_rustup() -> Result<()> {
         let mut pe = Pe::from_bytes(RUSTUP_IMAGE)?;
