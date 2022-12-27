@@ -575,11 +575,8 @@ impl<'data> Pe<'data> {
     /// Raw COFF header for this PE file
     ///
     /// This is only for advanced users.
-    pub fn coff(&self) -> &'data RawCoff {
-        match self.coff {
-            OwnedOrRef::Owned(o) => todo!(),
-            OwnedOrRef::Ref(r) => r,
-        }
+    pub fn coff(&self) -> &RawCoff {
+        &self.coff
     }
 
     /// Raw COFF header for this PE file
@@ -587,6 +584,13 @@ impl<'data> Pe<'data> {
     /// This is only for advanced users.
     pub fn opt(&self) -> &'data ImageHeader {
         &self.opt
+    }
+
+    /// Raw DOS header for this PE file
+    ///
+    /// This is only for advanced users.
+    pub fn dos(&self) -> &RawDos {
+        &self.dos
     }
 }
 
@@ -647,11 +651,16 @@ pub struct PeBuilder<'data, State> {
     /// Defaults to 512
     file_align: u64,
 
-    /// Defaults to None
-    entry: Option<u32>,
+    /// Defaults to 0
+    entry: u32,
 
+    /// DOS Header and stub to use. Defaults to empty, no stub.
+    dos: Option<(RawDos, VecOrSlice<'data, u8>)>,
+
+    /// COFF Attributes
     attributes: CoffAttributes,
 
+    /// DLL Attributes
     dll_attributes: DllCharacteristics,
 
     /// Subsystem
@@ -676,7 +685,8 @@ impl<'data> PeBuilder<'data, states::Empty> {
             image_base: DEFAULT_IMAGE_BASE,
             section_align: 4096,
             file_align: 512,
-            entry: None,
+            entry: 0,
+            dos: None,
             attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
             subsystem: Subsystem::UNKNOWN,
             dll_attributes: DllCharacteristics::empty(),
@@ -694,8 +704,10 @@ impl<'data> PeBuilder<'data, states::Empty> {
 
 impl<'data> PeBuilder<'data, states::Machine> {
     /// Offset from image base to entry point
+    ///
+    /// Defaults to 0
     pub fn entry(&mut self, entry: u32) -> &mut Self {
-        self.entry = Some(entry);
+        self.entry = entry;
         self
     }
 
@@ -726,12 +738,24 @@ impl<'data> PeBuilder<'data, states::Machine> {
         self.attributes = attr;
         self
     }
+
+    /// DOS Header and stub
+    ///
+    /// If unset, this defaults to an empty header, except for the PE offset,
+    /// and no DOS stub.
+    ///
+    /// This completely overwrites the header and stub.
+    pub fn dos(&mut self, dos: RawDos, stub: VecOrSlice<'data, u8>) -> &mut Self {
+        self.dos = Some((dos, stub));
+        self
+    }
 }
 
 impl<'data> PeBuilder<'data, states::Machine> {
     /// Calculate the size on disk this file would take
     ///
     /// Ignores file alignment
+    #[cfg(no)]
     fn calculate_size(&self) -> usize {
         const DOS_STUB: usize = 0;
         let opt_size = match self.machine {
@@ -752,6 +776,42 @@ impl<'data> PeBuilder<'data, states::Machine> {
             + data_dirs
             + sections
             + sections_sum
+    }
+
+    /// Write the DOS header
+    ///
+    /// The PE offset is expected to point directly after the DOS header and
+    /// stub.
+    ///
+    /// TODO: May need to support more of the DOS format to be able to perfectly
+    /// represent this, because of hidden metadata between the stub and PE.
+    ///
+    /// By default there is no stub, and the header only contains the offset.
+    fn write_dos(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        if let Some((dos, stub)) = self.dos.as_ref() {
+            // Provided header and stub, PE expected directly after this.
+            let bytes = unsafe {
+                let ptr = dos as *const RawDos as *const u8;
+                from_raw_parts(ptr, size_of::<RawDos>())
+            };
+            out.extend_from_slice(bytes);
+            // Stub
+            out.extend_from_slice(stub);
+        } else {
+            // No stub, PE expected directly after this.
+            let dos = RawDos::new(size_of::<RawDos>() as u32);
+            let bytes = unsafe {
+                let ptr = &dos as *const RawDos as *const u8;
+                from_raw_parts(ptr, size_of::<RawDos>())
+            };
+            out.extend_from_slice(bytes);
+        };
+        Ok(())
+    }
+
+    /// Write the PE header
+    fn write_pe(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        Ok(())
     }
 
     /// Truncates `out` and writes [`Pe`] to it
@@ -779,12 +839,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
         out.clear();
         let machine = self.machine;
 
-        let dos = OwnedOrRef::Owned(RawDos::new(size_of::<RawDos>() as u32));
-        let bytes = unsafe {
-            let ptr = dos.as_ref() as *const RawDos as *const u8;
-            from_raw_parts(ptr, size_of::<RawDos>())
-        };
-        out.extend_from_slice(bytes);
+        self.write_dos(out)?;
+
         // NOTE: Remember to align to 8 bytes if we write a stub.
         out.extend_from_slice(PE_MAGIC);
 
@@ -856,7 +912,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 init_sum,
                 uninit_sum,
                 // FIXME: Entry point will be incredibly error prone.
-                self.entry.unwrap(),
+                self.entry,
                 code_base,
             );
             let headers_size = (size_of::<RawDos>()
@@ -1006,9 +1062,22 @@ mod tests {
     fn write_rustup() -> Result<()> {
         let mut in_pe = Pe::from_bytes(RUSTUP_IMAGE)?;
         dbg!(&in_pe);
-        let mut pe = PeBuilder::new()
-            .machine(MachineType::AMD64)
-            .subsystem(Subsystem::WINDOWS_CLI);
+        let mut pe = PeBuilder::new();
+        let mut pe = pe.machine(MachineType::AMD64);
+        pe.subsystem(Subsystem::WINDOWS_CLI)
+            .dos(*in_pe.dos(), VecOrSlice::Slice(in_pe.dos_stub()))
+            .stack((1048576, 4096))
+            .heap((1048576, 4096))
+            .entry(in_pe.entry());
+        let mut out: Vec<u8> = Vec::new();
+        pe.write(&mut out)?;
+        //
+        let out_pe = Pe::from_bytes(&out);
+        dbg!(&out_pe);
+        dbg!(&RawDos::from_bytes(&out[..64]));
+        dbg!(&in_pe.dos());
+
+        panic!();
         Ok(())
     }
 
@@ -1094,7 +1163,7 @@ mod tests {
         // assert_eq!(pe.heap_commit(), 4096);
         // assert_eq!(pe.data_dirs(), 16);
 
-        panic!();
+        // panic!();
 
         Ok(())
     }
