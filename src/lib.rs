@@ -289,12 +289,12 @@ impl<'data> ImageHeader<'data> {
 
 /// A PE Section
 #[derive(Debug)]
-pub struct Section {
-    header: RawSectionHeader,
+pub struct Section<'data> {
+    header: &'data RawSectionHeader,
     base: Option<(*const u8, usize)>,
 }
 
-impl Section {
+impl<'data> Section<'data> {
     /// Address to the first byte of the section, relative to the image base.
     pub fn virtual_address(&self) -> u32 {
         self.header.virtual_address
@@ -341,8 +341,8 @@ pub struct PeHeader<'data> {
     dos: &'data RawDos,
     coff: &'data RawCoff,
     opt: ImageHeader<'data>,
-    data_dirs: Vec<RawDataDirectory>,
-    sections: Vec<Section>,
+    data_dirs: &'data [RawDataDirectory],
+    sections: &'data [RawSectionHeader],
     base: Option<(*const u8, usize)>,
     _phantom: PhantomData<&'data u8>,
 }
@@ -372,11 +372,8 @@ impl<'data> PeHeader<'data> {
             dos,
             coff: &pe.coff,
             opt: header,
-            data_dirs: Vec::from(data_dirs),
-            sections: sections
-                .iter()
-                .map(|s| Section { header: *s, base })
-                .collect(),
+            data_dirs,
+            sections,
             base,
             _phantom: PhantomData,
         })
@@ -398,11 +395,8 @@ impl<'data> PeHeader<'data> {
             dos,
             coff: &pe.coff,
             opt: header,
-            data_dirs: Vec::from(data_dirs),
-            sections: sections
-                .iter()
-                .map(|s| Section { header: *s, base })
-                .collect(),
+            data_dirs,
+            sections,
             base,
             _phantom: PhantomData,
         })
@@ -410,8 +404,11 @@ impl<'data> PeHeader<'data> {
 }
 
 impl PeHeader<'_> {
-    pub fn sections(&self) -> impl Iterator<Item = &Section> {
-        self.sections.iter()
+    pub fn sections(&self) -> impl Iterator<Item = Section> {
+        self.sections.iter().map(|s| Section {
+            header: s,
+            base: self.base,
+        })
     }
 }
 
