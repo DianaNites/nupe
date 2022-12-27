@@ -34,3 +34,5 @@ A `no_std` library for handling PE files
 - Given any parsed structure, be able to perfectly recreate it? bit for bit?
   - Should we have the ability to parse/create invalid structures?
     - Certainly not through the standard API, but its fine if a "raw" API allows it?
+  - DO need the ability to at least perfectly read it? Don't drop "irrelevant" data?
+    - But want an easy path that doesn't overwhelm common/normal use-cases?

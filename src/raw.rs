@@ -23,7 +23,7 @@ use crate::{
 };
 
 /// DOS Magic signature
-pub const DOS_MAGIC: &[u8] = b"MZ";
+pub const DOS_MAGIC: [u8; 2] = *b"MZ";
 
 /// Size of a DOS page
 pub const DOS_PAGE: usize = 512;
@@ -106,6 +106,33 @@ pub struct RawDos {
 }
 
 impl RawDos {
+    /// Create a new, empty, [`RawDos`].
+    ///
+    /// Sets the magic and pe_offset only.
+    pub fn new(pe_offset: u32) -> Self {
+        Self {
+            magic: DOS_MAGIC,
+            pe_offset,
+            last_bytes: Default::default(),
+            pages: Default::default(),
+            relocations: Default::default(),
+            header_size: Default::default(),
+            min_alloc: Default::default(),
+            max_alloc: Default::default(),
+            initial_ss: Default::default(),
+            initial_sp: Default::default(),
+            checksum: Default::default(),
+            initial_ip: Default::default(),
+            initial_cs: Default::default(),
+            relocation_offset: Default::default(),
+            overlay_num: Default::default(),
+            _reserved: Default::default(),
+            oem_id: Default::default(),
+            oem_info: Default::default(),
+            _reserved2: Default::default(),
+        }
+    }
+
     /// Get a [`RawDos`] from `bytes`. Checks for the DOS magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
         let dos = unsafe {
@@ -118,6 +145,14 @@ impl RawDos {
             return Err(Error::InvalidDosMagic);
         }
         Ok(dos)
+    }
+
+    /// Given the same byte slice given to [`RawDos::from_bytes`],
+    /// return the slice of just the PE portion.
+    pub fn pe_bytes<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8]> {
+        bytes
+            .get(self.pe_offset as usize..)
+            .ok_or(Error::NotEnoughData)
     }
 }
 
@@ -273,10 +308,19 @@ pub struct RawSectionHeader {
     pub characteristics: SectionFlags,
 }
 
+impl RawSectionHeader {
+    pub fn name(&self) -> Result<&str> {
+        // TODO: Validate UTF-8 early on and use unchecked?
+        core::str::from_utf8(&self.name)
+            .map(|s| s.trim_end_matches('\0'))
+            .map_err(|_| Error::InvalidData)
+    }
+}
+
 impl core::fmt::Debug for RawSectionHeader {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut f = f.debug_struct("RawSectionHeader");
-        if let Ok(s) = core::str::from_utf8(&self.name) {
+        if let Ok(s) = self.name() {
             f.field("name(str)", &s);
         } else {
             f.field("name(bytes)", &{ self.name });

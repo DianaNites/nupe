@@ -9,6 +9,7 @@ pub enum Error {
     InvalidPeMagic,
     NotEnoughData,
     MissingOpt,
+    InvalidData,
 }
 
 impl fmt::Display for Error {
