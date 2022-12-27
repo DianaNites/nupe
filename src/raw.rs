@@ -189,6 +189,40 @@ impl RawPe {
         }
         Ok(pe)
     }
+
+    /// Given the same byte slice given to [`RawPe::from_bytes`],
+    /// return the slice of just the Optional Header portion.
+    pub fn opt_bytes<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8]> {
+        let opt_size = self.coff.optional_size as usize;
+        bytes
+            .get(size_of::<RawPe>()..)
+            .ok_or(Error::NotEnoughData)?
+            .get(..opt_size)
+            .ok_or(Error::NotEnoughData)
+    }
+
+    /// Given the same byte slice given to [`RawPe::from_bytes`],
+    /// return the slice of just the Sections portion.
+    pub fn section_bytes<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8]> {
+        let sections_size = size_of::<RawSectionHeader>() * self.coff.sections as usize;
+        let opt_size = self.coff.optional_size as usize;
+        bytes
+            .get(opt_size + size_of::<RawPe>()..)
+            .ok_or(Error::NotEnoughData)?
+            .get(..sections_size)
+            .ok_or(Error::NotEnoughData)
+    }
+
+    /// Return a slice of section headers
+    pub fn section_slice<'a>(&self, bytes: &'a [u8]) -> Result<&'a [RawSectionHeader]> {
+        let data = self.section_bytes(bytes)?;
+        Ok(unsafe {
+            core::slice::from_raw_parts(
+                data.as_ptr() as *const RawSectionHeader,
+                self.coff.sections.into(),
+            )
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
