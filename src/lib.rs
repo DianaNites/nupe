@@ -289,6 +289,7 @@ impl ImageHeader {
 #[derive(Debug)]
 pub struct Section {
     header: RawSectionHeader,
+    base: Option<(*const u8, usize)>,
 }
 
 impl Section {
@@ -362,15 +363,18 @@ impl PeHeader {
                 return Err(Error::InvalidData);
             }
         }
-        // todo!();
-        // #[cfg(no)]
+        let base = Some((data, size));
+
         Ok(Self {
             dos: *dos,
             coff: pe.coff,
             opt: header,
             data_dirs: Vec::from(data_dirs),
-            sections: sections.iter().map(|s| Section { header: *s }).collect(),
-            base: Some((data, size)),
+            sections: sections
+                .iter()
+                .map(|s| Section { header: *s, base })
+                .collect(),
+            base,
         })
     }
 
@@ -388,13 +392,18 @@ impl PeHeader {
             }
         }
 
+        let base = None;
+
         Ok(Self {
             dos: *dos,
             coff: pe.coff,
             opt: header,
             data_dirs: Vec::from(data_dirs),
-            sections: sections.iter().map(|s| Section { header: *s }).collect(),
-            base: None,
+            sections: sections
+                .iter()
+                .map(|s| Section { header: *s, base })
+                .collect(),
+            base,
         })
     }
 
