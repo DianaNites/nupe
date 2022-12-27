@@ -29,12 +29,16 @@ use bitflags::bitflags;
 use raw::*;
 
 use crate::error::{Error, Result};
+pub use crate::internal::{OwnedOrRef, VecOrSlice};
 
 /// Windows PE Section alignment
 const AMD64_SECTION_ALIGN: u32 = 4096;
 
 /// Windows PE Section alignment
 const AMD64_FILE_ALIGN: u32 = 512;
+
+/// Default image base to use
+const DEFAULT_IMAGE_BASE: u64 = 0x10000000;
 
 /// Machine type, or architecture, of the PE file.
 ///
@@ -168,6 +172,7 @@ bitflags! {
 bitflags! {
     #[repr(transparent)]
     pub struct DllCharacteristics: u16 {
+        const EMPTY = 0x0;
         const RESERVED_1 = 0x1;
         const RESERVED_2 = 0x2;
         const RESERVED_3 = 0x4;
@@ -195,9 +200,16 @@ bitflags! {
         const RESERVED_3 = 0x4;
         const NO_PAD = 0x8;
         const RESERVED_4 = 0x10;
+
+        /// Code/executable
         const CODE = 0x20;
+
+        /// Initialized/data
         const INITIALIZED = 0x40;
+
+        /// Uninitialized/bss
         const UNINITIALIZED = 0x80;
+
         const RESERVED_OTHER = 0x100;
         const INFO = 0x200;
         const RESERVED_6 = 0x400;
@@ -235,8 +247,8 @@ bitflags! {
 
 #[derive(Debug, Clone, Copy)]
 pub enum ImageHeader<'data> {
-    Raw32(&'data RawPe32),
-    Raw64(&'data RawPe32x64),
+    Raw32(OwnedOrRef<'data, RawPe32>),
+    Raw64(OwnedOrRef<'data, RawPe32x64>),
 }
 
 #[doc(hidden)]
@@ -254,6 +266,14 @@ impl<'data> ImageHeader<'data> {
         match self {
             ImageHeader::Raw32(h) => h.subsystem,
             ImageHeader::Raw64(h) => h.subsystem,
+        }
+    }
+
+    /// Entry point address relative to the image base
+    fn entry(&self) -> u32 {
+        match self {
+            ImageHeader::Raw32(h) => h.standard.entry_offset,
+            ImageHeader::Raw64(h) => h.standard.entry_offset,
         }
     }
 }
@@ -283,14 +303,20 @@ impl<'data> ImageHeader<'data> {
                 .checked_mul(opt.data_dirs as usize)
                 .ok_or(Error::NotEnoughData)?;
             let data_ptr = data.wrapping_add(size_of::<RawPe32x64>()) as *const RawDataDirectory;
-            Ok((ImageHeader::Raw64(opt), (data_ptr, opt.data_dirs as usize)))
+            Ok((
+                ImageHeader::Raw64(OwnedOrRef::Ref(opt)),
+                (data_ptr, opt.data_dirs as usize),
+            ))
         } else if opt.magic == PE32_MAGIC {
             let opt = RawPe32::from_ptr(data, size)?;
             let _data_size = size_of::<RawDataDirectory>()
                 .checked_mul(opt.data_dirs as usize)
                 .ok_or(Error::NotEnoughData)?;
             let data_ptr = data.wrapping_add(size_of::<RawPe32>()) as *const RawDataDirectory;
-            Ok((ImageHeader::Raw32(opt), (data_ptr, opt.data_dirs as usize)))
+            Ok((
+                ImageHeader::Raw32(OwnedOrRef::Ref(opt)),
+                (data_ptr, opt.data_dirs as usize),
+            ))
         } else {
             Err(Error::InvalidPeMagic)
         }
@@ -314,53 +340,6 @@ impl<'data> ImageHeader<'data> {
         match self {
             ImageHeader::Raw32(h) => h.image_base.into(),
             ImageHeader::Raw64(h) => h.image_base,
-        }
-    }
-}
-
-/// Enum for a reference to a type, or owning it
-#[derive(Debug, Clone, Copy)]
-enum OwnedOrRef<'data, T> {
-    Owned(T),
-    Ref(&'data T),
-}
-
-impl<'data, T> Deref for OwnedOrRef<'data, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        match self {
-            OwnedOrRef::Owned(s) => s,
-            OwnedOrRef::Ref(r) => r,
-        }
-    }
-}
-
-impl<'data, T> AsRef<T> for OwnedOrRef<'data, T> {
-    fn as_ref(&self) -> &T {
-        match self {
-            OwnedOrRef::Owned(s) => s,
-            OwnedOrRef::Ref(r) => r,
-        }
-    }
-}
-
-#[cfg(no)]
-impl<'data, T> DerefMut for OwnedOrRef<'data, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            OwnedOrRef::Owned(s) => s,
-            OwnedOrRef::Ref(r) => r,
-        }
-    }
-}
-
-#[cfg(no)]
-impl<'data, T> AsMut<T> for OwnedOrRef<'data, T> {
-    fn as_mut(&mut self) -> &mut T {
-        match self {
-            OwnedOrRef::Owned(s) => s,
-            OwnedOrRef::Ref(r) => r,
         }
     }
 }
@@ -400,6 +379,11 @@ impl<'data> Section<'data> {
         self.header.name().unwrap_or_default()
     }
 
+    /// Section flags/attributes/characteristics
+    pub fn flags(&self) -> SectionFlags {
+        self.header.characteristics
+    }
+
     /// Slice of the section data
     ///
     /// Returns [`None`] if not called on a loaded image, or if the section is
@@ -435,11 +419,11 @@ impl<'data> Section<'data> {
 /// A PE file
 #[derive(Debug)]
 pub struct Pe<'data> {
-    dos: &'data RawDos,
-    coff: &'data RawCoff,
+    dos: OwnedOrRef<'data, RawDos>,
+    coff: OwnedOrRef<'data, RawCoff>,
     opt: ImageHeader<'data>,
-    data_dirs: &'data [RawDataDirectory],
-    sections: &'data [RawSectionHeader],
+    data_dirs: VecOrSlice<'data, RawDataDirectory>,
+    sections: VecOrSlice<'data, RawSectionHeader>,
     base: Option<(*const u8, usize)>,
     _phantom: PhantomData<&'data u8>,
 }
@@ -463,11 +447,11 @@ impl<'data> Pe<'data> {
         let base = if loaded { Some((data, size)) } else { None };
 
         Ok(Self {
-            dos,
-            coff: &pe.coff,
+            dos: OwnedOrRef::Ref(dos),
+            coff: OwnedOrRef::Ref(&pe.coff),
             opt: header,
-            data_dirs,
-            sections,
+            data_dirs: VecOrSlice::Slice(data_dirs),
+            sections: VecOrSlice::Slice(sections),
             base,
             _phantom: PhantomData,
         })
@@ -558,6 +542,11 @@ impl<'data> Pe<'data> {
     pub fn subsystem(&self) -> Subsystem {
         self.opt.subsystem()
     }
+
+    /// Entry point address relative to the image base
+    pub fn entry(&self) -> u32 {
+        self.opt.entry()
+    }
 }
 
 impl<'data> Pe<'data> {
@@ -565,7 +554,10 @@ impl<'data> Pe<'data> {
     ///
     /// This is only for advanced users.
     pub fn coff(&self) -> &'data RawCoff {
-        self.coff
+        match self.coff {
+            OwnedOrRef::Owned(o) => todo!(),
+            OwnedOrRef::Ref(r) => r,
+        }
     }
 
     /// Raw COFF header for this PE file
@@ -580,10 +572,34 @@ impl<'data> Pe<'data> {
 #[derive(Debug)]
 pub struct PeBuilder<'data> {
     sections: Option<&'data [Section<'data>]>,
+    data_dirs: Option<&'data [RawDataDirectory]>,
     // Required
     machine: Option<MachineType>,
     timestamp: Option<u32>,
+
+    /// Defaults to [`DEFAULT_IMAGE_BASE`]
+    image_base: u64,
+
+    /// Defaults to 4096
+    section_align: u64,
+
+    /// Defaults to 512
+    file_align: u64,
+
+    /// Defaults to None
+    entry: Option<u32>,
+
     attributes: CoffAttributes,
+
+    dll_attributes: DllCharacteristics,
+
+    subsystem: Subsystem,
+
+    /// Stack reserve and commit
+    stack: (u64, u64),
+
+    /// Heap reserve and commit
+    heap: (u64, u64),
 }
 
 impl<'data> PeBuilder<'data> {
@@ -592,15 +608,30 @@ impl<'data> PeBuilder<'data> {
         Self {
             //
             sections: None,
+            data_dirs: None,
             machine: None,
             timestamp: None,
+            image_base: DEFAULT_IMAGE_BASE,
+            section_align: 4096,
+            file_align: 512,
+            entry: None,
             attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
+            subsystem: Subsystem::UNKNOWN,
+            dll_attributes: DllCharacteristics::empty(),
+            stack: (0, 0),
+            heap: (0, 0),
         }
     }
 
     /// Machine Type. This is required.
     pub fn machine(&mut self, machine: MachineType) -> &mut Self {
         self.machine = Some(machine);
+        self
+    }
+
+    /// Entry point.
+    pub fn entry(&mut self, entry: u32) -> &mut Self {
+        self.entry = Some(entry);
         self
     }
 
@@ -615,9 +646,33 @@ impl<'data> PeBuilder<'data> {
     }
 
     /// Calculate the size on disk this file would take
+    ///
+    /// Ignores file alignment
     pub fn calculate_size(&self) -> usize {
         const DOS_STUB: usize = 0;
-        size_of::<RawDos>() + DOS_STUB
+        let opt_size = match self.machine.unwrap() {
+            MachineType::AMD64 => size_of::<RawPe32x64>(),
+            MachineType::I386 => size_of::<RawPe32>(),
+            _ => unimplemented!(),
+        };
+        #[allow(clippy::erasing_op)]
+        let data_dirs = size_of::<RawDataDirectory>() * 0;
+        #[allow(clippy::erasing_op)]
+        let sections = size_of::<RawSectionHeader>() * 0;
+        let sections_sum: u32 = self
+            .sections
+            .unwrap()
+            .iter()
+            .map(|s| s.header.raw_size)
+            .sum();
+        let sections_sum = sections_sum as usize;
+        size_of::<RawDos>()
+            + DOS_STUB
+            + size_of::<RawPe>()
+            + opt_size
+            + data_dirs
+            + sections
+            + sections_sum
     }
 
     /// Build the [`Pe`]
@@ -687,14 +742,14 @@ impl<'data> PeBuilder<'data> {
         let time = 0;
         let optional_size = size_of::<RawPeOptStandard>() as u16;
         let pe = Pe {
-            dos: &RawDos::new(size_of::<RawDos>() as u32),
-            coff: &RawCoff::new(
+            dos: OwnedOrRef::Ref(&RawDos::new(size_of::<RawDos>() as u32)),
+            coff: OwnedOrRef::Ref(&RawCoff::new(
                 self.machine.unwrap(),
                 sections,
                 time,
                 optional_size,
                 self.attributes,
-            ),
+            )),
             opt: todo!(),
             data_dirs: todo!(),
             sections: todo!(),
@@ -702,6 +757,126 @@ impl<'data> PeBuilder<'data> {
             _phantom: PhantomData,
         };
         todo!()
+    }
+
+    /// Truncates `out` and writes [`Pe`] to it
+    pub fn write(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        out.clear();
+        let machine = self.machine.unwrap();
+        let s_sections = self.sections.unwrap_or_default();
+        let data_dirs = self.data_dirs.unwrap_or(&[]);
+
+        let dos = OwnedOrRef::Owned(RawDos::new(size_of::<RawDos>() as u32));
+
+        let mut optional_size = 0;
+
+        let opt = {
+            let mut code_sum = 0;
+            let mut init_sum = 0;
+            let mut uninit_sum = 0;
+            let mut code_base = 0;
+            let mut data_base = 0;
+            for section in s_sections {
+                match section.flags() {
+                    SectionFlags::CODE => {
+                        code_sum += section.virtual_size();
+                        code_base = section.virtual_address();
+                    }
+                    SectionFlags::INITIALIZED => {
+                        init_sum += section.virtual_size();
+                        data_base = section.virtual_address();
+                    }
+                    SectionFlags::UNINITIALIZED => uninit_sum += section.virtual_size(),
+                    _ => (),
+                }
+            }
+
+            let opt = RawPeOptStandard::new(
+                match self.machine.unwrap() {
+                    MachineType::AMD64 => Ok(PE32_64_MAGIC),
+                    MachineType::I386 => Ok(PE32_MAGIC),
+                    // _ => Err(Error::InvalidData),
+                    _ => todo!(),
+                }?,
+                0,
+                0,
+                code_sum,
+                init_sum,
+                uninit_sum,
+                self.entry.unwrap(),
+                code_base,
+            );
+            let headers_size = (size_of::<RawDos>()
+                + size_of::<RawPe>()
+                + (size_of::<RawSectionHeader>() * s_sections.len()))
+                as u64;
+            let headers_size = headers_size + (self.file_align - (headers_size % self.file_align));
+
+            // TODO: This is not complete
+            let image_size = headers_size as usize
+                + (size_of::<RawDataDirectory>() * data_dirs.len())
+                + code_sum as usize
+                + init_sum as usize
+                + uninit_sum as usize;
+            let image_size = image_size as u64;
+            let image_size = image_size + (self.section_align - (image_size % self.section_align));
+            // 568 + (512 - (568 % 512))
+            match self.machine.unwrap() {
+                MachineType::AMD64 => {
+                    optional_size +=
+                        size_of::<RawPe32x64>() + (size_of::<RawDataDirectory>() * data_dirs.len());
+                    // #[cfg(no)]
+                    let pe = RawPe32x64::new(
+                        opt,
+                        self.image_base,
+                        self.section_align as u32,
+                        self.file_align as u32,
+                        0, // os_major,
+                        0, // os_minor,
+                        0, // image_major,
+                        0, // image_minor,
+                        0, // subsystem_major,
+                        0, // subsystem_minor,
+                        image_size as u32,
+                        headers_size as u32,
+                        self.subsystem,
+                        self.dll_attributes,
+                        self.stack.0,
+                        self.stack.1,
+                        self.heap.0,
+                        self.heap.1,
+                        data_dirs.len() as u32,
+                    );
+                    ImageHeader::Raw64(OwnedOrRef::Owned(pe))
+                }
+                MachineType::I386 => {
+                    optional_size += size_of::<RawPe32>();
+                    todo!();
+                }
+                _ => unimplemented!(),
+            }
+        };
+
+        let sections = s_sections.len().try_into().unwrap();
+        let time = 0;
+        let coff = OwnedOrRef::Owned(RawCoff::new(
+            machine,
+            sections,
+            time,
+            optional_size.try_into().unwrap(),
+            self.attributes,
+        ));
+
+        let pe = Pe {
+            dos,
+            coff,
+            opt,
+            data_dirs: VecOrSlice::Slice(data_dirs),
+            sections: VecOrSlice::Vec(s_sections.iter().map(|s| *s.header).collect()),
+            base: None,
+            _phantom: PhantomData,
+        };
+        Ok(())
     }
 }
 

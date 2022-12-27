@@ -304,13 +304,28 @@ impl RawPe {
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPeOptStandard {
+    /// Magic identifying PE32 vs PE32+
     pub magic: u16,
+
+    /// Linker major version
     pub linker_major: u8,
+
+    /// Linker minor version
     pub linker_minor: u8,
+
+    /// Virtual Size or sum of all code/text sections
     pub code_size: u32,
+
+    /// Virtual Size or sum of all initialized/data sections
     pub init_size: u32,
+
+    /// Virtual Size or sum of all uninitialized/data sections
     pub uninit_size: u32,
+
+    /// Offset to image entry point, relative to image base.
     pub entry_offset: u32,
+
+    /// Offset to beginning-of-code section, relative to image base.
     pub code_base: u32,
 }
 
@@ -352,6 +367,7 @@ impl RawPeOptStandard {
     }
 }
 
+/// 32-bit optional header
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPe32 {
@@ -406,6 +422,7 @@ impl RawPe32 {
     }
 }
 
+/// 64-bit optional header
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPe32x64 {
