@@ -48,9 +48,16 @@ const DEFAULT_IMAGE_BASE: u64 = 0x10000000;
 pub struct MachineType(u16);
 
 impl MachineType {
+    /// Unknown/Any/All machine type
     pub const UNKNOWN: Self = Self(0);
+
+    /// x64
     pub const AMD64: Self = Self(0x8664);
+
+    /// x86
     pub const I386: Self = Self(0x14C);
+
+    /// EFI Byte Code
     pub const EBC: Self = Self(0xEBC);
 }
 
@@ -574,13 +581,23 @@ impl<'data> Pe<'data> {
     }
 }
 
+mod states {
+    //! States for [`PeBuilder`]
+
+    pub struct Empty;
+    pub struct Machine;
+}
+
 /// Builder for a [`Pe`] file
 #[derive(Debug)]
-pub struct PeBuilder<'data> {
+pub struct PeBuilder<'data, State> {
+    /// Type state
+    state: PhantomData<State>,
+
     sections: Option<&'data [Section<'data>]>,
     data_dirs: Option<&'data [RawDataDirectory]>,
     // Required
-    machine: Option<MachineType>,
+    machine: MachineType,
     timestamp: Option<u32>,
 
     /// Defaults to [`DEFAULT_IMAGE_BASE`]
@@ -609,13 +626,36 @@ pub struct PeBuilder<'data> {
     heap: (u64, u64),
 }
 
-impl<'data> PeBuilder<'data> {
-    /// Machine Type. This is required.
-    pub fn machine(&mut self, machine: MachineType) -> &mut Self {
-        self.machine = Some(machine);
-        self
+impl<'data> PeBuilder<'data, states::Empty> {
+    /// Create a new [`PeBuilder`]
+    pub fn new() -> Self {
+        Self {
+            //
+            state: PhantomData,
+            sections: None,
+            data_dirs: None,
+            machine: MachineType::UNKNOWN,
+            timestamp: None,
+            image_base: DEFAULT_IMAGE_BASE,
+            section_align: 4096,
+            file_align: 512,
+            entry: None,
+            attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
+            subsystem: Subsystem::UNKNOWN,
+            dll_attributes: DllCharacteristics::empty(),
+            stack: (0, 0),
+            heap: (0, 0),
+        }
     }
 
+    /// Machine Type. This is required.
+    pub fn machine(&mut self, machine: MachineType) -> &mut PeBuilder<'data, states::Machine> {
+        self.machine = machine;
+        unsafe { &mut *(self as *mut Self as *mut PeBuilder<'data, states::Machine>) }
+    }
+}
+
+impl<'data> PeBuilder<'data, states::Machine> {
     /// Offset from image base to entry point
     pub fn entry(&mut self, entry: u32) -> &mut Self {
         self.entry = Some(entry);
@@ -651,33 +691,13 @@ impl<'data> PeBuilder<'data> {
     }
 }
 
-impl<'data> PeBuilder<'data> {
-    /// Create a new [`PeBuilder`]
-    pub fn new() -> Self {
-        Self {
-            //
-            sections: None,
-            data_dirs: None,
-            machine: None,
-            timestamp: None,
-            image_base: DEFAULT_IMAGE_BASE,
-            section_align: 4096,
-            file_align: 512,
-            entry: None,
-            attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
-            subsystem: Subsystem::UNKNOWN,
-            dll_attributes: DllCharacteristics::empty(),
-            stack: (0, 0),
-            heap: (0, 0),
-        }
-    }
-
+impl<'data, State> PeBuilder<'data, State> {
     /// Calculate the size on disk this file would take
     ///
     /// Ignores file alignment
     pub fn calculate_size(&self) -> usize {
         const DOS_STUB: usize = 0;
-        let opt_size = match self.machine.unwrap() {
+        let opt_size = match self.machine {
             MachineType::AMD64 => size_of::<RawPe32x64>(),
             MachineType::I386 => size_of::<RawPe32>(),
             _ => unimplemented!(),
@@ -714,7 +734,7 @@ impl<'data> PeBuilder<'data> {
         let entry = 0;
         let code_base = 0;
         let opt = RawPeOptStandard::new(
-            match self.machine.unwrap() {
+            match self.machine {
                 MachineType::AMD64 => Ok(PE32_64_MAGIC),
                 MachineType::I386 => Ok(PE32_MAGIC),
                 _ => Err(Error::InvalidData),
@@ -771,7 +791,7 @@ impl<'data> PeBuilder<'data> {
         let pe = Pe {
             dos: OwnedOrRef::Ref(&RawDos::new(size_of::<RawDos>() as u32)),
             coff: OwnedOrRef::Ref(&RawCoff::new(
-                self.machine.unwrap(),
+                self.machine,
                 sections,
                 time,
                 optional_size,
@@ -788,8 +808,18 @@ impl<'data> PeBuilder<'data> {
 
     /// Truncates `out` and writes [`Pe`] to it
     pub fn write(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        /// The way we create and write a PE file is primarily virtually.
+        ///
+        /// The first and most basic things needed are the sections and data
+        /// directories.
+        ///
+        /// Most other structures cant be created without
+        /// information from or about these.
+        ///
+        /// The first structure we can create is [`RawDos`]
+        struct _DummyHoverWriteDocs;
         out.clear();
-        let machine = self.machine.unwrap();
+        let machine = self.machine;
         let s_sections = self.sections.unwrap_or_default();
         let data_dirs = self.data_dirs.unwrap_or(&[]);
 
@@ -819,7 +849,7 @@ impl<'data> PeBuilder<'data> {
             }
 
             let opt = RawPeOptStandard::new(
-                match self.machine.unwrap() {
+                match machine {
                     MachineType::AMD64 => Ok(PE32_64_MAGIC),
                     MachineType::I386 => Ok(PE32_MAGIC),
                     // _ => Err(Error::InvalidData),
@@ -848,7 +878,7 @@ impl<'data> PeBuilder<'data> {
             let image_size = image_size as u64;
             let image_size = image_size + (self.section_align - (image_size % self.section_align));
             // 568 + (512 - (568 % 512))
-            match self.machine.unwrap() {
+            match machine {
                 MachineType::AMD64 => {
                     optional_size +=
                         size_of::<RawPe32x64>() + (size_of::<RawDataDirectory>() * data_dirs.len());
