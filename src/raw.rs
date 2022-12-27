@@ -133,7 +133,10 @@ impl RawDos {
         }
     }
 
-    /// Get a [`RawDos`] from `data`. Checks for the DOS magic.
+    /// Get a [`RawDos`] from `data`, and a new pointer length pair for the PE
+    /// portion.
+    ///
+    /// Checks for the DOS magic.
     ///
     /// # Safety
     ///
@@ -223,12 +226,26 @@ impl RawPe {
         }
 
         let opt_size = pe.coff.optional_size as usize;
+        size.checked_sub(
+            size_of::<RawPe>()
+                .checked_add(opt_size)
+                .ok_or(Error::NotEnoughData)?,
+        )
+        .ok_or(Error::NotEnoughData)?;
         // Optional header appears directly after PE header
         let opt_ptr = data.wrapping_add(size_of::<RawPe>());
 
-        let _section_size = size_of::<RawSectionHeader>()
+        let section_size = size_of::<RawSectionHeader>()
             .checked_mul(pe.coff.sections as usize)
             .ok_or(Error::NotEnoughData)?;
+        size.checked_sub(
+            size_of::<RawPe>()
+                .checked_add(opt_size)
+                .ok_or(Error::NotEnoughData)?
+                .checked_add(section_size)
+                .ok_or(Error::NotEnoughData)?,
+        )
+        .ok_or(Error::NotEnoughData)?;
         // Section table appears directly after PE and optional header
         let section_ptr = data.wrapping_add(
             size_of::<RawPe>()
@@ -243,43 +260,20 @@ impl RawPe {
         ))
     }
 
-    /// Get a [`RawPe`] from `bytes`. Checks for the PE magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        unsafe { Ok(RawPe::from_ptr(bytes.as_ptr(), bytes.len())?.0) }
-    }
-
-    /// Given the same byte slice given to [`RawPe::from_bytes`],
-    /// return the slice of just the Optional Header portion.
-    pub fn opt_bytes<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8]> {
-        let opt_size = self.coff.optional_size as usize;
-        bytes
-            .get(size_of::<RawPe>()..)
-            .ok_or(Error::NotEnoughData)?
-            .get(..opt_size)
-            .ok_or(Error::NotEnoughData)
-    }
-
-    /// Given the same byte slice given to [`RawPe::from_bytes`],
-    /// return the slice of just the Sections portion.
-    pub fn section_bytes<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8]> {
-        let sections_size = size_of::<RawSectionHeader>() * self.coff.sections as usize;
-        let opt_size = self.coff.optional_size as usize;
-        bytes
-            .get(opt_size + size_of::<RawPe>()..)
-            .ok_or(Error::NotEnoughData)?
-            .get(..sections_size)
-            .ok_or(Error::NotEnoughData)
-    }
-
-    /// Return a slice of section headers
-    pub fn section_slice<'a>(&self, bytes: &'a [u8]) -> Result<&'a [RawSectionHeader]> {
-        let data = self.section_bytes(bytes)?;
-        Ok(unsafe {
-            core::slice::from_raw_parts(
-                data.as_ptr() as *const RawSectionHeader,
-                self.coff.sections.into(),
-            )
-        })
+    /// Get a [`RawPe`] from `bytes`, the optional header, and section
+    /// table.
+    ///
+    /// Checks for the PE magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8], &[RawSectionHeader])> {
+        unsafe {
+            let (pe, (opt_ptr, opt_size), (section_ptr, section_len)) =
+                RawPe::from_ptr(bytes.as_ptr(), bytes.len())?;
+            Ok((
+                pe,
+                core::slice::from_raw_parts(opt_ptr, opt_size),
+                core::slice::from_raw_parts(section_ptr, section_len),
+            ))
+        }
     }
 }
 

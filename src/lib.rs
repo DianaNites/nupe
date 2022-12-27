@@ -379,11 +379,9 @@ impl PeHeader {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let (dos, pe_bytes) = RawDos::from_bytes(bytes)?;
-        let pe = RawPe::from_bytes(pe_bytes)?;
-        let opt_bytes = pe.opt_bytes(pe_bytes)?;
+        let (pe, opt_bytes, sections) = RawPe::from_bytes(pe_bytes)?;
         let header = ImageHeader::from_bytes(opt_bytes)?;
         let data_dirs = header.data_slice(opt_bytes)?;
-        let sections = pe.section_slice(pe_bytes)?;
         for s in sections {
             if !s.name.is_ascii() {
                 return Err(Error::InvalidData);
