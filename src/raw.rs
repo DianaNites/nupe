@@ -151,6 +151,7 @@ impl RawDos {
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
         }
+        // PE headers start at this offset
         let pe_ptr = data.wrapping_add(dos.pe_offset as usize);
         let pe_size = size
             .checked_sub(dos.pe_offset as usize)
@@ -180,7 +181,10 @@ pub struct RawCoff {
     pub time: u32,
     pub sym_offset: u32,
     pub num_sym: u32,
+
+    /// Size in bytes of the PE optional header
     pub optional_size: u16,
+
     pub attributes: CoffAttributes,
 }
 
@@ -211,24 +215,27 @@ impl RawPe {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
-        if size < size_of::<RawPe>() {
-            return Err(Error::NotEnoughData);
-        }
+        size.checked_sub(size_of::<RawPe>())
+            .ok_or(Error::NotEnoughData)?;
         let pe = unsafe { &*(data as *const RawPe) };
         if pe.sig != PE_MAGIC {
             return Err(Error::InvalidPeMagic);
         }
+
         let opt_size = pe.coff.optional_size as usize;
+        // Optional header appears directly after PE header
         let opt_ptr = data.wrapping_add(size_of::<RawPe>());
 
         let _section_size = size_of::<RawSectionHeader>()
             .checked_mul(pe.coff.sections as usize)
             .ok_or(Error::NotEnoughData)?;
+        // Section table appears directly after PE and optional header
         let section_ptr = data.wrapping_add(
             size_of::<RawPe>()
                 .checked_add(opt_size)
                 .ok_or(Error::NotEnoughData)?,
         ) as *const RawSectionHeader;
+
         Ok((
             pe,
             (opt_ptr, opt_size),

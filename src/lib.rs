@@ -208,9 +208,8 @@ impl ImageHeader {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
-        if size < size_of::<RawPeOptStandard>() {
-            return Err(Error::NotEnoughData);
-        }
+        size.checked_sub(size_of::<RawPeOptStandard>())
+            .ok_or(Error::NotEnoughData)?;
         let opt = unsafe { &*(data as *const RawPeOptStandard) };
         if opt.magic == PE32_64_MAGIC {
             let opt = RawPe32x64::from_ptr(data, size)?;
