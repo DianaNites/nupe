@@ -320,17 +320,31 @@ impl<'data> Section<'data> {
         self.header.name().unwrap_or_default()
     }
 
-    /// Given the image base address, return a slice of the section data.
-    ///
-    /// # Safety
-    ///
-    /// `image_base` MUST be the correct image base for this image.
-    pub unsafe fn virtual_data(&self, image_base: *const u8) -> &[u8] {
-        unsafe {
-            core::slice::from_raw_parts(
-                image_base.wrapping_add(self.virtual_address() as usize),
-                self.virtual_size() as usize,
-            )
+    /// Slice of the section data
+    pub fn virtual_data(&self) -> &'data [u8] {
+        if let Some((base, size)) = self.base {
+            if size
+                .checked_sub(self.virtual_address() as usize)
+                .and_then(|s| s.checked_sub(self.virtual_size() as usize))
+                .ok_or(Error::NotEnoughData)
+                .is_err()
+            {
+                return &[];
+            }
+            // Safety:
+            // - Base is guaranteed valid for size in `from_ptr_internal`
+            // - from_ptr_internal does the checking to make sure we're a PE file, without
+            //   which we couldnt be here
+            // - 'data lifetime means data is still valid
+            // - We double check to make sure we're in-bounds above
+            unsafe {
+                core::slice::from_raw_parts(
+                    base.wrapping_add(self.virtual_address() as usize),
+                    self.virtual_size() as usize,
+                )
+            }
+        } else {
+            &[]
         }
     }
 }
