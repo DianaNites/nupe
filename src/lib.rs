@@ -828,7 +828,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
         let dos = OwnedOrRef::Owned(RawDos::new(size_of::<RawDos>() as u32));
 
-        let mut optional_size = 0;
+        // We always write the full, zeroed, data dirs.
+        let mut optional_size = size_of::<RawDataDirectory>() * data_dirs.len();
 
         let opt = {
             let mut code_sum = 0;
@@ -855,8 +856,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 match machine {
                     MachineType::AMD64 => Ok(PE32_64_MAGIC),
                     MachineType::I386 => Ok(PE32_MAGIC),
-                    // _ => Err(Error::InvalidData),
-                    _ => todo!(),
+                    _ => Err(Error::InvalidData),
                 }?,
                 0,
                 0,
@@ -883,8 +883,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             // 568 + (512 - (568 % 512))
             match machine {
                 MachineType::AMD64 => {
-                    optional_size +=
-                        size_of::<RawPe32x64>() + (size_of::<RawDataDirectory>() * data_dirs.len());
+                    optional_size += size_of::<RawPe32x64>();
                     // #[cfg(no)]
                     let pe = RawPe32x64::new(
                         opt,
