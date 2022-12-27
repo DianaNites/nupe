@@ -299,43 +299,11 @@ impl<'data> ImageHeader<'data> {
     ///
     /// Checks for the magic.
     fn from_bytes(bytes: &'data [u8]) -> Result<(Self, &'data [RawDataDirectory])> {
-        let opt = unsafe {
-            &*(bytes
-                .get(..size_of::<RawPeOptStandard>())
-                .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawPeOptStandard)
-        };
-        if opt.magic == PE32_64_MAGIC {
-            let opt = RawPe32x64::from_bytes(bytes)?;
-            let data_size = size_of::<RawDataDirectory>() * opt.data_dirs as usize;
-            let data_bytes = bytes
-                .get(size_of::<RawPe32x64>()..)
-                .ok_or(Error::NotEnoughData)?
-                .get(..data_size)
-                .ok_or(Error::NotEnoughData)?;
-            Ok((ImageHeader::Raw64(opt), unsafe {
-                core::slice::from_raw_parts(
-                    data_bytes.as_ptr() as *const RawDataDirectory,
-                    opt.data_dirs as usize,
-                )
-            }))
-        } else if opt.magic == PE32_MAGIC {
-            let opt = RawPe32::from_bytes(bytes)?;
-            let data_size = size_of::<RawDataDirectory>() * opt.data_dirs as usize;
-            let data_bytes = bytes
-                .get(size_of::<RawPe32>()..)
-                .ok_or(Error::NotEnoughData)?
-                .get(..data_size)
-                .ok_or(Error::NotEnoughData)?;
-            Ok((ImageHeader::Raw32(opt), unsafe {
-                core::slice::from_raw_parts(
-                    data_bytes.as_ptr() as *const RawDataDirectory,
-                    opt.data_dirs as usize,
-                )
-            }))
-        } else {
-            Err(Error::InvalidPeMagic)
-        }
+        // Safety: Slice pointer is trivially valid for its own length.
+        let (opt, (data_ptr, data_len)) = unsafe { Self::from_ptr(bytes.as_ptr(), bytes.len())? };
+        // Safety: Above guarantees these are valid
+        let data = unsafe { core::slice::from_raw_parts(data_ptr, data_len) };
+        Ok((opt, data))
     }
 
     /// Preferred Base of the image in memory.
@@ -456,6 +424,14 @@ impl<'data> Pe<'data> {
             _phantom: PhantomData,
         })
     }
+
+    /// # Safety
+    ///
+    /// - See [`Pe::from_ptr_internal`]
+    /// - `data` MUST be a legitimate mutable pointer
+    unsafe fn from_ptr_internal_mut(data: *mut u8, size: usize, loaded: bool) -> Result<Self> {
+        Self::from_ptr_internal(data as *const u8, size, loaded)
+    }
 }
 
 impl<'data> Pe<'data> {
@@ -482,6 +458,11 @@ impl<'data> Pe<'data> {
     pub fn from_bytes(bytes: &'data [u8]) -> Result<Self> {
         // Safety: Slice pointer is trivially valid for its own length.
         unsafe { Self::from_ptr_internal(bytes.as_ptr(), bytes.len(), false) }
+    }
+
+    pub fn from_bytes_mut(bytes: &'data mut [u8]) -> Result<Self> {
+        // Safety: Slice pointer is trivially valid for its own length.
+        unsafe { Self::from_ptr_internal_mut(bytes.as_mut_ptr(), bytes.len(), false) }
     }
 }
 
