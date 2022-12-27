@@ -15,7 +15,10 @@ pub mod error;
 mod internal;
 pub mod raw;
 use alloc::vec::Vec;
-use core::mem::{self, size_of};
+use core::{
+    marker::PhantomData,
+    mem::{self, size_of},
+};
 
 use bitflags::bitflags;
 use raw::*;
@@ -178,12 +181,12 @@ bitflags! {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ImageHeader {
-    Raw32(RawPe32),
-    Raw64(RawPe32x64),
+enum ImageHeader<'data> {
+    Raw32(&'data RawPe32),
+    Raw64(&'data RawPe32x64),
 }
 
-impl ImageHeader {
+impl<'data> ImageHeader<'data> {
     /// How many data directories
     fn data_dirs(&self) -> u32 {
         match self {
@@ -193,7 +196,7 @@ impl ImageHeader {
     }
 }
 
-impl ImageHeader {
+impl<'data> ImageHeader<'data> {
     /// Get a [`ImageHeader`] from `data`. Checks for the magic.
     ///
     /// Returns [`ImageHeader`] and data dirs
@@ -217,21 +220,23 @@ impl ImageHeader {
                 .checked_mul(opt.data_dirs as usize)
                 .ok_or(Error::NotEnoughData)?;
             let data_ptr = data.wrapping_add(size_of::<RawPe32x64>()) as *const RawDataDirectory;
-            Ok((ImageHeader::Raw64(*opt), (data_ptr, opt.data_dirs as usize)))
+            Ok((ImageHeader::Raw64(opt), (data_ptr, opt.data_dirs as usize)))
         } else if opt.magic == PE32_MAGIC {
             let opt = RawPe32::from_ptr(data, size)?;
             let _data_size = size_of::<RawDataDirectory>()
                 .checked_mul(opt.data_dirs as usize)
                 .ok_or(Error::NotEnoughData)?;
             let data_ptr = data.wrapping_add(size_of::<RawPe32>()) as *const RawDataDirectory;
-            Ok((ImageHeader::Raw32(*opt), (data_ptr, opt.data_dirs as usize)))
+            Ok((ImageHeader::Raw32(opt), (data_ptr, opt.data_dirs as usize)))
         } else {
             Err(Error::InvalidPeMagic)
         }
     }
 
-    /// Get a [`ImageHeader`] from `bytes`. Checks for the magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+    /// Get a [`ImageHeader`] from `bytes`, and data dirs as slice
+    ///
+    /// Checks for the magic.
+    pub fn from_bytes(bytes: &'data [u8]) -> Result<(Self, &'data [RawDataDirectory])> {
         let opt = unsafe {
             &*(bytes
                 .get(..size_of::<RawPeOptStandard>())
@@ -239,38 +244,36 @@ impl ImageHeader {
                 .as_ptr() as *const RawPeOptStandard)
         };
         if opt.magic == PE32_64_MAGIC {
-            Ok(ImageHeader::Raw64(*RawPe32x64::from_bytes(bytes)?))
+            let opt = RawPe32x64::from_bytes(bytes)?;
+            let data_size = size_of::<RawDataDirectory>() * opt.data_dirs as usize;
+            let data_bytes = bytes
+                .get(size_of::<RawPe32x64>()..)
+                .ok_or(Error::NotEnoughData)?
+                .get(..data_size)
+                .ok_or(Error::NotEnoughData)?;
+            Ok((ImageHeader::Raw64(opt), unsafe {
+                core::slice::from_raw_parts(
+                    data_bytes.as_ptr() as *const RawDataDirectory,
+                    opt.data_dirs as usize,
+                )
+            }))
         } else if opt.magic == PE32_MAGIC {
-            Ok(ImageHeader::Raw32(*RawPe32::from_bytes(bytes)?))
+            let opt = RawPe32::from_bytes(bytes)?;
+            let data_size = size_of::<RawDataDirectory>() * opt.data_dirs as usize;
+            let data_bytes = bytes
+                .get(size_of::<RawPe32>()..)
+                .ok_or(Error::NotEnoughData)?
+                .get(..data_size)
+                .ok_or(Error::NotEnoughData)?;
+            Ok((ImageHeader::Raw32(opt), unsafe {
+                core::slice::from_raw_parts(
+                    data_bytes.as_ptr() as *const RawDataDirectory,
+                    opt.data_dirs as usize,
+                )
+            }))
         } else {
             Err(Error::InvalidPeMagic)
         }
-    }
-
-    /// Given the same byte slice given to [`ImageHeader::from_bytes`],
-    /// return the slice of just the remaining Data Directory
-    pub fn data_bytes<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8]> {
-        let size = match self {
-            ImageHeader::Raw32(_) => size_of::<RawPe32>(),
-            ImageHeader::Raw64(_) => size_of::<RawPe32x64>(),
-        };
-        let data_size = size_of::<RawDataDirectory>() * self.data_dirs() as usize;
-        bytes
-            .get(size..)
-            .ok_or(Error::NotEnoughData)?
-            .get(..data_size)
-            .ok_or(Error::NotEnoughData)
-    }
-
-    /// Return a slice of the data directories
-    pub fn data_slice<'a>(&self, bytes: &'a [u8]) -> Result<&'a [RawDataDirectory]> {
-        let data = self.data_bytes(bytes)?;
-        Ok(unsafe {
-            core::slice::from_raw_parts(
-                data.as_ptr() as *const RawDataDirectory,
-                self.data_dirs() as usize,
-            )
-        })
     }
 
     /// Preferred Base of the image in memory.
@@ -334,16 +337,17 @@ impl Section {
 
 /// A PE file
 #[derive(Debug)]
-pub struct PeHeader {
-    dos: RawDos,
-    coff: RawCoff,
-    opt: ImageHeader,
+pub struct PeHeader<'data> {
+    dos: &'data RawDos,
+    coff: &'data RawCoff,
+    opt: ImageHeader<'data>,
     data_dirs: Vec<RawDataDirectory>,
     sections: Vec<Section>,
     base: Option<(*const u8, usize)>,
+    _phantom: PhantomData<&'data u8>,
 }
 
-impl PeHeader {
+impl<'data> PeHeader<'data> {
     /// Get a [`PeHeader`] from `data`, checking to make sure its valid.
     ///
     /// # Safety
@@ -365,8 +369,8 @@ impl PeHeader {
         let base = Some((data, size));
 
         Ok(Self {
-            dos: *dos,
-            coff: pe.coff,
+            dos,
+            coff: &pe.coff,
             opt: header,
             data_dirs: Vec::from(data_dirs),
             sections: sections
@@ -374,14 +378,14 @@ impl PeHeader {
                 .map(|s| Section { header: *s, base })
                 .collect(),
             base,
+            _phantom: PhantomData,
         })
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+    pub fn from_bytes(bytes: &'data [u8]) -> Result<Self> {
         let (dos, pe_bytes) = RawDos::from_bytes(bytes)?;
         let (pe, opt_bytes, sections) = RawPe::from_bytes(pe_bytes)?;
-        let header = ImageHeader::from_bytes(opt_bytes)?;
-        let data_dirs = header.data_slice(opt_bytes)?;
+        let (header, data_dirs) = ImageHeader::from_bytes(opt_bytes)?;
         for s in sections {
             if !s.name.is_ascii() {
                 return Err(Error::InvalidData);
@@ -391,8 +395,8 @@ impl PeHeader {
         let base = None;
 
         Ok(Self {
-            dos: *dos,
-            coff: pe.coff,
+            dos,
+            coff: &pe.coff,
             opt: header,
             data_dirs: Vec::from(data_dirs),
             sections: sections
@@ -400,9 +404,12 @@ impl PeHeader {
                 .map(|s| Section { header: *s, base })
                 .collect(),
             base,
+            _phantom: PhantomData,
         })
     }
+}
 
+impl PeHeader<'_> {
     pub fn sections(&self) -> impl Iterator<Item = &Section> {
         self.sections.iter()
     }
