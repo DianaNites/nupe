@@ -323,7 +323,10 @@ impl<'data> Section<'data> {
     }
 
     /// Slice of the section data
-    pub fn virtual_data(&self) -> &'data [u8] {
+    ///
+    /// Returns [`None`] if not called on a loaded image, or if the section is
+    /// outside the loaded image.
+    pub fn virtual_data(&self) -> Option<&'data [u8]> {
         if let Some((base, size)) = self.base {
             if size
                 .checked_sub(self.virtual_address() as usize)
@@ -331,7 +334,7 @@ impl<'data> Section<'data> {
                 .ok_or(Error::NotEnoughData)
                 .is_err()
             {
-                return &[];
+                return None;
             }
             // Safety:
             // - Base is guaranteed valid for size in `from_ptr_internal`
@@ -339,14 +342,14 @@ impl<'data> Section<'data> {
             //   which we couldnt be here
             // - 'data lifetime means data is still valid
             // - We double check to make sure we're in-bounds above
-            unsafe {
+            Some(unsafe {
                 core::slice::from_raw_parts(
                     base.wrapping_add(self.virtual_address() as usize),
                     self.virtual_size() as usize,
                 )
-            }
+            })
         } else {
-            &[]
+            None
         }
     }
 }
