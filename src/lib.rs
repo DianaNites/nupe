@@ -305,10 +305,12 @@ impl<'data> Section<'data> {
         self.header.virtual_size
     }
 
+    /// Offset of the section data on disk
     pub fn file_offset(&self) -> u32 {
         self.header.raw_ptr
     }
 
+    /// Size of the section data on disk
     pub fn file_size(&self) -> u32 {
         self.header.raw_size
     }
@@ -570,12 +572,18 @@ mod tests {
     #[test]
     fn dev() -> Result<()> {
         // let mut pe = PeHeader::from_bytes(TEST_IMAGE);
-        let mut pe = unsafe { PeHeader::from_loaded_ptr(TEST_IMAGE.as_ptr(), TEST_IMAGE.len()) };
+        let mut pe = unsafe { PeHeader::from_ptr(TEST_IMAGE.as_ptr(), TEST_IMAGE.len()) };
         // dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
             dbg!(section.name());
         }
+        let cmdline = pe.section(".cmdline").unwrap();
+        dbg!(&cmdline);
+        let cmdline = core::str::from_utf8(
+            &TEST_IMAGE[cmdline.file_offset() as usize..][..cmdline.file_size() as usize],
+        );
+        dbg!(&cmdline);
 
         panic!();
 
