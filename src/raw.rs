@@ -133,18 +133,33 @@ impl RawDos {
         }
     }
 
-    /// Get a [`RawDos`] from `bytes`. Checks for the DOS magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        let dos = unsafe {
-            &*(bytes
-                .get(..size_of::<RawDos>())
-                .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawDos)
-        };
+    /// Get a [`RawDos`] from `data`. Checks for the DOS magic.
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    pub unsafe fn from_ptr<'data>(
+        data: *const u8,
+        size: usize,
+    ) -> Result<(&'data Self, (*const u8, usize))> {
+        if data.is_null() {
+            return Err(Error::InvalidData);
+        }
+        if size < size_of::<RawDos>() {
+            return Err(Error::NotEnoughData);
+        }
+        let dos = unsafe { &*(data as *const RawDos) };
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
         }
-        Ok(dos)
+        let pe_ptr = data.wrapping_add(dos.pe_offset as usize);
+        let pe_size = size - dos.pe_offset as usize;
+        Ok((dos, (pe_ptr, pe_size)))
+    }
+
+    /// Get a [`RawDos`] from `bytes`. Checks for the DOS magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        unsafe { Ok(RawDos::from_ptr(bytes.as_ptr(), bytes.len())?.0) }
     }
 
     /// Given the same byte slice given to [`RawDos::from_bytes`],
@@ -176,18 +191,39 @@ pub struct RawPe {
 }
 
 impl RawPe {
-    /// Get a [`RawPe`] from `bytes`. Checks for the PE magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        let pe = unsafe {
-            &*(bytes
-                .get(..size_of::<RawPe>())
-                .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawPe)
-        };
+    /// Get a [`RawPe`] from `data`. Checks for the PE magic.
+    ///
+    /// Returns [`RawPe`], opt data, and section data
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    #[allow(clippy::type_complexity)]
+    pub unsafe fn from_ptr<'data>(
+        data: *const u8,
+        size: usize,
+    ) -> Result<(&'data Self, (*const u8, usize), (*const u8, usize))> {
+        if data.is_null() {
+            return Err(Error::InvalidData);
+        }
+        if size < size_of::<RawPe>() {
+            return Err(Error::NotEnoughData);
+        }
+        let pe = unsafe { &*(data as *const RawPe) };
         if pe.sig != PE_MAGIC {
             return Err(Error::InvalidPeMagic);
         }
-        Ok(pe)
+        let opt_size = pe.coff.optional_size as usize;
+        let opt_ptr = data.wrapping_add(size_of::<RawPe>());
+
+        let section_size = size_of::<RawSectionHeader>() * pe.coff.sections as usize;
+        let section_ptr = data.wrapping_add(size_of::<RawPe>() + opt_size);
+        Ok((pe, (opt_ptr, opt_size), (section_ptr, section_size)))
+    }
+
+    /// Get a [`RawPe`] from `bytes`. Checks for the PE magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        unsafe { Ok(RawPe::from_ptr(bytes.as_ptr(), bytes.len())?.0) }
     }
 
     /// Given the same byte slice given to [`RawPe::from_bytes`],
@@ -283,18 +319,28 @@ pub struct RawPe32 {
 }
 
 impl RawPe32 {
-    /// Get a [`RawPe32`] from `bytes`. Checks for the magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        let opt = unsafe {
-            &*(bytes
-                .get(..size_of::<RawPe32>())
-                .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawPe32)
-        };
+    /// Get a [`RawPe32`] from `data`. Checks for the magic.
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        if data.is_null() {
+            return Err(Error::InvalidData);
+        }
+        if size < size_of::<RawPe32>() {
+            return Err(Error::NotEnoughData);
+        }
+        let opt = unsafe { &*(data as *const RawPe32) };
         if opt.standard.magic != PE32_MAGIC {
             return Err(Error::InvalidPeMagic);
         }
         Ok(opt)
+    }
+
+    /// Get a [`RawPe32`] from `bytes`. Checks for the magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        unsafe { RawPe32::from_ptr(bytes.as_ptr(), bytes.len()) }
     }
 }
 
@@ -326,18 +372,28 @@ pub struct RawPe32x64 {
 }
 
 impl RawPe32x64 {
-    /// Get a [`RawPe32x64`] from `bytes`. Checks for the magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        let opt = unsafe {
-            &*(bytes
-                .get(..size_of::<RawPe32x64>())
-                .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawPe32x64)
-        };
+    /// Get a [`RawPe32x64`] from `data`. Checks for the magic.
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        if data.is_null() {
+            return Err(Error::InvalidData);
+        }
+        if size < size_of::<RawPe32x64>() {
+            return Err(Error::NotEnoughData);
+        }
+        let opt = unsafe { &*(data as *const RawPe32x64) };
         if opt.standard.magic != PE32_64_MAGIC {
             return Err(Error::InvalidPeMagic);
         }
         Ok(opt)
+    }
+
+    /// Get a [`RawPe32x64`] from `bytes`. Checks for the magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        unsafe { RawPe32x64::from_ptr(bytes.as_ptr(), bytes.len()) }
     }
 }
 
