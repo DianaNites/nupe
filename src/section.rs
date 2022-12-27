@@ -5,6 +5,7 @@ use core::marker::PhantomData;
 use crate::{
     error::{Error, Result},
     raw::RawSectionHeader,
+    OwnedOrRef,
     Section,
     SectionFlags,
 };
@@ -18,17 +19,21 @@ pub struct SectionBuilder<'data> {
 }
 
 impl<'data> SectionBuilder<'data> {
-    /// Create a new [`SectionBuilder`] for a section `name`
-    ///
-    /// # Errors
-    ///
-    /// - If `name` is more than 8 bytes.
-    pub fn new(name: &str) -> Result<Self> {
-        Ok(Self {
+    /// Create a new [`SectionBuilder`]
+    pub fn new() -> Self {
+        Self {
             name: [b'\0'; 8],
             data: None,
             attr: None,
-        })
+        }
+    }
+
+    /// Name of the section
+    ///
+    /// If `name` is more than 8 bytes, it is truncated.
+    pub fn name(&mut self, name: &str) -> &mut Self {
+        self.name[..name.len().min(8)].copy_from_slice(name.as_bytes());
+        self
     }
 
     /// Name of the section
@@ -36,7 +41,7 @@ impl<'data> SectionBuilder<'data> {
     /// # Errors
     ///
     /// - If `name` is more than 8 bytes.
-    pub fn name(&mut self, name: &str) -> Result<&mut Self> {
+    pub fn try_name(&mut self, name: &str) -> Result<&mut Self> {
         if name.len() > 8 {
             return Err(Error::InvalidData);
         }
@@ -56,12 +61,12 @@ impl<'data> SectionBuilder<'data> {
         self
     }
 
-    pub fn build(self) -> Section<'static> {
+    pub fn build(&mut self) -> Result<Section<'static>> {
         let mut header = RawSectionHeader {
             name: self.name,
-            virtual_size: todo!(),
+            virtual_size: self.data.unwrap().len().try_into().unwrap(),
             virtual_address: todo!(),
-            raw_size: todo!(),
+            raw_size: self.data.unwrap().len().try_into().unwrap(),
             raw_ptr: todo!(),
             reloc_ptr: todo!(),
             line_ptr: todo!(),
@@ -69,9 +74,9 @@ impl<'data> SectionBuilder<'data> {
             num_lines: todo!(),
             characteristics: self.attr.unwrap(),
         };
-        Section {
-            header: todo!(),
+        Ok(Section {
+            header: OwnedOrRef::Owned(header),
             base: None,
-        }
+        })
     }
 }
