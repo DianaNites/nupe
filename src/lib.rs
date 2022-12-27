@@ -20,6 +20,7 @@ pub mod raw;
 pub mod section;
 use alloc::{vec, vec::Vec};
 use core::{
+    fmt,
     marker::PhantomData,
     mem::{self, size_of, MaybeUninit},
     ops::{Deref, DerefMut},
@@ -62,8 +63,8 @@ impl MachineType {
     pub const EBC: Self = Self(0xEBC);
 }
 
-impl core::fmt::Debug for MachineType {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Debug for MachineType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::UNKNOWN => write!(f, "MachineType::UNKNOWN"),
             Self::AMD64 => write!(f, "MachineType::AMD64"),
@@ -74,8 +75,8 @@ impl core::fmt::Debug for MachineType {
     }
 }
 
-impl core::fmt::Display for MachineType {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Display for MachineType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::UNKNOWN => write!(f, "UNKNOWN"),
             Self::AMD64 => write!(f, "AMD64"),
@@ -111,8 +112,8 @@ impl Subsystem {
     pub const WINDOWS_BOOT: Self = Self(16);
 }
 
-impl core::fmt::Debug for Subsystem {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Debug for Subsystem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::UNKNOWN => write!(f, "Subsystem::UNKNOWN"),
             Self::NATIVE => write!(f, "Subsystem::NATIVE"),
@@ -133,8 +134,8 @@ impl core::fmt::Debug for Subsystem {
     }
 }
 
-impl core::fmt::Display for Subsystem {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Display for Subsystem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Self::UNKNOWN => write!(f, "UNKNOWN"),
             Self::NATIVE => write!(f, "NATIVE"),
@@ -425,9 +426,9 @@ impl<'data> Section<'data> {
 }
 
 /// A PE file
-#[derive(Debug)]
 pub struct Pe<'data> {
     dos: OwnedOrRef<'data, RawDos>,
+    dos_stub: VecOrSlice<'data, u8>,
     coff: OwnedOrRef<'data, RawCoff>,
     opt: ImageHeader<'data>,
     data_dirs: VecOrSlice<'data, RawDataDirectory>,
@@ -441,12 +442,13 @@ impl<'data> Pe<'data> {
     ///
     /// - `data` MUST be valid for `size` bytes.
     unsafe fn from_ptr_internal(data: *const u8, size: usize, loaded: bool) -> Result<Self> {
-        let (dos, (pe_ptr, pe_size)) = RawDos::from_ptr(data, size)?;
+        let (dos, (pe_ptr, pe_size), (stub_ptr, stub_size)) = RawDos::from_ptr(data, size)?;
         let (pe, (opt_ptr, opt_size), (section_ptr, section_size)) =
             RawPe::from_ptr(pe_ptr, pe_size)?;
         let (header, (data_ptr, data_size)) = ImageHeader::from_ptr(opt_ptr, opt_size)?;
         let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
         let sections = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
+        let stub = unsafe { core::slice::from_raw_parts(stub_ptr, stub_size) };
         for s in sections {
             if !s.name.is_ascii() {
                 return Err(Error::InvalidData);
@@ -456,6 +458,7 @@ impl<'data> Pe<'data> {
 
         Ok(Self {
             dos: OwnedOrRef::Ref(dos),
+            dos_stub: VecOrSlice::Slice(stub),
             coff: OwnedOrRef::Ref(&pe.coff),
             opt: header,
             data_dirs: VecOrSlice::Slice(data_dirs),
@@ -561,6 +564,11 @@ impl<'data> Pe<'data> {
     pub fn entry(&self) -> u32 {
         self.opt.entry()
     }
+
+    /// The DOS stub code
+    pub fn dos_stub(&self) -> &[u8] {
+        &self.dos_stub
+    }
 }
 
 impl<'data> Pe<'data> {
@@ -579,6 +587,29 @@ impl<'data> Pe<'data> {
     /// This is only for advanced users.
     pub fn opt(&self) -> &'data ImageHeader {
         &self.opt
+    }
+}
+
+impl<'data> fmt::Debug for Pe<'data> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("Pe");
+        s.field("dos", &self.dos)
+            .field("dos_stub", &{
+                struct Helper(usize);
+                impl fmt::Debug for Helper {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        write!(f, r#"DOS code (len {})"#, self.0)
+                    }
+                }
+                Helper(self.dos_stub.len())
+            })
+            .field("coff", &self.coff)
+            .field("opt", &self.opt)
+            .field("data_dirs", &self.data_dirs)
+            .field("sections", &self.sections)
+            .field("base", &self.base)
+            .field("_phantom", &self._phantom)
+            .finish()
     }
 }
 
@@ -791,6 +822,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let optional_size = size_of::<RawPeOptStandard>() as u16;
         let pe = Pe {
             dos: OwnedOrRef::Ref(&RawDos::new(size_of::<RawDos>() as u32)),
+            dos_stub: VecOrSlice::Vec(Vec::new()),
             coff: OwnedOrRef::Ref(&RawCoff::new(
                 self.machine,
                 sections,
