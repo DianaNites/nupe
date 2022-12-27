@@ -26,6 +26,7 @@ A `no_std` library for handling PE files
     based on the image being loaded from running memory or not.
     - Relatively transparently. For example, it's impossible to get data that isnt there.
       Some data appears to be changed or lost during loading, or vice versa.
+    - Type states?
   - This does NOT need to be able to modify anything from a loaded image.
     - But probably should be able to internally, to share implementations.
   - The public API surface should be completely safe and use standard types, like slices.
