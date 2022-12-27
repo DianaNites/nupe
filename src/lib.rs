@@ -395,10 +395,13 @@ impl<'data> PeHeader<'data> {
 }
 
 impl<'data> PeHeader<'data> {
-    /// Get a section by `name`
+    /// Get a section by `name`. Ignores nul.
     ///
     /// Note that PE section names can only be 8 bytes, total.
     pub fn section(&self, name: &str) -> Option<Section> {
+        if name.len() > 8 {
+            return None;
+        }
         self.sections
             .iter()
             .find(|s| s.name().unwrap() == name)
