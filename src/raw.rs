@@ -365,7 +365,6 @@ pub struct RawSectionHeader {
 
 impl RawSectionHeader {
     pub fn name(&self) -> Result<&str> {
-        // TODO: Validate UTF-8 early on and use unchecked?
         core::str::from_utf8(&self.name)
             .map(|s| s.trim_end_matches('\0'))
             .map_err(|_| Error::InvalidData)

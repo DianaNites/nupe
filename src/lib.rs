@@ -236,6 +236,16 @@ impl ImageHeader {
             )
         })
     }
+
+    /// Preferred Base of the image in memory.
+    ///
+    /// Coerced to u64 even on/for 32bit.
+    pub fn image_base(&self) -> u64 {
+        match self {
+            ImageHeader::Raw32(h) => h.image_base.into(),
+            ImageHeader::Raw64(h) => h.image_base,
+        }
+    }
 }
 
 /// A PE Section
@@ -245,10 +255,12 @@ pub struct Section {
 }
 
 impl Section {
+    /// Address to the first byte of the section, relative to the image base.
     pub fn virtual_address(&self) -> u32 {
         self.header.virtual_address
     }
 
+    /// Size of the section in memory, zero padded if needed.
     pub fn virtual_size(&self) -> u32 {
         self.header.virtual_size
     }
@@ -261,8 +273,25 @@ impl Section {
         self.header.raw_size
     }
 
+    /// Name of the section, with nul bytes stripped.
+    ///
+    /// Empty string is returned if invalid ASCII/UTF-8 somehow makes it here.
     pub fn name(&self) -> &str {
-        self.header.name().unwrap()
+        self.header.name().unwrap_or_default()
+    }
+
+    /// Given the image base address, return a slice of the section data.
+    ///
+    /// # Safety
+    ///
+    /// `image_base` MUST be the correct image base for this image.
+    pub unsafe fn virtual_data(&self, image_base: *const u8) -> &[u8] {
+        unsafe {
+            core::slice::from_raw_parts(
+                image_base.wrapping_add(self.virtual_address() as usize),
+                self.virtual_size() as usize,
+            )
+        }
     }
 }
 
@@ -283,12 +312,13 @@ impl PeHeader {
         let pe = RawPe::from_bytes(pe_bytes)?;
         let opt_bytes = pe.opt_bytes(pe_bytes)?;
         let header = ImageHeader::from_bytes(opt_bytes)?;
-        let data = header.data_bytes(opt_bytes)?;
         let data_dirs = header.data_slice(opt_bytes)?;
-        let section_bytes = pe.section_bytes(pe_bytes)?;
         let sections = pe.section_slice(pe_bytes)?;
-
-        dbg!(&header);
+        for s in sections {
+            if !s.name.is_ascii() {
+                return Err(Error::InvalidData);
+            }
+        }
 
         Ok(Self {
             dos: *dos,
