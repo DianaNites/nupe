@@ -259,6 +259,27 @@ impl RawPeOptStandard {
 pub struct RawPe32 {
     pub standard: RawPeOptStandard,
     pub data_base: u32,
+    pub image_base: u32,
+    pub section_align: u32,
+    pub file_align: u32,
+    pub os_major: u16,
+    pub os_minor: u16,
+    pub image_major: u16,
+    pub image_minor: u16,
+    pub subsystem_major: u16,
+    pub subsystem_minor: u16,
+    pub _reserved_win32: u32,
+    pub image_size: u32,
+    pub headers_size: u32,
+    pub checksum: u32,
+    pub subsystem: Subsystem,
+    pub dll_characteristics: DllCharacteristics,
+    pub stack_reserve: u32,
+    pub stack_commit: u32,
+    pub heap_reserve: u32,
+    pub heap_commit: u32,
+    pub _reserved_loader_flags: u32,
+    pub data_dirs: u32,
 }
 
 impl RawPe32 {

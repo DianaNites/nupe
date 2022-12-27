@@ -187,8 +187,7 @@ impl ImageHeader {
     /// How many data directories
     fn data_dirs(&self) -> u32 {
         match self {
-            // ImageHeader::Raw32(h) => h.data_dirs,
-            ImageHeader::Raw32(h) => todo!(),
+            ImageHeader::Raw32(h) => h.data_dirs,
             ImageHeader::Raw64(h) => h.data_dirs,
         }
     }
