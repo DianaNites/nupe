@@ -25,6 +25,9 @@ use raw::*;
 
 use crate::error::{Error, Result};
 
+/// Machine type, or architecture, of the PE file.
+///
+/// This is what architectures the file will run on.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct MachineType(u16);
@@ -48,6 +51,22 @@ impl core::fmt::Debug for MachineType {
     }
 }
 
+impl core::fmt::Display for MachineType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match *self {
+            Self::UNKNOWN => write!(f, "UNKNOWN"),
+            Self::AMD64 => write!(f, "AMD64"),
+            Self::I386 => write!(f, "I386"),
+            Self::EBC => write!(f, "EBC"),
+            _ => f.debug_tuple("MachineType").field(&self.0).finish(),
+        }
+    }
+}
+
+/// Subsystem, or type, of the PE file.
+///
+/// This determines a few things, such as the expected signature of the
+/// application entry point, expected existence and contents of sections, etc.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Subsystem(u16);
@@ -86,6 +105,28 @@ impl core::fmt::Debug for Subsystem {
             Self::EFI_ROM => write!(f, "Subsystem::EFI_ROM"),
             Self::XBOX => write!(f, "Subsystem::XBOX"),
             Self::WINDOWS_BOOT => write!(f, "Subsystem::WINDOWS_BOOT"),
+            _ => f.debug_tuple("Subsystem").field(&self.0).finish(),
+        }
+    }
+}
+
+impl core::fmt::Display for Subsystem {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match *self {
+            Self::UNKNOWN => write!(f, "UNKNOWN"),
+            Self::NATIVE => write!(f, "NATIVE"),
+            Self::WINDOWS_GUI => write!(f, "WINDOWS_GUI"),
+            Self::WINDOWS_CLI => write!(f, "WINDOWS_CLI"),
+            Self::OS2_CLI => write!(f, "OS2_CLI"),
+            Self::POSIX_CLI => write!(f, "POSIX_CLI"),
+            Self::NATIVE_WINDOWS => write!(f, "NATIVE_WINDOWS"),
+            Self::WINDOWS_CE_GUI => write!(f, "WINDOWS_CE_GUI"),
+            Self::EFI_APPLICATION => write!(f, "EFI_APPLICATION"),
+            Self::EFI_BOOT_DRIVER => write!(f, "EFI_BOOT_DRIVER"),
+            Self::EFI_RUNTIME_DRIVER => write!(f, "EFI_RUNTIME_DRIVER"),
+            Self::EFI_ROM => write!(f, "EFI_ROM"),
+            Self::XBOX => write!(f, "XBOX"),
+            Self::WINDOWS_BOOT => write!(f, "WINDOWS_BOOT"),
             _ => f.debug_tuple("Subsystem").field(&self.0).finish(),
         }
     }
@@ -192,6 +233,13 @@ impl<'data> ImageHeader<'data> {
         match self {
             ImageHeader::Raw32(h) => h.data_dirs,
             ImageHeader::Raw64(h) => h.data_dirs,
+        }
+    }
+
+    fn subsystem(&self) -> Subsystem {
+        match self {
+            ImageHeader::Raw32(h) => h.subsystem,
+            ImageHeader::Raw64(h) => h.subsystem,
         }
     }
 }
@@ -424,7 +472,7 @@ impl<'data> PeHeader<'data> {
 }
 
 impl<'data> PeHeader<'data> {
-    /// Get a section by `name`. Ignores nul.
+    /// Get a [`Section`] by `name`. Ignores nul.
     ///
     /// Note that PE section names can only be 8 bytes, total.
     pub fn section(&self, name: &str) -> Option<Section> {
@@ -440,11 +488,22 @@ impl<'data> PeHeader<'data> {
             })
     }
 
+    /// Iterator over [`Section`]s
     pub fn sections(&self) -> impl Iterator<Item = Section> {
         self.sections.iter().map(|s| Section {
             header: s,
             base: self.base,
         })
+    }
+
+    /// Machine type
+    pub fn machine_type(&self) -> MachineType {
+        self.coff.machine
+    }
+
+    /// Subsystem
+    pub fn subsystem(&self) -> Subsystem {
+        self.opt.subsystem()
     }
 }
 
@@ -570,13 +629,14 @@ mod tests {
     static _TEST_IMAGE: &[u8] =
         include_bytes!("../../uefi-stub/target/x86_64-unknown-uefi/debug/uefi-stub.efi");
     // static TEST_IMAGE: &[u8] = include_bytes!("/boot/vmlinuz-linux");
-    static TEST_IMAGE: &[u8] = include_bytes!("/boot/EFI/Linux/linux.efi");
+    static __TEST_IMAGE: &[u8] = include_bytes!("/boot/EFI/Linux/linux.efi");
+    static TEST_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
 
     #[test]
     fn dev() -> Result<()> {
         // let mut pe = PeHeader::from_bytes(TEST_IMAGE);
         let mut pe = unsafe { PeHeader::from_ptr(TEST_IMAGE.as_ptr(), TEST_IMAGE.len()) };
-        // dbg!(&pe);
+        dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
             dbg!(section.name());
@@ -587,6 +647,45 @@ mod tests {
             &TEST_IMAGE[cmdline.file_offset() as usize..][..cmdline.file_size() as usize],
         );
         dbg!(&cmdline);
+
+        panic!();
+
+        Ok(())
+    }
+
+    /// test ability to read rustup-init.exe
+    #[test]
+    fn read_rustup() -> Result<()> {
+        let mut pe = PeHeader::from_bytes(TEST_IMAGE)?;
+        dbg!(&pe);
+        assert_eq!(pe.machine_type(), MachineType::AMD64);
+        assert_eq!(pe.sections().count(), 6);
+        // assert_eq!(pe.time(), 1657657359);
+        // assert_eq!(pe.coff.optional_size, 240);
+        // assert_eq!(
+        //     pe.attributes(),
+        //     CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE
+        // );
+        // assert_eq!(pe.image_base(), 5368709120);
+        // assert_eq!(pe.section_align(), 4096);
+        // assert_eq!(pe.file_align(), 512);
+        // assert_eq!(pe.os_ver(), (6, 0));
+        // assert_eq!(pe.os(), (6, 0));
+        // assert_eq!(pe.image_size(), 10096640);
+        // assert_eq!(pe.headers_size(), 1024);
+        assert_eq!(pe.subsystem(), Subsystem::WINDOWS_CLI);
+        // assert_eq!(
+        //     pe.dll_attributes(),
+        //     DllCharacteristics::HIGH_ENTROPY_VA
+        //         | DllCharacteristics::DYNAMIC_BASE
+        //         | DllCharacteristics::NX_COMPAT
+        //         | DllCharacteristics::TERMINAL_SERVER
+        // );
+        // assert_eq!(pe.stack_reserve(), 1048576);
+        // assert_eq!(pe.stack_commit(), 4096);
+        // assert_eq!(pe.heap_reserve(), 1048576);
+        // assert_eq!(pe.heap_commit(), 4096);
+        // assert_eq!(pe.data_dirs(), 16);
 
         panic!();
 
