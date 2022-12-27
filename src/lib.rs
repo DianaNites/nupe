@@ -348,7 +348,8 @@ impl PeHeader {
     ///
     /// # Safety
     ///
-    /// - `data` MUST be a valid pointer to a LOADED PE image in memory
+    /// - `data` MUST be valid for `size` bytes.
+    /// - `data` SHOULD be a valid pointer to a LOADED PE image in memory
     pub unsafe fn from_loaded_ptr(data: *const u8, size: usize) -> Result<Self> {
         let (dos, (pe_ptr, pe_size)) = RawDos::from_ptr(data, size)?;
         let (pe, (opt_ptr, opt_size), (section_ptr, section_size)) =
