@@ -399,6 +399,7 @@ pub struct RawPe32 {
 
     /// Required OS major version
     pub os_major: u16,
+
     /// Required OS minor version
     pub os_minor: u16,
 
@@ -507,6 +508,7 @@ pub struct RawPe32x64 {
 
     /// Required OS major version
     pub os_major: u16,
+
     /// Required OS minor version
     pub os_minor: u16,
 

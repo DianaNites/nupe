@@ -18,11 +18,12 @@ pub mod error;
 mod internal;
 pub mod raw;
 pub mod section;
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use core::{
     marker::PhantomData,
-    mem::{self, size_of},
+    mem::{self, size_of, MaybeUninit},
     ops::{Deref, DerefMut},
+    slice::from_raw_parts,
 };
 
 use bitflags::bitflags;
@@ -591,13 +592,19 @@ mod states {
 /// Builder for a [`Pe`] file
 #[derive(Debug)]
 pub struct PeBuilder<'data, State> {
-    /// Type state
+    /// Type state.
     state: PhantomData<State>,
 
+    /// Sections to write to the image.
     sections: VecOrSlice<'data, Section<'data>>,
+
+    /// Data dirs to write to the image, defaults to zeroed.
     data_dirs: VecOrSlice<'data, RawDataDirectory>,
-    // Required
+
+    /// Machine type. Required.
     machine: MachineType,
+
+    /// Timestamp. Defaults to 0.
     timestamp: Option<u32>,
 
     /// Defaults to [`DEFAULT_IMAGE_BASE`]
@@ -630,10 +637,9 @@ impl<'data> PeBuilder<'data, states::Empty> {
     /// Create a new [`PeBuilder`]
     pub fn new() -> Self {
         Self {
-            //
             state: PhantomData,
             sections: VecOrSlice::Vec(Vec::new()),
-            data_dirs: VecOrSlice::Vec(Vec::new()),
+            data_dirs: VecOrSlice::Vec(vec![RawDataDirectory::new(0, 0); 15]),
             machine: MachineType::UNKNOWN,
             timestamp: None,
             image_base: DEFAULT_IMAGE_BASE,
@@ -816,20 +822,51 @@ impl<'data> PeBuilder<'data, states::Machine> {
         /// Most other structures cant be created without
         /// information from or about these.
         ///
-        /// The first structure we can create is [`RawDos`]
+        /// The first structure we can create is [`RawDos`], and this is then
+        /// written, followed by the PE COFF magic and COFF header.
         ///
-        /// The next is the optional header.
-        /// This needs to go through all sections to sum up their sizes
+        /// Next is the optional header,
+        /// which needs to go through all sections to sum up their sizes before
+        /// being written.
         struct _DummyHoverWriteDocs;
         out.clear();
         let machine = self.machine;
-        let s_sections = &self.sections;
-        let data_dirs = &self.data_dirs;
 
         let dos = OwnedOrRef::Owned(RawDos::new(size_of::<RawDos>() as u32));
+        let bytes = unsafe {
+            let ptr = dos.as_ref() as *const RawDos as *const u8;
+            from_raw_parts(ptr, size_of::<RawDos>())
+        };
+        out.extend_from_slice(bytes);
+        // NOTE: Remember to align to 8 bytes if we write a stub.
+        out.extend_from_slice(PE_MAGIC);
 
-        // We always write the full, zeroed, data dirs.
-        let mut optional_size = size_of::<RawDataDirectory>() * data_dirs.len();
+        // We always write the full 15, zeroed, data dirs, and either the 32 or 64-bit
+        // header.
+        let optional_size = self.data_dirs.len()
+            + match machine {
+                MachineType::AMD64 => Ok(size_of::<RawPe32x64>()),
+                MachineType::I386 => Ok(size_of::<RawPe32>()),
+                _ => Err(Error::InvalidData),
+            }?;
+
+        let coff = OwnedOrRef::Owned(RawCoff::new(
+            machine,
+            self.sections
+                .len()
+                .try_into()
+                .map_err(|_| Error::InvalidData)?,
+            0, // TODO: Times
+            // optional_size.try_into().map_err(|_| Error::InvalidData)?,
+            0,
+            self.attributes,
+        ));
+
+        let bytes = unsafe {
+            let ptr = coff.as_ref() as *const RawCoff as *const u8;
+            from_raw_parts(ptr, size_of::<RawCoff>())
+        };
+        out.extend_from_slice(bytes);
 
         let opt = {
             let mut code_sum = 0;
@@ -837,7 +874,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
             let mut uninit_sum = 0;
             let mut code_base = 0;
             let mut data_base = 0;
-            for section in s_sections.iter() {
+            let mut sections_sum: usize = 0;
+            // Get section sizes
+            for section in self.sections.iter() {
                 match section.flags() {
                     SectionFlags::CODE => {
                         code_sum += section.virtual_size();
@@ -850,41 +889,49 @@ impl<'data> PeBuilder<'data, states::Machine> {
                     SectionFlags::UNINITIALIZED => uninit_sum += section.virtual_size(),
                     _ => (),
                 }
+
+                let size: usize = section
+                    .virtual_size()
+                    .try_into()
+                    .map_err(|_| Error::InvalidData)?;
+                sections_sum += size;
             }
 
+            // Create standard subset
             let opt = RawPeOptStandard::new(
                 match machine {
                     MachineType::AMD64 => Ok(PE32_64_MAGIC),
                     MachineType::I386 => Ok(PE32_MAGIC),
                     _ => Err(Error::InvalidData),
                 }?,
-                0,
-                0,
+                0, // Linker_major
+                0, // Linker_minor
                 code_sum,
                 init_sum,
                 uninit_sum,
+                // FIXME: Entry point will be incredibly error prone.
                 self.entry.unwrap(),
                 code_base,
             );
             let headers_size = (size_of::<RawDos>()
                 + size_of::<RawPe>()
-                + (size_of::<RawSectionHeader>() * s_sections.len()))
+                + (size_of::<RawSectionHeader>() * self.sections.len()))
                 as u64;
             let headers_size = headers_size + (self.file_align - (headers_size % self.file_align));
 
-            // TODO: This is not complete
+            // Image size, calculated as the headers size as a base, plus what its missing
+            // Specifically:
+            // - Data dirs
+            // - Size of all section
             let image_size = headers_size as usize
-                + (size_of::<RawDataDirectory>() * data_dirs.len())
-                + code_sum as usize
-                + init_sum as usize
-                + uninit_sum as usize;
+                + (size_of::<RawDataDirectory>() * self.data_dirs.len())
+                + sections_sum;
+
             let image_size = image_size as u64;
             let image_size = image_size + (self.section_align - (image_size % self.section_align));
             // 568 + (512 - (568 % 512))
             match machine {
                 MachineType::AMD64 => {
-                    optional_size += size_of::<RawPe32x64>();
-                    // #[cfg(no)]
                     let pe = RawPe32x64::new(
                         opt,
                         self.image_base,
@@ -904,34 +951,66 @@ impl<'data> PeBuilder<'data, states::Machine> {
                         self.stack.1,
                         self.heap.0,
                         self.heap.1,
-                        data_dirs.len() as u32,
+                        self.data_dirs
+                            .len()
+                            .try_into()
+                            .map_err(|_| Error::InvalidData)?,
                     );
                     ImageHeader::Raw64(OwnedOrRef::Owned(pe))
                 }
                 MachineType::I386 => {
-                    optional_size += size_of::<RawPe32>();
                     todo!();
                 }
                 _ => unimplemented!(),
             }
         };
 
-        let sections = s_sections.len().try_into().unwrap();
-        let time = 0;
-        let coff = OwnedOrRef::Owned(RawCoff::new(
-            machine,
-            sections,
-            time,
-            optional_size.try_into().unwrap(),
-            self.attributes,
-        ));
+        match opt {
+            ImageHeader::Raw32(h) => {
+                let bytes = unsafe {
+                    let ptr = h.as_ref() as *const RawPe32 as *const u8;
+                    from_raw_parts(ptr, size_of::<RawPe32>())
+                };
+                out.extend_from_slice(bytes);
+            }
+            ImageHeader::Raw64(h) => {
+                let bytes = unsafe {
+                    let ptr = h.as_ref() as *const RawPe32x64 as *const u8;
+                    from_raw_parts(ptr, size_of::<RawPe32x64>())
+                };
+                out.extend_from_slice(bytes);
+            }
+        }
 
+        // TODO: Data dirs
+        let bytes = unsafe {
+            let ptr = self.data_dirs.as_ptr() as *const u8;
+            from_raw_parts(ptr, size_of::<RawDataDirectory>() * self.data_dirs.len())
+        };
+        out.extend_from_slice(bytes);
+        // TODO: Section table
+        let sections: Vec<*const RawSectionHeader> = self
+            .sections
+            .iter()
+            .map(|s| s.header.as_ref() as *const RawSectionHeader)
+            .collect();
+        for s in self.sections.iter() {
+            let bytes = unsafe {
+                let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
+                from_raw_parts(ptr, size_of::<RawSectionHeader>() * self.sections.len())
+            };
+            out.extend_from_slice(bytes);
+            dbg!(&s.header);
+        }
+        // TODO: Section data
+
+        #[cfg(no)]
         let pe = Pe {
             dos,
             coff,
             opt,
-            data_dirs: VecOrSlice::Slice(data_dirs),
-            sections: VecOrSlice::Vec(s_sections.iter().map(|s| *s.header).collect()),
+            data_dirs: self.data_dirs,
+            sections: VecOrSlice::Vec(self.sections.iter().map(|s| *s.header).collect()),
             base: None,
             _phantom: PhantomData,
         };
