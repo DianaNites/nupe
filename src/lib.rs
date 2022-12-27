@@ -538,7 +538,13 @@ impl<'data> Pe<'data> {
         self.coff.attributes
     }
 
-    /// Subsystem
+    /// Subsystem, or type, of the PE file.
+    ///
+    /// This determines a few things, such as the expected signature of the
+    /// application entry point, expected existence and contents of sections,
+    /// etc.
+    ///
+    /// See [Subsystem]
     pub fn subsystem(&self) -> Subsystem {
         self.opt.subsystem()
     }
@@ -604,30 +610,6 @@ pub struct PeBuilder<'data> {
 }
 
 impl<'data> PeBuilder<'data> {
-    //
-}
-
-impl<'data> PeBuilder<'data> {
-    /// Create a new [`PeBuilder`]
-    pub fn new() -> Self {
-        Self {
-            //
-            sections: None,
-            data_dirs: None,
-            machine: None,
-            timestamp: None,
-            image_base: DEFAULT_IMAGE_BASE,
-            section_align: 4096,
-            file_align: 512,
-            entry: None,
-            attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
-            subsystem: Subsystem::UNKNOWN,
-            dll_attributes: DllCharacteristics::empty(),
-            stack: (0, 0),
-            heap: (0, 0),
-        }
-    }
-
     /// Machine Type. This is required.
     pub fn machine(&mut self, machine: MachineType) -> &mut Self {
         self.machine = Some(machine);
@@ -666,6 +648,28 @@ impl<'data> PeBuilder<'data> {
     pub fn attributes(&mut self, attr: CoffAttributes) -> &mut Self {
         self.attributes = attr;
         self
+    }
+}
+
+impl<'data> PeBuilder<'data> {
+    /// Create a new [`PeBuilder`]
+    pub fn new() -> Self {
+        Self {
+            //
+            sections: None,
+            data_dirs: None,
+            machine: None,
+            timestamp: None,
+            image_base: DEFAULT_IMAGE_BASE,
+            section_align: 4096,
+            file_align: 512,
+            entry: None,
+            attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
+            subsystem: Subsystem::UNKNOWN,
+            dll_attributes: DllCharacteristics::empty(),
+            stack: (0, 0),
+            heap: (0, 0),
+        }
     }
 
     /// Calculate the size on disk this file would take
