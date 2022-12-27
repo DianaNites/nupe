@@ -388,6 +388,16 @@ impl<'data> PeHeader<'data> {
         Self::from_ptr_internal(data, size, true)
     }
 
+    /// Get a [`PeHeader`] from `data`, checking to make sure its valid.
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    /// - `data` SHOULD be a valid pointer to a PE image in memory
+    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
+        Self::from_ptr_internal(data, size, false)
+    }
+
     pub fn from_bytes(bytes: &'data [u8]) -> Result<Self> {
         // Safety: Slice pointer is trivially valid for its own length.
         unsafe { Self::from_ptr_internal(bytes.as_ptr(), bytes.len(), false) }
