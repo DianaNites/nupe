@@ -12,6 +12,7 @@
 extern crate alloc;
 
 pub mod error;
+mod internal;
 pub mod raw;
 use alloc::vec::Vec;
 use core::mem::{self, size_of};
@@ -218,39 +219,18 @@ pub struct PeHeader {
 
 impl PeHeader {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let dos = unsafe {
-            &*(bytes
-                .get(..size_of::<RawDos>())
-                .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawDos)
-        };
-        if dos.magic != DOS_MAGIC {
-            return Err(Error::InvalidDosMagic);
-        }
+        let dos = RawDos::from_bytes(bytes)?;
         let pe_bytes = bytes
             .get(dos.pe_offset as usize..)
             .ok_or(Error::NotEnoughData)?;
-        let pe = unsafe {
-            &*(pe_bytes
-                .get(..size_of::<RawPe>())
-                .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawPe)
-        };
-        if pe.sig != PE_MAGIC {
-            return Err(Error::InvalidPeMagic);
-        }
+        let pe = RawPe::from_bytes(pe_bytes)?;
         let opt_size = pe.coff.optional_size as usize;
         let opt_bytes = pe_bytes
             .get(size_of::<RawPe>()..)
             .ok_or(Error::NotEnoughData)?
             .get(..opt_size)
             .ok_or(Error::NotEnoughData)?;
-        let opt = unsafe {
-            &*(opt_bytes
-                .get(..size_of::<RawPeOptStandard>())
-                .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawPeOptStandard)
-        };
+        let opt = RawPeOptStandard::from_bytes(opt_bytes)?;
         if opt.magic == PE32_64_MAGIC {
             let header = unsafe {
                 &*(opt_bytes
