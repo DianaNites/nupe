@@ -13,7 +13,14 @@
 //! - Variable number of [RawSectionHeader]
 use core::mem::{self, size_of};
 
-use crate::{CoffAttributes, DllCharacteristics, MachineType, SectionFlags, Subsystem};
+use crate::{
+    error::{Error, Result},
+    CoffAttributes,
+    DllCharacteristics,
+    MachineType,
+    SectionFlags,
+    Subsystem,
+};
 
 /// DOS Magic signature
 pub const DOS_MAGIC: &[u8] = b"MZ";
@@ -98,6 +105,22 @@ pub struct RawDos {
     pub pe_offset: u32,
 }
 
+impl RawDos {
+    /// Get a [`RawDos`] from `bytes`. Checks for the DOS magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        let dos = unsafe {
+            &*(bytes
+                .get(..size_of::<RawDos>())
+                .ok_or(Error::NotEnoughData)?
+                .as_ptr() as *const RawDos)
+        };
+        if dos.magic != DOS_MAGIC {
+            return Err(Error::InvalidDosMagic);
+        }
+        Ok(dos)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawCoff {
@@ -117,6 +140,22 @@ pub struct RawPe {
     pub coff: RawCoff,
 }
 
+impl RawPe {
+    /// Get a [`RawPe`] from `bytes`. Checks for the PE magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        let pe = unsafe {
+            &*(bytes
+                .get(..size_of::<RawPe>())
+                .ok_or(Error::NotEnoughData)?
+                .as_ptr() as *const RawPe)
+        };
+        if pe.sig != PE_MAGIC {
+            return Err(Error::InvalidPeMagic);
+        }
+        Ok(pe)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPeOptStandard {
@@ -130,11 +169,43 @@ pub struct RawPeOptStandard {
     pub code_base: u32,
 }
 
+impl RawPeOptStandard {
+    /// Get a [`RawPeOptStandard`] from `bytes`. Checks for the magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        let opt = unsafe {
+            &*(bytes
+                .get(..size_of::<RawPeOptStandard>())
+                .ok_or(Error::NotEnoughData)?
+                .as_ptr() as *const RawPeOptStandard)
+        };
+        if !(opt.magic == PE32_64_MAGIC || opt.magic != PE32_MAGIC) {
+            return Err(Error::InvalidPeMagic);
+        }
+        Ok(opt)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPe32 {
     pub standard: RawPeOptStandard,
     pub data_base: u32,
+}
+
+impl RawPe32 {
+    /// Get a [`RawPe32`] from `bytes`. Checks for the magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        let opt = unsafe {
+            &*(bytes
+                .get(..size_of::<RawPe32>())
+                .ok_or(Error::NotEnoughData)?
+                .as_ptr() as *const RawPe32)
+        };
+        if opt.standard.magic != PE32_MAGIC {
+            return Err(Error::InvalidPeMagic);
+        }
+        Ok(opt)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -162,6 +233,22 @@ pub struct RawPe32x64 {
     pub heap_commit: u64,
     pub _reserved_loader_flags: u32,
     pub data_dirs: u32,
+}
+
+impl RawPe32x64 {
+    /// Get a [`RawPe32x64`] from `bytes`. Checks for the magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        let opt = unsafe {
+            &*(bytes
+                .get(..size_of::<RawPe32x64>())
+                .ok_or(Error::NotEnoughData)?
+                .as_ptr() as *const RawPe32x64)
+        };
+        if opt.standard.magic != PE32_64_MAGIC {
+            return Err(Error::InvalidPeMagic);
+        }
+        Ok(opt)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

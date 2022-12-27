@@ -30,3 +30,7 @@ A `no_std` library for handling PE files
   - Remove gaps
   - Shrink/Expand sections
   - Modify the header as appropriate
+
+- Given any parsed structure, be able to perfectly recreate it? bit for bit?
+  - Should we have the ability to parse/create invalid structures?
+    - Certainly not through the standard API, but its fine if a "raw" API allows it?
