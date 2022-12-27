@@ -196,6 +196,9 @@ pub struct RawCoff {
 }
 
 impl RawCoff {
+    /// Create a new COFF header
+    ///
+    /// The deprecated COFF debugging information is set to zero
     pub fn new(
         machine: MachineType,
         sections: u16,
