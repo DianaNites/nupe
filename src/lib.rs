@@ -379,8 +379,7 @@ impl PeHeader {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let dos = RawDos::from_bytes(bytes)?;
-        let pe_bytes = dos.pe_bytes(bytes)?;
+        let (dos, pe_bytes) = RawDos::from_bytes(bytes)?;
         let pe = RawPe::from_bytes(pe_bytes)?;
         let opt_bytes = pe.opt_bytes(pe_bytes)?;
         let header = ImageHeader::from_bytes(opt_bytes)?;
