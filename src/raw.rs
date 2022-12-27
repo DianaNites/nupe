@@ -145,9 +145,8 @@ impl RawDos {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
-        if size < size_of::<RawDos>() {
-            return Err(Error::NotEnoughData);
-        }
+        size.checked_sub(size_of::<RawDos>())
+            .ok_or(Error::NotEnoughData)?;
         let dos = unsafe { &*(data as *const RawDos) };
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
@@ -159,17 +158,17 @@ impl RawDos {
         Ok((dos, (pe_ptr, pe_size)))
     }
 
-    /// Get a [`RawDos`] from `bytes`. Checks for the DOS magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        unsafe { Ok(RawDos::from_ptr(bytes.as_ptr(), bytes.len())?.0) }
-    }
-
-    /// Given the same byte slice given to [`RawDos::from_bytes`],
-    /// return the slice of just the PE portion.
-    pub fn pe_bytes<'a>(&self, bytes: &'a [u8]) -> Result<&'a [u8]> {
-        bytes
-            .get(self.pe_offset as usize..)
-            .ok_or(Error::NotEnoughData)
+    /// Get a [`RawDos`] from `bytes`, and the remaining PE portion of `bytes`.
+    ///
+    /// Checks for the DOS magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
+        let dos = unsafe { RawDos::from_ptr(bytes.as_ptr(), bytes.len())?.0 };
+        Ok((
+            dos,
+            bytes
+                .get(dos.pe_offset as usize..)
+                .ok_or(Error::NotEnoughData)?,
+        ))
     }
 }
 
