@@ -7,6 +7,7 @@
     unused_assignments,
     dead_code,
     clippy::let_unit_value,
+    clippy::diverging_sub_expression,
     unreachable_code
 )]
 extern crate alloc;
@@ -14,6 +15,7 @@ extern crate alloc;
 pub mod error;
 mod internal;
 pub mod raw;
+mod section;
 use alloc::vec::Vec;
 use core::{
     marker::PhantomData,
@@ -223,11 +225,12 @@ bitflags! {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum ImageHeader<'data> {
+pub enum ImageHeader<'data> {
     Raw32(&'data RawPe32),
     Raw64(&'data RawPe32x64),
 }
 
+#[doc(hidden)]
 impl<'data> ImageHeader<'data> {
     /// How many data directories
     fn data_dirs(&self) -> u32 {
@@ -246,6 +249,7 @@ impl<'data> ImageHeader<'data> {
     }
 }
 
+#[doc(hidden)]
 impl<'data> ImageHeader<'data> {
     /// Get a [`ImageHeader`] from `data`. Checks for the magic.
     ///
@@ -254,7 +258,7 @@ impl<'data> ImageHeader<'data> {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    pub unsafe fn from_ptr(
+    unsafe fn from_ptr(
         data: *const u8,
         size: usize,
     ) -> Result<(Self, (*const RawDataDirectory, usize))> {
@@ -286,7 +290,7 @@ impl<'data> ImageHeader<'data> {
     /// Get a [`ImageHeader`] from `bytes`, and data dirs as slice
     ///
     /// Checks for the magic.
-    pub fn from_bytes(bytes: &'data [u8]) -> Result<(Self, &'data [RawDataDirectory])> {
+    fn from_bytes(bytes: &'data [u8]) -> Result<(Self, &'data [RawDataDirectory])> {
         let opt = unsafe {
             &*(bytes
                 .get(..size_of::<RawPeOptStandard>())
@@ -329,7 +333,7 @@ impl<'data> ImageHeader<'data> {
     /// Preferred Base of the image in memory.
     ///
     /// Coerced to u64 even on/for 32bit.
-    pub fn image_base(&self) -> u64 {
+    fn image_base(&self) -> u64 {
         match self {
             ImageHeader::Raw32(h) => h.image_base.into(),
             ImageHeader::Raw64(h) => h.image_base,
@@ -509,6 +513,22 @@ impl<'data> PeHeader<'data> {
     }
 }
 
+impl<'data> PeHeader<'data> {
+    /// Raw COFF header for this PE file
+    ///
+    /// This is only for advanced users.
+    pub fn coff(&self) -> &'data RawCoff {
+        self.coff
+    }
+
+    /// Raw COFF header for this PE file
+    ///
+    /// This is only for advanced users.
+    pub fn opt(&self) -> &'data ImageHeader {
+        &self.opt
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{fs, path::Path};
@@ -553,7 +573,54 @@ mod tests {
         assert_eq!(pe.machine_type(), MachineType::AMD64);
         assert_eq!(pe.sections().count(), 6);
         // assert_eq!(pe.time(), 1657657359);
-        // assert_eq!(pe.coff.optional_size, 240);
+        assert_eq!({ pe.coff.machine }, MachineType::AMD64);
+        assert_eq!({ pe.coff.sections }, 6);
+        assert_eq!({ pe.coff.time }, 1657657359);
+        assert_eq!({ pe.coff.sym_offset }, 0);
+        assert_eq!({ pe.coff.num_sym }, 0);
+        assert_eq!({ pe.coff.optional_size }, 240);
+        assert_eq!(
+            { pe.coff.attributes },
+            CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE
+        );
+        let opt = match pe.opt() {
+            ImageHeader::Raw64(o) => *o,
+            ImageHeader::Raw32(_) => panic!("Invalid PE Optional Header"),
+        };
+        assert_eq!({ opt.standard.linker_major }, 14);
+        assert_eq!({ opt.standard.linker_minor }, 32);
+        assert_eq!({ opt.standard.code_size }, 7170048);
+        assert_eq!({ opt.standard.init_size }, 2913792);
+        assert_eq!({ opt.standard.uninit_size }, 0);
+        assert_eq!({ opt.standard.entry_offset }, 6895788);
+        assert_eq!({ opt.standard.code_base }, 4096);
+        assert_eq!({ opt.image_base }, 5368709120);
+        assert_eq!({ opt.section_align }, 4096);
+        assert_eq!({ opt.file_align }, 512);
+        assert_eq!({ opt.os_major }, 6);
+        assert_eq!({ opt.os_minor }, 0);
+        assert_eq!({ opt.image_major }, 0);
+        assert_eq!({ opt.image_minor }, 0);
+        assert_eq!({ opt.subsystem_major }, 6);
+        assert_eq!({ opt.subsystem_minor }, 0);
+        assert_eq!({ opt._reserved_win32 }, 0);
+        assert_eq!({ opt.image_size }, 10096640);
+        assert_eq!({ opt.headers_size }, 1024);
+        assert_eq!({ opt.checksum }, 0);
+        assert_eq!({ opt.subsystem }, Subsystem::WINDOWS_CLI);
+        assert_eq!(
+            { opt.dll_characteristics },
+            DllCharacteristics::HIGH_ENTROPY_VA
+                | DllCharacteristics::DYNAMIC_BASE
+                | DllCharacteristics::NX_COMPAT
+                | DllCharacteristics::TERMINAL_SERVER
+        );
+        assert_eq!({ opt.stack_reserve }, 1048576);
+        assert_eq!({ opt.stack_commit }, 4096);
+        assert_eq!({ opt.stack_reserve }, 1048576);
+        assert_eq!({ opt.stack_commit }, 4096);
+        assert_eq!({ opt._reserved_loader_flags }, 0);
+        assert_eq!({ opt.data_dirs }, 16);
         // assert_eq!(
         //     pe.attributes(),
         //     CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE
