@@ -18,6 +18,15 @@ A `no_std` library for handling PE files
 
 ### Use cases
 
+- Create images
+  - Builder pattern, correct by construction.
+  - Add sections
+  - Remove sections
+  - Re-order sections
+  - Remove gaps
+  - Shrink/expand sections
+  - Header must be created/modified last?
+
 - Given a pointer to a loaded image in memory, be able to safely interact with and manipulate the image.
   - [x] Specifically, read the header, locate sections and their data, etc,
     without needing to repeatedly specify the image base.
@@ -29,12 +38,12 @@ A `no_std` library for handling PE files
     - Type states?
   - This does NOT need to be able to modify anything from a loaded image.
     - But probably should be able to internally, to share implementations.
-  - The public API surface should be completely safe and use standard types, like slices.
-  - Ideally this is as zero-copy as possible.
+  - [x] The public API surface should be completely safe and use standard types, like slices.
+  - [x] Ideally this is as zero-copy as possible.
 
-- Given a pointer to a image (partially??) loaded in memory
-  - Read the header
-  - Find the location of other sections in memory
+- [x] Given a pointer to a image (partially??) loaded in memory
+  - [x] Read the header
+  - [x] Find the location of other sections in memory
 
 - Given a (mutable) byte slice to a (partial??) image
   - Read the header
