@@ -573,6 +573,8 @@ mod tests {
         assert_eq!(pe.machine_type(), MachineType::AMD64);
         assert_eq!(pe.sections().count(), 6);
         // assert_eq!(pe.time(), 1657657359);
+        assert_eq!(pe.subsystem(), Subsystem::WINDOWS_CLI);
+
         assert_eq!({ pe.coff.machine }, MachineType::AMD64);
         assert_eq!({ pe.coff.sections }, 6);
         assert_eq!({ pe.coff.time }, 1657657359);
@@ -632,7 +634,6 @@ mod tests {
         // assert_eq!(pe.os(), (6, 0));
         // assert_eq!(pe.image_size(), 10096640);
         // assert_eq!(pe.headers_size(), 1024);
-        assert_eq!(pe.subsystem(), Subsystem::WINDOWS_CLI);
         // assert_eq!(
         //     pe.dll_attributes(),
         //     DllCharacteristics::HIGH_ENTROPY_VA
