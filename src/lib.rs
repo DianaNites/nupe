@@ -691,11 +691,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
     }
 }
 
-impl<'data, State> PeBuilder<'data, State> {
+impl<'data> PeBuilder<'data, states::Machine> {
     /// Calculate the size on disk this file would take
     ///
     /// Ignores file alignment
-    pub fn calculate_size(&self) -> usize {
+    fn calculate_size(&self) -> usize {
         const DOS_STUB: usize = 0;
         let opt_size = match self.machine {
             MachineType::AMD64 => size_of::<RawPe32x64>(),
@@ -931,7 +931,7 @@ impl<'data, State> PeBuilder<'data, State> {
             dos,
             coff,
             opt,
-            data_dirs: VecOrSlice::Slice(&data_dirs),
+            data_dirs: VecOrSlice::Slice(data_dirs),
             sections: VecOrSlice::Vec(s_sections.iter().map(|s| *s.header).collect()),
             base: None,
             _phantom: PhantomData,
