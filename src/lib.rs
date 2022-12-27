@@ -519,8 +519,8 @@ mod tests {
     static _TEST_IMAGE: &[u8] =
         include_bytes!("../../uefi-stub/target/x86_64-unknown-uefi/debug/uefi-stub.efi");
     // static TEST_IMAGE: &[u8] = include_bytes!("/boot/vmlinuz-linux");
-    static __TEST_IMAGE: &[u8] = include_bytes!("/boot/EFI/Linux/linux.efi");
-    static TEST_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
+    static TEST_IMAGE: &[u8] = include_bytes!("/boot/EFI/Linux/linux.efi");
+    static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
 
     #[test]
     fn dev() -> Result<()> {
@@ -546,7 +546,7 @@ mod tests {
     /// test ability to read rustup-init.exe
     #[test]
     fn read_rustup() -> Result<()> {
-        let mut pe = PeHeader::from_bytes(TEST_IMAGE)?;
+        let mut pe = PeHeader::from_bytes(RUSTUP_IMAGE)?;
         dbg!(&pe);
         assert_eq!(pe.machine_type(), MachineType::AMD64);
         assert_eq!(pe.sections().count(), 6);
