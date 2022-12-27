@@ -348,13 +348,8 @@ pub struct PeHeader<'data> {
 }
 
 impl<'data> PeHeader<'data> {
-    /// Get a [`PeHeader`] from `data`, checking to make sure its valid.
-    ///
     /// # Safety
-    ///
-    /// - `data` MUST be valid for `size` bytes.
-    /// - `data` SHOULD be a valid pointer to a LOADED PE image in memory
-    pub unsafe fn from_loaded_ptr(data: *const u8, size: usize) -> Result<Self> {
+    pub unsafe fn from_ptr_internal(data: *const u8, size: usize, loaded: bool) -> Result<Self> {
         let (dos, (pe_ptr, pe_size)) = RawDos::from_ptr(data, size)?;
         let (pe, (opt_ptr, opt_size), (section_ptr, section_size)) =
             RawPe::from_ptr(pe_ptr, pe_size)?;
@@ -366,7 +361,7 @@ impl<'data> PeHeader<'data> {
                 return Err(Error::InvalidData);
             }
         }
-        let base = Some((data, size));
+        let base = if loaded { Some((data, size)) } else { None };
 
         Ok(Self {
             dos,
@@ -378,28 +373,22 @@ impl<'data> PeHeader<'data> {
             _phantom: PhantomData,
         })
     }
+}
+
+impl<'data> PeHeader<'data> {
+    /// Get a [`PeHeader`] from `data`, checking to make sure its valid.
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    /// - `data` SHOULD be a valid pointer to a LOADED PE image in memory
+    pub unsafe fn from_loaded_ptr(data: *const u8, size: usize) -> Result<Self> {
+        Self::from_ptr_internal(data, size, true)
+    }
 
     pub fn from_bytes(bytes: &'data [u8]) -> Result<Self> {
-        let (dos, pe_bytes) = RawDos::from_bytes(bytes)?;
-        let (pe, opt_bytes, sections) = RawPe::from_bytes(pe_bytes)?;
-        let (header, data_dirs) = ImageHeader::from_bytes(opt_bytes)?;
-        for s in sections {
-            if !s.name.is_ascii() {
-                return Err(Error::InvalidData);
-            }
-        }
-
-        let base = None;
-
-        Ok(Self {
-            dos,
-            coff: &pe.coff,
-            opt: header,
-            data_dirs,
-            sections,
-            base,
-            _phantom: PhantomData,
-        })
+        // Safety: Slice pointer is trivially valid for its own length.
+        unsafe { Self::from_loaded_ptr(bytes.as_ptr(), bytes.len()) }
     }
 }
 
