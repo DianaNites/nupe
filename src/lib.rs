@@ -201,7 +201,10 @@ impl ImageHeader {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<(Self, (*const u8, usize))> {
+    pub unsafe fn from_ptr(
+        data: *const u8,
+        size: usize,
+    ) -> Result<(Self, (*const RawDataDirectory, usize))> {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
@@ -211,14 +214,18 @@ impl ImageHeader {
         let opt = unsafe { &*(data as *const RawPeOptStandard) };
         if opt.magic == PE32_64_MAGIC {
             let opt = RawPe32x64::from_ptr(data, size)?;
-            let data_size = size_of::<RawDataDirectory>() * opt.data_dirs as usize;
-            let data_ptr = data.wrapping_add(size_of::<RawPe32x64>());
-            Ok((ImageHeader::Raw64(*opt), (data_ptr, data_size)))
+            let _data_size = size_of::<RawDataDirectory>()
+                .checked_mul(opt.data_dirs as usize)
+                .ok_or(Error::NotEnoughData)?;
+            let data_ptr = data.wrapping_add(size_of::<RawPe32x64>()) as *const RawDataDirectory;
+            Ok((ImageHeader::Raw64(*opt), (data_ptr, opt.data_dirs as usize)))
         } else if opt.magic == PE32_MAGIC {
             let opt = RawPe32::from_ptr(data, size)?;
-            let data_size = size_of::<RawDataDirectory>() * opt.data_dirs as usize;
-            let data_ptr = data.wrapping_add(size_of::<RawPe32>());
-            Ok((ImageHeader::Raw32(*opt), (data_ptr, data_size)))
+            let _data_size = size_of::<RawDataDirectory>()
+                .checked_mul(opt.data_dirs as usize)
+                .ok_or(Error::NotEnoughData)?;
+            let data_ptr = data.wrapping_add(size_of::<RawPe32>()) as *const RawDataDirectory;
+            Ok((ImageHeader::Raw32(*opt), (data_ptr, opt.data_dirs as usize)))
         } else {
             Err(Error::InvalidPeMagic)
         }
@@ -333,7 +340,7 @@ pub struct PeHeader {
     opt: ImageHeader,
     data_dirs: Vec<RawDataDirectory>,
     sections: Vec<Section>,
-    base: Option<*const u8>,
+    base: Option<(*const u8, usize)>,
 }
 
 impl PeHeader {
@@ -347,9 +354,23 @@ impl PeHeader {
         let (pe, (opt_ptr, opt_size), (section_ptr, section_size)) =
             RawPe::from_ptr(pe_ptr, pe_size)?;
         let (header, (data_ptr, data_size)) = ImageHeader::from_ptr(opt_ptr, opt_size)?;
-        let data_dirs = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
+        let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
         let sections = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
-        todo!()
+        for s in sections {
+            if !s.name.is_ascii() {
+                return Err(Error::InvalidData);
+            }
+        }
+        // todo!();
+        // #[cfg(no)]
+        Ok(Self {
+            dos: *dos,
+            coff: pe.coff,
+            opt: header,
+            data_dirs: Vec::from(data_dirs),
+            sections: sections.iter().map(|s| Section { header: *s }).collect(),
+            base: Some((data, size)),
+        })
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
@@ -507,7 +528,8 @@ mod tests {
 
     #[test]
     fn dev() -> Result<()> {
-        let mut pe = PeHeader::from_bytes(TEST_IMAGE);
+        // let mut pe = PeHeader::from_bytes(TEST_IMAGE);
+        let mut pe = unsafe { PeHeader::from_loaded_ptr(TEST_IMAGE.as_ptr(), TEST_IMAGE.len()) };
         // dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
