@@ -394,7 +394,20 @@ impl<'data> PeHeader<'data> {
     }
 }
 
-impl PeHeader<'_> {
+impl<'data> PeHeader<'data> {
+    /// Get a section by `name`
+    ///
+    /// Note that PE section names can only be 8 bytes, total.
+    pub fn section(&self, name: &str) -> Option<Section> {
+        self.sections
+            .iter()
+            .find(|s| s.name().unwrap() == name)
+            .map(|s| Section {
+                header: s,
+                base: self.base,
+            })
+    }
+
     pub fn sections(&self) -> impl Iterator<Item = Section> {
         self.sections.iter().map(|s| Section {
             header: s,
