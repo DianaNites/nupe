@@ -183,6 +183,28 @@ enum ImageHeader {
     Raw64(RawPe32x64),
 }
 
+impl ImageHeader {
+    /// Get a [`ImageHeader`] from `bytes`. Checks for the magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        let opt = unsafe {
+            &*(bytes
+                .get(..size_of::<RawPeOptStandard>())
+                .ok_or(Error::NotEnoughData)?
+                .as_ptr() as *const RawPeOptStandard)
+        };
+        if !(opt.magic == PE32_64_MAGIC || opt.magic != PE32_MAGIC) {
+            return Err(Error::InvalidPeMagic);
+        }
+        if opt.magic == PE32_64_MAGIC {
+            Ok(ImageHeader::Raw64(*RawPe32x64::from_bytes(bytes)?))
+        } else if opt.magic == PE32_MAGIC {
+            Ok(ImageHeader::Raw32(*RawPe32::from_bytes(bytes)?))
+        } else {
+            Err(Error::InvalidPeMagic)
+        }
+    }
+}
+
 /// A PE Section
 #[derive(Debug)]
 pub struct Section {
@@ -207,8 +229,7 @@ impl Section {
     }
 
     pub fn name(&self) -> &str {
-        // TODO: Validate UTF-8 early on and use unchecked?
-        core::str::from_utf8(&self.header.name).unwrap()
+        self.header.name().unwrap()
     }
 }
 
@@ -225,9 +246,10 @@ pub struct PeHeader {
 impl PeHeader {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let dos = RawDos::from_bytes(bytes)?;
-        let pe_bytes = bytes
-            .get(dos.pe_offset as usize..)
-            .ok_or(Error::NotEnoughData)?;
+        // let pe_bytes = bytes
+        //     .get(dos.pe_offset as usize..)
+        //     .ok_or(Error::NotEnoughData)?;
+        let pe_bytes = dos.pe_bytes(bytes)?;
         let pe = RawPe::from_bytes(pe_bytes)?;
         let opt_size = pe.coff.optional_size as usize;
         let opt_bytes = pe_bytes
@@ -235,53 +257,55 @@ impl PeHeader {
             .ok_or(Error::NotEnoughData)?
             .get(..opt_size)
             .ok_or(Error::NotEnoughData)?;
-        let opt = RawPeOptStandard::from_bytes(opt_bytes)?;
-        if opt.magic == PE32_64_MAGIC {
-            let header = unsafe {
-                &*(opt_bytes
-                    .get(..size_of::<RawPe32x64>())
-                    .ok_or(Error::NotEnoughData)?
-                    .as_ptr() as *const RawPe32x64)
-            };
-            dbg!(&header);
-            let data_size = size_of::<RawDataDirectory>() * header.data_dirs as usize;
+        let header = ImageHeader::from_bytes(opt_bytes)?;
 
-            let data = opt_bytes
-                .get(size_of::<RawPe32x64>()..)
+        // let opt = RawPeOptStandard::from_bytes(opt_bytes)?;
+        // if opt.magic == PE32_64_MAGIC {
+        let header = unsafe {
+            &*(opt_bytes
+                .get(..size_of::<RawPe32x64>())
                 .ok_or(Error::NotEnoughData)?
-                .get(..data_size)
-                .ok_or(Error::NotEnoughData)?;
-            let data_dirs = unsafe {
-                core::slice::from_raw_parts(
-                    data.as_ptr() as *const RawDataDirectory,
-                    header.data_dirs as usize,
-                )
-            };
-            let sections_size = size_of::<RawSectionHeader>() * pe.coff.sections as usize;
-            let sections_bytes = pe_bytes
-                .get(opt_size + size_of::<RawPe>()..)
-                .ok_or(Error::NotEnoughData)?
-                .get(..sections_size)
-                .ok_or(Error::NotEnoughData)?;
-            let sections = unsafe {
-                core::slice::from_raw_parts(
-                    sections_bytes.as_ptr() as *const RawSectionHeader,
-                    pe.coff.sections.into(),
-                )
-            };
+                .as_ptr() as *const RawPe32x64)
+        };
+        dbg!(&header);
+        let data_size = size_of::<RawDataDirectory>() * header.data_dirs as usize;
 
-            return Ok(Self {
-                dos: *dos,
-                coff: pe.coff,
-                opt: ImageHeader::Raw64(*header),
-                data_dirs: Vec::from(data_dirs),
-                sections: sections.iter().map(|s| Section { header: *s }).collect(),
-            });
-        } else if opt.magic == PE32_MAGIC {
-            todo!();
-        } else {
-            return Err(Error::InvalidPeMagic);
-        }
+        let data = opt_bytes
+            .get(size_of::<RawPe32x64>()..)
+            .ok_or(Error::NotEnoughData)?
+            .get(..data_size)
+            .ok_or(Error::NotEnoughData)?;
+        let data_dirs = unsafe {
+            core::slice::from_raw_parts(
+                data.as_ptr() as *const RawDataDirectory,
+                header.data_dirs as usize,
+            )
+        };
+        let sections_size = size_of::<RawSectionHeader>() * pe.coff.sections as usize;
+        let sections_bytes = pe_bytes
+            .get(opt_size + size_of::<RawPe>()..)
+            .ok_or(Error::NotEnoughData)?
+            .get(..sections_size)
+            .ok_or(Error::NotEnoughData)?;
+        let sections = unsafe {
+            core::slice::from_raw_parts(
+                sections_bytes.as_ptr() as *const RawSectionHeader,
+                pe.coff.sections.into(),
+            )
+        };
+
+        return Ok(Self {
+            dos: *dos,
+            coff: pe.coff,
+            opt: ImageHeader::Raw64(*header),
+            data_dirs: Vec::from(data_dirs),
+            sections: sections.iter().map(|s| Section { header: *s }).collect(),
+        });
+        // } else if opt.magic == PE32_MAGIC {
+        //     todo!();
+        // } else {
+        //     return Err(Error::InvalidPeMagic);
+        // }
         //
         todo!();
     }
