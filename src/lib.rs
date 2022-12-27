@@ -390,7 +390,7 @@ impl<'data> PeHeader<'data> {
 
     pub fn from_bytes(bytes: &'data [u8]) -> Result<Self> {
         // Safety: Slice pointer is trivially valid for its own length.
-        unsafe { Self::from_loaded_ptr(bytes.as_ptr(), bytes.len()) }
+        unsafe { Self::from_ptr_internal(bytes.as_ptr(), bytes.len(), false) }
     }
 }
 
