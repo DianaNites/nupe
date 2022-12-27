@@ -593,6 +593,7 @@ pub struct PeBuilder<'data> {
 
     dll_attributes: DllCharacteristics,
 
+    /// Subsystem
     subsystem: Subsystem,
 
     /// Stack reserve and commit
@@ -600,6 +601,10 @@ pub struct PeBuilder<'data> {
 
     /// Heap reserve and commit
     heap: (u64, u64),
+}
+
+impl<'data> PeBuilder<'data> {
+    //
 }
 
 impl<'data> PeBuilder<'data> {
@@ -632,6 +637,24 @@ impl<'data> PeBuilder<'data> {
     /// Offset from image base to entry point
     pub fn entry(&mut self, entry: u32) -> &mut Self {
         self.entry = Some(entry);
+        self
+    }
+
+    /// Stack reserve and commit, respectively
+    pub fn stack(&mut self, stack: (u64, u64)) -> &mut Self {
+        self.stack = stack;
+        self
+    }
+
+    /// Heap reserve and commit, respectively
+    pub fn heap(&mut self, heap: (u64, u64)) -> &mut Self {
+        self.heap = heap;
+        self
+    }
+
+    /// Stack reserve and commit, respectively
+    pub fn subsystem(&mut self, subsystem: Subsystem) -> &mut Self {
+        self.subsystem = subsystem;
         self
     }
 
@@ -876,7 +899,7 @@ impl<'data> PeBuilder<'data> {
             base: None,
             _phantom: PhantomData,
         };
-        dbg!(pe);
+
         Ok(())
     }
 }
