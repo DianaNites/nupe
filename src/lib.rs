@@ -629,7 +629,7 @@ impl<'data> PeBuilder<'data> {
         self
     }
 
-    /// Entry point.
+    /// Offset from image base to entry point
     pub fn entry(&mut self, entry: u32) -> &mut Self {
         self.entry = Some(entry);
         self
@@ -876,6 +876,7 @@ impl<'data> PeBuilder<'data> {
             base: None,
             _phantom: PhantomData,
         };
+        dbg!(pe);
         Ok(())
     }
 }
