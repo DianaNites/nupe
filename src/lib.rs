@@ -349,7 +349,9 @@ pub struct PeHeader<'data> {
 
 impl<'data> PeHeader<'data> {
     /// # Safety
-    pub unsafe fn from_ptr_internal(data: *const u8, size: usize, loaded: bool) -> Result<Self> {
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    unsafe fn from_ptr_internal(data: *const u8, size: usize, loaded: bool) -> Result<Self> {
         let (dos, (pe_ptr, pe_size)) = RawDos::from_ptr(data, size)?;
         let (pe, (opt_ptr, opt_size), (section_ptr, section_size)) =
             RawPe::from_ptr(pe_ptr, pe_size)?;
