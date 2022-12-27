@@ -137,7 +137,7 @@ impl RawDos {
     }
 
     /// Get a [`RawDos`] from `data`, and a new pointer length pair for the PE
-    /// portion.
+    /// portion and the DOS stub.
     ///
     /// Checks for the DOS magic.
     ///
@@ -147,7 +147,7 @@ impl RawDos {
     pub unsafe fn from_ptr<'data>(
         data: *const u8,
         size: usize,
-    ) -> Result<(&'data Self, (*const u8, usize))> {
+    ) -> Result<(&'data Self, (*const u8, usize), (*const u8, usize))> {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
@@ -162,7 +162,15 @@ impl RawDos {
         let pe_size = size
             .checked_sub(dos.pe_offset as usize)
             .ok_or(Error::NotEnoughData)?;
-        Ok((dos, (pe_ptr, pe_size)))
+        // Dos Stub
+        let stub_ptr = data.wrapping_add(size_of::<RawDos>());
+        let stub_size = size
+            .checked_sub(pe_size)
+            .ok_or(Error::NotEnoughData)?
+            .checked_sub(size_of::<RawDos>())
+            .ok_or(Error::NotEnoughData)?;
+
+        Ok((dos, (pe_ptr, pe_size), (stub_ptr, stub_size)))
     }
 
     /// Get a [`RawDos`] from `bytes`, and the remaining PE portion of `bytes`.
