@@ -178,6 +178,7 @@ bitflags! {
 bitflags! {
     #[repr(transparent)]
     pub struct SectionFlags: u32 {
+        const RESERVED_0 = 0x0;
         const RESERVED_1 = 0x1;
         const RESERVED_2 = 0x2;
         const RESERVED_3 = 0x4;
