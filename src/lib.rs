@@ -22,6 +22,7 @@ use alloc::vec::Vec;
 use core::{
     marker::PhantomData,
     mem::{self, size_of},
+    ops::{Deref, DerefMut},
 };
 
 use bitflags::bitflags;
@@ -317,10 +318,57 @@ impl<'data> ImageHeader<'data> {
     }
 }
 
+/// Enum for a reference to a type, or owning it
+#[derive(Debug, Clone, Copy)]
+enum OwnedOrRef<'data, T> {
+    Owned(T),
+    Ref(&'data T),
+}
+
+impl<'data, T> Deref for OwnedOrRef<'data, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            OwnedOrRef::Owned(s) => s,
+            OwnedOrRef::Ref(r) => r,
+        }
+    }
+}
+
+impl<'data, T> AsRef<T> for OwnedOrRef<'data, T> {
+    fn as_ref(&self) -> &T {
+        match self {
+            OwnedOrRef::Owned(s) => s,
+            OwnedOrRef::Ref(r) => r,
+        }
+    }
+}
+
+#[cfg(no)]
+impl<'data, T> DerefMut for OwnedOrRef<'data, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            OwnedOrRef::Owned(s) => s,
+            OwnedOrRef::Ref(r) => r,
+        }
+    }
+}
+
+#[cfg(no)]
+impl<'data, T> AsMut<T> for OwnedOrRef<'data, T> {
+    fn as_mut(&mut self) -> &mut T {
+        match self {
+            OwnedOrRef::Owned(s) => s,
+            OwnedOrRef::Ref(r) => r,
+        }
+    }
+}
+
 /// A PE Section
 #[derive(Debug)]
 pub struct Section<'data> {
-    header: &'data RawSectionHeader,
+    header: OwnedOrRef<'data, RawSectionHeader>,
     base: Option<(*const u8, usize)>,
 }
 
@@ -478,7 +526,7 @@ impl<'data> Pe<'data> {
             .iter()
             .find(|s| s.name().unwrap() == name)
             .map(|s| Section {
-                header: s,
+                header: OwnedOrRef::Ref(s),
                 base: self.base,
             })
     }
@@ -486,7 +534,7 @@ impl<'data> Pe<'data> {
     /// Iterator over [`Section`]s
     pub fn sections(&self) -> impl Iterator<Item = Section> {
         self.sections.iter().map(|s| Section {
-            header: s,
+            header: OwnedOrRef::Ref(s),
             base: self.base,
         })
     }
@@ -499,6 +547,11 @@ impl<'data> Pe<'data> {
     /// Machine type
     pub fn machine_type(&self) -> MachineType {
         self.coff.machine
+    }
+
+    /// COFF Attributes
+    pub fn attributes(&self) -> CoffAttributes {
+        self.coff.attributes
     }
 
     /// Subsystem
@@ -556,9 +609,15 @@ impl<'data> PeBuilder<'data> {
     /// If unset, this defaults to `IMAGE | LARGE_ADDRESS_AWARE`.
     ///
     /// This completely overwrites the attributes.
-    pub fn attribues(&mut self, attr: CoffAttributes) -> &mut Self {
+    pub fn attributes(&mut self, attr: CoffAttributes) -> &mut Self {
         self.attributes = attr;
         self
+    }
+
+    /// Calculate the size on disk this file would take
+    pub fn calculate_size(&self) -> usize {
+        const DOS_STUB: usize = 0;
+        size_of::<RawDos>() + DOS_STUB
     }
 
     /// Build the [`Pe`]

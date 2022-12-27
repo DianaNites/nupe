@@ -522,19 +522,39 @@ impl RawDataDirectory {
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawSectionHeader {
+    /// Name of the section
     pub name: [u8; 8],
+
+    /// Size of the section in memory
     pub virtual_size: u32,
+
+    /// Offset of the section in memory
     pub virtual_address: u32,
+
+    /// Size of the section on disk
     pub raw_size: u32,
+
+    /// Offset of the section on disk
     pub raw_ptr: u32,
+
+    /// Offset of the sections relocations on disk
     pub reloc_ptr: u32,
+
+    /// Offset of the sections line numbers on disk
     pub line_ptr: u32,
+
+    /// Number of relocation entries at `reloc_ptr`
     pub num_reloc: u16,
+
+    /// Number of lines at `line_ptr`
     pub num_lines: u16,
+
+    /// Section flags
     pub characteristics: SectionFlags,
 }
 
 impl RawSectionHeader {
+    /// Name of the section asa UTF-8 string, or an error if it was invalid.
     pub fn name(&self) -> Result<&str> {
         core::str::from_utf8(&self.name)
             .map(|s| s.trim_end_matches('\0'))
