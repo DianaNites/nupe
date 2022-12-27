@@ -144,6 +144,7 @@ impl RawDos {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
+    #[allow(clippy::type_complexity)]
     pub unsafe fn from_ptr<'data>(
         data: *const u8,
         size: usize,
