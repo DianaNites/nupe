@@ -180,7 +180,11 @@ impl RawDos {
 #[repr(C, packed)]
 pub struct RawCoff {
     pub machine: MachineType,
+
+    /// Number of sections
     pub sections: u16,
+
+    /// Timestamp
     pub time: u32,
     pub sym_offset: u32,
     pub num_sym: u32,

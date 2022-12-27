@@ -71,7 +71,7 @@ impl<'data> SectionBuilder<'data> {
         };
         Section {
             header: todo!(),
-            base: todo!(),
+            base: None,
         }
     }
 }

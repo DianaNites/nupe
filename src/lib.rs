@@ -17,7 +17,7 @@ extern crate alloc;
 pub mod error;
 mod internal;
 pub mod raw;
-mod section;
+pub mod section;
 use alloc::vec::Vec;
 use core::{
     marker::PhantomData,
@@ -489,6 +489,11 @@ impl<'data> Pe<'data> {
             header: s,
             base: self.base,
         })
+    }
+
+    /// Number of sections
+    pub fn sections_len(&self) -> usize {
+        self.coff.sections.into()
     }
 
     /// Machine type
