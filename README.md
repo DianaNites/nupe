@@ -18,6 +18,17 @@ A `no_std` library for handling PE files
 
 ### Use cases
 
+- Given a pointer to a loaded image in memory, be able to safely interact with and manipulate the image.
+  - Specifically, read the header, locate sections and their data, etc,
+    without needing to repeatedly specify the image base.
+  - Also be able to get file offsets for this image
+  - Basically, transparently be able to, safely, change the API surface
+    based on the image being loaded from running memory or not.
+  - This does NOT need to be able to modify anything from a loaded image.
+    - But probably should be able to internally, to share implementations.
+  - The public API surface should be completely safe and use standard types, like slices.
+  - Ideally this is as zero-copy as possible.
+
 - Given a pointer to a image (partially??) loaded in memory
   - Read the header
   - Find the location of other sections in memory
