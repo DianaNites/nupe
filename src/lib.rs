@@ -1526,8 +1526,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
         struct _DummyHoverWriteDocs;
         // TODO: Go through sections, assign virtual addresses
         // Now knowing the full scope of sections, assign file offsets
-        // FIXME: Headers and image size are wrong.
-        // FIXME: So is Init size
         out.clear();
         let machine = self.machine;
         let plus = match machine {
@@ -1842,17 +1840,12 @@ mod tests {
         let out_pe = Pe::from_bytes(&out);
         dbg!(&out_pe);
         let out_pe = out_pe?;
-        let check_offset = 128 * 2 + 50;
+
         assert_eq!(in_pe.dos_stub(), out_pe.dos_stub());
         assert_eq!({ in_pe.dos().pe_offset }, { out_pe.dos().pe_offset });
 
-        let test_offset =
-            check_offset - size_of::<RawDos>() - in_pe.dos_stub().len() - size_of::<RawPe>();
-        dbg!(check_offset, test_offset, { in_pe.dos().pe_offset });
+        assert_eq!(RUSTUP_IMAGE, &out[..]);
 
-        assert_eq!(&RUSTUP_IMAGE[..check_offset], &out[..check_offset]);
-
-        panic!();
         Ok(())
     }
 
