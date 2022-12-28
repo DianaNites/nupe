@@ -421,6 +421,10 @@ pub enum DataDirIdent {
     Architecture,
 
     /// Global Ptr
+    ///
+    /// Address is the RVA to store in the register
+    ///
+    /// Size is always 0
     GlobalPtr,
 
     /// Thread Local Storage table
@@ -1314,29 +1318,13 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // Get section sizes
         for (section, _) in self.sections.iter() {
             if section.flags() & SectionFlags::CODE != SectionFlags::empty() {
-                code_sum += section.virtual_size();
+                code_sum += section.file_size();
                 code_base = section.virtual_address();
-            }
-
-            if section.flags() & SectionFlags::INITIALIZED != SectionFlags::empty() {
-                init_sum += section.virtual_size();
+            } else if section.flags() & SectionFlags::INITIALIZED != SectionFlags::empty() {
+                init_sum += section.file_size();
                 data_base = section.virtual_address();
-            }
-
-            if section.flags() & SectionFlags::UNINITIALIZED != SectionFlags::empty() {
+            } else if section.flags() & SectionFlags::UNINITIALIZED != SectionFlags::empty() {
                 uninit_sum += section.virtual_size()
-            }
-            match section.flags() {
-                SectionFlags::CODE => {
-                    // code_sum += section.virtual_size();
-                    // code_base = section.virtual_address();
-                }
-                SectionFlags::INITIALIZED => {
-                    // init_sum += section.virtual_size();
-                    // data_base = section.virtual_address();
-                }
-                // SectionFlags::UNINITIALIZED => uninit_sum += section.virtual_size(),
-                _ => (),
             }
 
             let size: usize = section
@@ -1345,7 +1333,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 .map_err(|_| Error::InvalidData)?;
             sections_sum += size;
         }
-        for data in self.data_dirs.iter() {
+        // sections_sum = init_sum as usize + code_sum as usize;
+        for (i, data) in self.data_dirs.iter().enumerate() {
+            if i == DataDirIdent::Certificate.index() || i == DataDirIdent::Debug.index() {
+                continue;
+            }
             data_sum += data.size as usize;
         }
 
@@ -1370,21 +1362,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
             + size_of::<RawPe>()
             + (size_of::<RawSectionHeader>() * self.sections.len()))
             as u64;
+
+        // NOTE: SizeOfImage is, apparently, just the next offset a section *would* go.
+        let image_size = self.next_virtual_address() as u64;
+
         let headers_size = headers_size + (self.file_align - (headers_size % self.file_align));
-
-        // Image size, calculated as the headers size as a base, plus what its missing
-        // Specifically:
-        // - Data dirs headers
-        // - Size of all sections
-        // - Data dirs data
-        let image_size = headers_size as usize
-            + (size_of::<RawDataDirectory>() * self.data_dirs.len())
-            + sections_sum
-            + data_sum;
-
-        // Aligned up to the section alignment
-        let image_size = image_size as u64;
-        let image_size = image_size + (self.section_align - (image_size % self.section_align));
         // 568 + (512 - (568 % 512))
         if plus {
             let pe = RawPe32x64::new(
@@ -1537,6 +1519,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
         struct _DummyHoverWriteDocs;
         // TODO: Go through sections, assign virtual addresses
         // Now knowing the full scope of sections, assign file offsets
+        // FIXME: Headers and image size are wrong.
+        // FIXME: So is Init size
         out.clear();
         let machine = self.machine;
         let plus = match machine {
@@ -1852,7 +1836,7 @@ mod tests {
         dbg!(&out_pe);
         // assert_eq!(&out[..64], &RUSTUP_IMAGE[..64]);
         let x = 128 * 2 + 45;
-        assert_eq!(&out[..x], &RUSTUP_IMAGE[..x]);
+        assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
 
         panic!();
         Ok(())
