@@ -473,6 +473,87 @@ impl<'data> Section<'data> {
     }
 }
 
+/// A PE Data Directory
+#[derive(Debug)]
+pub struct DataDir<'data> {
+    header: OwnedOrRef<'data, RawDataDirectory>,
+    base: Option<(*const u8, usize)>,
+}
+#[cfg(no)]
+impl<'data> DataDir<'data> {
+    /// Address to the first byte of the section, relative to the image base.
+    pub fn virtual_address(&self) -> u32 {
+        self.header.virtual_address
+    }
+
+    /// Size of the section in memory, zero padded if needed.
+    pub fn virtual_size(&self) -> u32 {
+        self.header.virtual_size
+    }
+
+    /// Offset of the section data on disk
+    pub fn file_offset(&self) -> u32 {
+        self.header.raw_ptr
+    }
+
+    /// Size of the section data on disk
+    ///
+    /// # WARNING
+    ///
+    /// Be sure this is what you want. This field is a trap.
+    /// You may instead want [`Section::virtual_size`]
+    ///
+    /// The file_size field is rounded up to a multiple of the file alignment,
+    /// but virtual_size is not. That means file_size includes extra padding not
+    /// actually part of the section, and that virtual_size is the true size.
+    pub fn file_size(&self) -> u32 {
+        self.header.raw_size
+    }
+
+    /// Name of the section, with nul bytes stripped.
+    ///
+    /// Empty string is returned if invalid ASCII/UTF-8 somehow makes it here.
+    pub fn name(&self) -> &str {
+        self.header.name().unwrap_or_default()
+    }
+
+    /// Section flags/attributes/characteristics
+    pub fn flags(&self) -> SectionFlags {
+        self.header.characteristics
+    }
+
+    /// Slice of the section data
+    ///
+    /// Returns [`None`] if not called on a loaded image, or if the section is
+    /// outside the loaded image.
+    pub fn virtual_data(&self) -> Option<&'data [u8]> {
+        if let Some((base, size)) = self.base {
+            if size
+                .checked_sub(self.virtual_address() as usize)
+                .and_then(|s| s.checked_sub(self.virtual_size() as usize))
+                .ok_or(Error::NotEnoughData)
+                .is_err()
+            {
+                return None;
+            }
+            // Safety:
+            // - Base is guaranteed valid for size in `from_ptr_internal`
+            // - from_ptr_internal does the checking to make sure we're a PE file, without
+            //   which we couldnt be here
+            // - 'data lifetime means data is still valid
+            // - We double check to make sure we're in-bounds above
+            Some(unsafe {
+                core::slice::from_raw_parts(
+                    base.wrapping_add(self.virtual_address() as usize),
+                    self.virtual_size() as usize,
+                )
+            })
+        } else {
+            None
+        }
+    }
+}
+
 /// A PE file
 pub struct Pe<'data> {
     dos: OwnedOrRef<'data, RawDos>,
@@ -577,6 +658,19 @@ impl<'data> Pe<'data> {
     /// Iterator over [`Section`]s
     pub fn sections(&self) -> impl Iterator<Item = Section> {
         self.sections.iter().map(|s| Section {
+            header: OwnedOrRef::Ref(s),
+            base: self.base,
+        })
+    }
+
+    /// Get a [`DataDir`]s by identifier.
+    pub fn data_dir(&self) -> Option<DataDir> {
+        None
+    }
+
+    /// Iterator over [`DataDir`]s
+    pub fn data_dirs(&self) -> impl Iterator<Item = DataDir> {
+        self.data_dirs.iter().map(|s| DataDir {
             header: OwnedOrRef::Ref(s),
             base: self.base,
         })
