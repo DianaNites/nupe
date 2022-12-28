@@ -806,10 +806,7 @@ pub struct PeBuilder<'data, State> {
     state: PhantomData<State>,
 
     /// Sections to write to the image.
-    sections: VecOrSlice<'data, Section<'data>>,
-
-    /// Data of sections. 1:1 with sections
-    sections_data: VecOrSlice<'data, VecOrSlice<'data, u8>>,
+    sections: VecOrSlice<'data, (Section<'data>, VecOrSlice<'data, u8>)>,
 
     /// Data dirs to write to the image, defaults to zeroed.
     data_dirs: VecOrSlice<'data, RawDataDirectory>,
@@ -869,7 +866,6 @@ impl<'data> PeBuilder<'data, states::Empty> {
         Self {
             state: PhantomData,
             sections: VecOrSlice::Vec(Vec::new()),
-            sections_data: VecOrSlice::Vec(Vec::new()),
             data_dirs: VecOrSlice::Vec(vec![RawDataDirectory::new(0, 0); 16]),
             machine: MachineType::UNKNOWN,
             timestamp: 0,
@@ -1012,16 +1008,15 @@ impl<'data> PeBuilder<'data, states::Machine> {
         };
 
         match &mut self.sections {
-            VecOrSlice::Vec(v) => v.push(Section {
-                header: OwnedOrRef::Owned(header),
-                base: None,
-            }),
-            VecOrSlice::Slice(_) => todo!(),
-        }
-
-        // FIXME: to_vec
-        match &mut self.sections_data {
-            VecOrSlice::Vec(v) => v.push(VecOrSlice::Vec(section.data.to_vec())),
+            VecOrSlice::Vec(v) => v.push((
+                Section {
+                    header: OwnedOrRef::Owned(header),
+                    base: None,
+                },
+                // FIXME: to_vec
+                VecOrSlice::Vec(section.data.to_vec()),
+                // VecOrSlice::Slice(&section.data),
+            )),
             VecOrSlice::Slice(_) => todo!(),
         }
 
@@ -1147,7 +1142,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let mut sections_sum: usize = 0;
         let mut data_sum: usize = 0;
         // Get section sizes
-        for section in self.sections.iter() {
+        for (section, _) in self.sections.iter() {
             if section.flags() & SectionFlags::CODE != SectionFlags::empty() {
                 code_sum += section.virtual_size();
                 code_base = section.virtual_address();
@@ -1343,7 +1338,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         assert_eq!(expected_opt_size, size);
 
         // Section table
-        for s in self.sections.iter() {
+        for (s, _) in self.sections.iter() {
             let bytes = unsafe {
                 let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
                 from_raw_parts(ptr, size_of::<RawSectionHeader>() * self.sections.len())
@@ -1363,7 +1358,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // Need a Seek, Read, Write, and Cursor impl?
 
         // Section data
-        for (s, bytes) in self.sections.iter().zip(self.sections_data.iter()) {
+        for (s, bytes) in self.sections.iter() {
             // Align
             let size = out.len();
             let align = size + (self.section_align as usize - (size % self.section_align as usize));
@@ -1399,7 +1394,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     fn next_virtual_address(&mut self) -> u32 {
         // Highest VA seen, and its size
         let mut max_va = (self.section_align as u32, 0);
-        for section in self.sections.iter() {
+        for (section, _) in self.sections.iter() {
             let va = max_va.0.max(section.virtual_address());
             let size = section.virtual_size();
             max_va = (va, size);
@@ -1417,7 +1412,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     fn next_file_offset(&mut self) -> u32 {
         // Highest offset seen, and its size
         let mut max_off = (self.file_align as u32, 0);
-        for section in self.sections.iter() {
+        for (section, _) in self.sections.iter() {
             let off = max_off.0.max(section.file_offset());
             let size = section.file_size();
             max_off = (off, size);
