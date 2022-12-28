@@ -345,6 +345,22 @@ impl<'data> ImageHeader<'data> {
             ImageHeader::Raw64(h) => (h.heap_commit, h.heap_reserve),
         }
     }
+
+    /// File alignment
+    fn file_align(&self) -> u32 {
+        match self {
+            ImageHeader::Raw32(h) => h.file_align,
+            ImageHeader::Raw64(h) => h.file_align,
+        }
+    }
+
+    /// Section alignment
+    fn section_align(&self) -> u32 {
+        match self {
+            ImageHeader::Raw32(h) => h.section_align,
+            ImageHeader::Raw64(h) => h.section_align,
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -833,6 +849,16 @@ impl<'data> Pe<'data> {
     /// Heap (commit, reserve)
     pub fn heap(&self) -> (u64, u64) {
         self.opt.heap()
+    }
+
+    /// File alignment
+    pub fn file_align(&self) -> u32 {
+        self.opt().file_align()
+    }
+
+    /// Section alignment
+    pub fn section_align(&self) -> u32 {
+        self.opt().section_align()
     }
 }
 
