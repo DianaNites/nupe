@@ -35,7 +35,7 @@ pub use crate::internal::{
 };
 use crate::{
     error::{Error, Result},
-    internal::debug::RawDataDirectoryHelper,
+    internal::debug::{DosHelper, RawDataDirectoryHelper},
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -567,15 +567,7 @@ impl<'data> fmt::Debug for Pe<'data> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct("Pe");
         s.field("dos", &self.dos)
-            .field("dos_stub", &{
-                struct Helper(usize);
-                impl fmt::Debug for Helper {
-                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                        write!(f, r#"DOS code (len {})"#, self.0)
-                    }
-                }
-                Helper(self.dos_stub.len())
-            })
+            .field("dos_stub", &DosHelper::new(&self.dos_stub))
             .field("coff", &self.coff)
             .field("opt", &self.opt);
 

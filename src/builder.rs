@@ -4,7 +4,7 @@ use core::{fmt, marker::PhantomData, mem::size_of, slice::from_raw_parts};
 
 use crate::{
     error::{Error, Result},
-    internal::debug::RawDataDirectoryHelper,
+    internal::debug::{DosHelper, RawDataDirectoryHelper},
     raw::{
         RawCoff,
         RawDos,
@@ -764,16 +764,10 @@ impl<'data, State> fmt::Debug for PeBuilder<'data, State> {
             .field("section_align", &self.section_align)
             .field("file_align", &self.file_align)
             .field("entry", &self.entry)
-            .field("dos", &{
-                struct Helper(usize);
-                impl fmt::Debug for Helper {
-                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                        write!(f, "VecOrSlice({} bytes)", self.0)
-                    }
-                }
-                // Helper(&self.dos)
-                &self.dos.as_ref().map(|(d, b)| (d, Helper(b.len())))
-            })
+            .field(
+                "dos",
+                &self.dos.as_ref().map(|(d, b)| (d, DosHelper::new(b))),
+            )
             .field("attributes", &self.attributes)
             .field("dll_attributes", &self.dll_attributes)
             .field("subsystem", &self.subsystem)
