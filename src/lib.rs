@@ -1020,6 +1020,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
             VecOrSlice::Slice(_) => todo!(),
         }
 
+        // self.sections
+        //     .sort_unstable_by(|a, b| a.0.file_offset().cmp(&b.0.file_offset()));
+
         self
     }
 }
@@ -1173,7 +1176,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 .virtual_size()
                 .try_into()
                 .map_err(|_| Error::InvalidData)?;
-            // sections_sum += size;
+            sections_sum += size;
         }
         for data in self.data_dirs.iter() {
             data_sum += data.size as usize;
@@ -1285,6 +1288,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
         Ok(())
     }
 
+    /// Write section table and data
+    fn write_sections(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        Ok(())
+    }
+
     /// Truncates `out` and writes [`Pe`] to it
     pub fn write(&mut self, out: &mut Vec<u8>) -> Result<()> {
         /// The way we create and write a PE file is primarily virtually.
@@ -1318,6 +1326,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         }?;
 
         Self::write_dos(out, &self.dos)?;
+
         let expected_opt_size = Self::write_pe(
             out,
             machine,
@@ -1341,45 +1350,52 @@ impl<'data> PeBuilder<'data, states::Machine> {
         for (s, _) in self.sections.iter() {
             let bytes = unsafe {
                 let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
-                from_raw_parts(ptr, size_of::<RawSectionHeader>() * self.sections.len())
+                from_raw_parts(ptr, size_of::<RawSectionHeader>())
             };
             out.extend_from_slice(bytes);
         }
 
         // Align to next potential section start
-        let size = out.len();
-        let align = size + (self.section_align as usize - (size % self.section_align as usize));
-        let align = align - size;
-        out.reserve(align);
-        for _ in 0..align {
-            out.push(b'\0')
-        }
+        // let size = out.len();
+        // let align = size + (self.section_align as usize - (size % self.section_align
+        // as usize)); let align = align - size;
+        // out.reserve(align);
+        // for _ in 0..align {
+        //     out.push(b'\0')
+        // }
         // FIXME: Have to be able to write to arbitrary offsets, actually.
         // Need a Seek, Read, Write, and Cursor impl?
 
         // Section data
         for (s, bytes) in self.sections.iter() {
-            // Align
-            let size = out.len();
-            let align = size + (self.section_align as usize - (size % self.section_align as usize));
-            let align = align - size;
-            out.reserve(align + bytes.len());
-            for _ in 0..align {
-                out.push(b'\0')
-            }
-            out.extend_from_slice(bytes);
-        }
+            // Reserve space up
+            out.resize((s.file_offset() + s.file_size()) as usize, 0);
+            if let Some(o) = out
+                .get_mut(s.file_offset() as usize..)
+                .and_then(|o| o.get_mut(..s.file_size() as usize))
+            {
+                o[..s.virtual_size() as usize].copy_from_slice(bytes);
+            } else {
+                let start = out.len();
+                let end = s.file_offset() as usize + s.file_size() as usize;
+                let diff = end - start;
+                for _ in 0..(diff / 128) {
+                    out.extend_from_slice(&[0; 128])
+                }
+                for _ in 0..(diff % 128) {
+                    out.push(b'\0')
+                }
 
-        #[cfg(no)]
-        let pe = Pe {
-            dos,
-            coff,
-            opt,
-            data_dirs: self.data_dirs,
-            sections: VecOrSlice::Vec(self.sections.iter().map(|s| *s.header).collect()),
-            base: None,
-            _phantom: PhantomData,
-        };
+                if let Some(o) = out
+                    .get_mut(s.file_offset() as usize..)
+                    .and_then(|o| o.get_mut(..s.file_size() as usize))
+                {
+                    o[..s.virtual_size() as usize].copy_from_slice(bytes);
+                } else {
+                    unimplemented!("Something serious went wrong")
+                }
+            }
+        }
 
         Ok(())
     }
