@@ -741,14 +741,62 @@ impl<'data, State> fmt::Debug for PeBuilder<'data, State> {
             .field("state", &self.state)
             // TODO: Add helper
             // .field("sections", &self.sections)
-            .field("data_dirs", &self.data_dirs)
+            .field("sections", &{
+                struct Helper<'data>(
+                    &'data VecOrSlice<'data, (Section<'data>, VecOrSlice<'data, u8>)>,
+                );
+                impl<'data> fmt::Debug for Helper<'data> {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.debug_list()
+                            .entries(self.0.iter().map(|(s, _)| s))
+                            .finish()
+                    }
+                }
+                Helper(&self.sections)
+            })
+            .field("data_dirs", &{
+                struct Helper2<'data>(usize, &'data RawDataDirectory);
+                impl<'data> fmt::Debug for Helper2<'data> {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        let name = DataDirIdent::try_from(self.0);
+                        let name: &dyn fmt::Display = &name
+                            .as_ref()
+                            .map(|d| d as &dyn fmt::Display)
+                            .unwrap_or_else(|_| &self.0 as &dyn fmt::Display);
+                        if f.alternate() {
+                            write!(f, r#""{}" {:#?}"#, name, self.1)
+                        } else {
+                            write!(f, r#""{}" {:?}"#, name, self.1)
+                        }
+                    }
+                }
+
+                struct Helper<'data>(&'data VecOrSlice<'data, RawDataDirectory>);
+                impl<'data> fmt::Debug for Helper<'data> {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.debug_list()
+                            .entries(self.0.iter().enumerate().map(|(i, r)| Helper2(i, r)))
+                            .finish()
+                    }
+                }
+                Helper(&self.data_dirs)
+            })
             .field("machine", &self.machine)
             .field("timestamp", &self.timestamp)
             .field("image_base", &self.image_base)
             .field("section_align", &self.section_align)
             .field("file_align", &self.file_align)
             .field("entry", &self.entry)
-            // .field("dos", &self.dos)
+            .field("dos", &{
+                struct Helper(usize);
+                impl fmt::Debug for Helper {
+                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        write!(f, "VecOrSlice({} bytes)", self.0)
+                    }
+                }
+                // Helper(&self.dos)
+                &self.dos.as_ref().map(|(d, b)| (d, Helper(b.len())))
+            })
             .field("attributes", &self.attributes)
             .field("dll_attributes", &self.dll_attributes)
             .field("subsystem", &self.subsystem)
