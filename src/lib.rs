@@ -1065,8 +1065,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
     /// represent this, because of hidden metadata between the stub and PE.
     ///
     /// By default there is no stub, and the header only contains the offset.
-    fn write_dos(&mut self, out: &mut Vec<u8>) -> Result<()> {
-        if let Some((dos, stub)) = self.dos.as_ref() {
+    fn write_dos(out: &mut Vec<u8>, dos: &Option<(RawDos, VecOrSlice<u8>)>) -> Result<()> {
+        if let Some((dos, stub)) = dos {
             // Provided header and stub, PE expected directly after this, aligned.
             let bytes = unsafe {
                 let ptr = dos as *const RawDos as *const u8;
@@ -1315,7 +1315,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             _ => Err(Error::InvalidData),
         }?;
 
-        self.write_dos(out)?;
+        Self::write_dos(out, &self.dos)?;
         let expected_opt_size = Self::write_pe(
             out,
             machine,
