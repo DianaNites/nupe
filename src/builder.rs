@@ -21,6 +21,7 @@ use crate::{
     DllCharacteristics,
     MachineType,
     OwnedOrRef,
+    Pe,
     RawDataDirectory,
     Section,
     SectionFlags,
@@ -42,7 +43,6 @@ mod states {
 }
 
 /// Builder for a [`crate::Pe`] file
-#[derive(Debug)]
 pub struct PeBuilder<'data, State> {
     /// Type state.
     state: PhantomData<State>,
@@ -671,9 +671,94 @@ impl<'data> PeBuilder<'data, states::Machine> {
     }
 }
 
+impl<'data> PeBuilder<'data, states::Machine> {
+    pub fn from_pe(pe: &'data Pe, pe_bytes: &'data [u8]) -> Self {
+        let this = Self {
+            state: PhantomData,
+            sections: VecOrSlice::Vec(
+                pe.sections()
+                    .map(|s| {
+                        let v = VecOrSlice::Vec(
+                            pe_bytes[s.file_offset() as usize..][..s.virtual_size() as usize]
+                                .to_vec(),
+                        );
+                        (s, v)
+                    })
+                    .collect(),
+            ),
+            data_dirs: VecOrSlice::Vec(pe.data_dirs().map(|d| *d.header).collect()),
+            machine: pe.machine_type(),
+            timestamp: pe.timestamp(),
+            image_base: pe.image_base(),
+            section_align: pe.section_align().into(),
+            file_align: pe.file_align().into(),
+            entry: pe.entry(),
+            dos: Some((*pe.dos, VecOrSlice::Vec(pe.dos_stub().into()))),
+            attributes: pe.attributes(),
+            subsystem: pe.subsystem(),
+            dll_attributes: pe.dll_attributes(),
+            stack: pe.stack(),
+            heap: pe.heap(),
+            os_ver: pe.os_version(),
+            image_ver: pe.image_version(),
+            subsystem_ver: pe.subsystem_version(),
+            linker_ver: pe.linker_version(),
+        };
+        #[cfg(no)]
+        for (i, s) in pe.sections().enumerate() {
+            this.section(
+                SectionBuilder::new()
+                    .name(s.name())
+                    .data(
+                        &in_bytes[s.file_offset() as usize..][..s.virtual_size() as usize],
+                        Some(s.file_size()),
+                    )
+                    .attributes(s.flags())
+                    .file_offset(s.file_offset()),
+            );
+        }
+        #[cfg(no)]
+        for (i, d) in in_pe.data_dirs().enumerate() {
+            if let Ok(id) = DataDirIdent::try_from(i) {
+                pe.data_dir(id, d.address(), d.size());
+            } else {
+                pe.append_data_dir(d.address(), d.size());
+            }
+        }
+        this
+    }
+}
+
 impl<'data> Default for PeBuilder<'data, states::Empty> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<'data, State> fmt::Debug for PeBuilder<'data, State> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PeBuilder")
+            .field("state", &self.state)
+            // TODO: Add helper
+            // .field("sections", &self.sections)
+            .field("data_dirs", &self.data_dirs)
+            .field("machine", &self.machine)
+            .field("timestamp", &self.timestamp)
+            .field("image_base", &self.image_base)
+            .field("section_align", &self.section_align)
+            .field("file_align", &self.file_align)
+            .field("entry", &self.entry)
+            // .field("dos", &self.dos)
+            .field("attributes", &self.attributes)
+            .field("dll_attributes", &self.dll_attributes)
+            .field("subsystem", &self.subsystem)
+            .field("stack", &self.stack)
+            .field("heap", &self.heap)
+            .field("os_ver", &self.os_ver)
+            .field("image_ver", &self.image_ver)
+            .field("subsystem_ver", &self.subsystem_ver)
+            .field("linker_ver", &self.linker_ver)
+            .finish()
     }
 }
 
