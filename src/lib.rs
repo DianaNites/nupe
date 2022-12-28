@@ -1585,51 +1585,51 @@ mod tests {
                         &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
                     })
                     .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+            )
+            .section(
+                SectionBuilder::new()
+                    .name(".data")
+                    .data({
+                        //
+                        let sec = in_pe.section(".data").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .attributes(
+                        SectionFlags::INITIALIZED | SectionFlags::READ | SectionFlags::WRITE,
+                    ),
+            )
+            .section(
+                SectionBuilder::new()
+                    .name(".pdata")
+                    .data({
+                        //
+                        let sec = in_pe.section(".pdata").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+            )
+            .section(
+                SectionBuilder::new()
+                    .name("_RDATA")
+                    .data({
+                        //
+                        let sec = in_pe.section("_RDATA").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+            )
+            .section(
+                SectionBuilder::new()
+                    .name(".reloc")
+                    .data({
+                        //
+                        let sec = in_pe.section(".reloc").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .attributes(
+                        SectionFlags::INITIALIZED | SectionFlags::READ | SectionFlags::DISCARDABLE,
+                    ),
             );
-        // .section(
-        //     SectionBuilder::new()
-        //         .name(".data")
-        //         .data({
-        //             //
-        //             let sec = in_pe.section(".data").unwrap();
-        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
-        // as usize]         })
-        //         .attributes(
-        //             SectionFlags::INITIALIZED | SectionFlags::READ |
-        // SectionFlags::WRITE,         ),
-        // )
-        // .section(
-        //     SectionBuilder::new()
-        //         .name(".pdata")
-        //         .data({
-        //             //
-        //             let sec = in_pe.section(".pdata").unwrap();
-        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
-        // as usize]         })
-        //         .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
-        // )
-        // .section(
-        //     SectionBuilder::new()
-        //         .name("_RDATA")
-        //         .data({
-        //             //
-        //             let sec = in_pe.section("_RDATA").unwrap();
-        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
-        // as usize]         })
-        //         .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
-        // )
-        // .section(
-        //     SectionBuilder::new()
-        //         .name(".reloc")
-        //         .data({
-        //             //
-        //             let sec = in_pe.section(".reloc").unwrap();
-        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
-        // as usize]         })
-        //         .attributes(
-        //             SectionFlags::INITIALIZED | SectionFlags::READ |
-        // SectionFlags::DISCARDABLE,         ),
-        // );
         let mut out: Vec<u8> = Vec::new();
         pe.write(&mut out)?;
         //
