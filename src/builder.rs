@@ -700,7 +700,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             section_align: pe.section_align().into(),
             file_align: pe.file_align().into(),
             entry: pe.entry(),
-            dos: Some((*pe.dos, VecOrSlice::Vec(pe.dos_stub().into()))),
+            dos: Some((*pe.dos(), VecOrSlice::Vec(pe.dos_stub().into()))),
             attributes: pe.attributes(),
             subsystem: pe.subsystem(),
             dll_attributes: pe.dll_attributes(),
