@@ -1382,41 +1382,6 @@ impl<'data> SectionBuilder<'data> {
         self.attr = attr;
         self
     }
-
-    #[cfg(no)]
-    fn _finish(&mut self) -> &mut PeBuilder<'data, states::Machine> {
-        // let len = self.data.unwrap().len().try_into().unwrap();
-        // let mut header = RawSectionHeader {
-        //     name: self.name,
-        //     virtual_size: len,
-        //     virtual_address: self.builder.next_virtual_address(),
-        //     raw_size: len,
-        //     raw_ptr: todo!(),
-        //     reloc_ptr: todo!(),
-        //     line_ptr: todo!(),
-        //     num_reloc: todo!(),
-        //     num_lines: todo!(),
-        //     characteristics: self.attr.unwrap(),
-        // };
-
-        // match &mut self.builder.sections {
-        //     VecOrSlice::Vec(v) => v.push(Section {
-        //         header: OwnedOrRef::Owned(header),
-        //         base: None,
-        //     }),
-        //     VecOrSlice::Slice(_) => todo!(),
-        // }
-
-        //
-        self.builder
-    }
-}
-
-impl<'data> From<Section<'data>> for SectionBuilder<'data> {
-    fn from(value: Section<'data>) -> Self {
-        // Self::new()
-        todo!()
-    }
 }
 
 #[cfg(test)]
