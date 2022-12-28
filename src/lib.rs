@@ -324,6 +324,24 @@ impl<'data> ImageHeader<'data> {
             ImageHeader::Raw64(h) => (h.standard.linker_major, h.standard.linker_minor),
         }
     }
+
+    /// Preferred Base of the image in memory.
+    ///
+    /// Coerced to u64 even on/for 32bit.
+    fn image_base(&self) -> u64 {
+        match self {
+            ImageHeader::Raw32(h) => h.image_base.into(),
+            ImageHeader::Raw64(h) => h.image_base,
+        }
+    }
+
+    /// DLL Attributes
+    fn dll_attributes(&self) -> DllCharacteristics {
+        match self {
+            ImageHeader::Raw32(h) => h.dll_characteristics,
+            ImageHeader::Raw64(h) => h.dll_characteristics,
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -379,16 +397,6 @@ impl<'data> ImageHeader<'data> {
         // Safety: Above guarantees these are valid
         let data = unsafe { core::slice::from_raw_parts(data_ptr, data_len) };
         Ok((opt, data))
-    }
-
-    /// Preferred Base of the image in memory.
-    ///
-    /// Coerced to u64 even on/for 32bit.
-    fn image_base(&self) -> u64 {
-        match self {
-            ImageHeader::Raw32(h) => h.image_base.into(),
-            ImageHeader::Raw64(h) => h.image_base,
-        }
     }
 }
 
@@ -834,6 +842,11 @@ impl<'data> Pe<'data> {
     /// See [Subsystem]
     pub fn subsystem(&self) -> Subsystem {
         self.opt.subsystem()
+    }
+
+    /// DLL Attributes
+    pub fn dll_attributes(&self) -> DllCharacteristics {
+        self.opt.dll_attributes()
     }
 
     /// Entry point address relative to the image base
