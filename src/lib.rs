@@ -1834,7 +1834,10 @@ mod tests {
         //
         let out_pe = Pe::from_bytes(&out);
         dbg!(&out_pe);
+        let out_pe = out_pe?;
         let x = 128 * 2 + 50;
+        assert_eq!(in_pe.dos_stub(), out_pe.dos_stub());
+        assert_eq!({ in_pe.dos().pe_offset }, { out_pe.dos().pe_offset });
         assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
 
         panic!();
