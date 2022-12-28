@@ -1067,11 +1067,12 @@ impl<'data> PeBuilder<'data, states::Machine> {
     /// By default there is no stub, and the header only contains the offset.
     fn write_dos(&mut self, out: &mut Vec<u8>) -> Result<()> {
         if let Some((dos, stub)) = self.dos.as_ref() {
-            // Provided header and stub, PE expected directly after this.
+            // Provided header and stub, PE expected directly after this, aligned.
             let bytes = unsafe {
                 let ptr = dos as *const RawDos as *const u8;
                 from_raw_parts(ptr, size_of::<RawDos>())
             };
+            out.reserve(bytes.len() + stub.len() + 8);
             out.extend_from_slice(bytes);
             // Stub
             out.extend_from_slice(stub);
