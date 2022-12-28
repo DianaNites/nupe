@@ -1290,7 +1290,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Write section table and data
     fn write_sections(&mut self, out: &mut Vec<u8>) -> Result<()> {
-        // out.reserve(size_of::<RawSectionHeader>() * self.sections.len());
+        // Reserve all the needed on-disk space
+        // - The section table
+        // - The section data
         out.reserve(
             (size_of::<RawSectionHeader>() * self.sections.len())
                 + self
