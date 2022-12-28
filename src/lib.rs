@@ -1290,6 +1290,56 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Write section table and data
     fn write_sections(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        // Section table
+        for (s, _) in self.sections.iter() {
+            let bytes = unsafe {
+                let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
+                from_raw_parts(ptr, size_of::<RawSectionHeader>())
+            };
+            out.extend_from_slice(bytes);
+        }
+
+        // Align to next potential section start
+        // let size = out.len();
+        // let align = size + (self.section_align as usize - (size % self.section_align
+        // as usize)); let align = align - size;
+        // out.reserve(align);
+        // for _ in 0..align {
+        //     out.push(b'\0')
+        // }
+        // FIXME: Have to be able to write to arbitrary offsets, actually.
+        // Need a Seek, Read, Write, and Cursor impl?
+
+        // Section data
+        for (s, bytes) in self.sections.iter() {
+            // Reserve space up
+            out.resize((s.file_offset() + s.file_size()) as usize, 0);
+            if let Some(o) = out
+                .get_mut(s.file_offset() as usize..)
+                .and_then(|o| o.get_mut(..s.file_size() as usize))
+            {
+                o[..s.virtual_size() as usize].copy_from_slice(bytes);
+            } else {
+                let start = out.len();
+                let end = s.file_offset() as usize + s.file_size() as usize;
+                let diff = end - start;
+                for _ in 0..(diff / 128) {
+                    out.extend_from_slice(&[0; 128])
+                }
+                for _ in 0..(diff % 128) {
+                    out.push(b'\0')
+                }
+
+                if let Some(o) = out
+                    .get_mut(s.file_offset() as usize..)
+                    .and_then(|o| o.get_mut(..s.file_size() as usize))
+                {
+                    o[..s.virtual_size() as usize].copy_from_slice(bytes);
+                } else {
+                    unimplemented!("Something serious went wrong")
+                }
+            }
+        }
         Ok(())
     }
 
@@ -1346,63 +1396,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // dbg!(expected_opt_size, size);
         assert_eq!(expected_opt_size, size);
 
-        // Section table
-        for (s, _) in self.sections.iter() {
-            let bytes = unsafe {
-                let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
-                from_raw_parts(ptr, size_of::<RawSectionHeader>())
-            };
-            out.extend_from_slice(bytes);
-        }
-
-        // Align to next potential section start
-        // let size = out.len();
-        // let align = size + (self.section_align as usize - (size % self.section_align
-        // as usize)); let align = align - size;
-        // out.reserve(align);
-        // for _ in 0..align {
-        //     out.push(b'\0')
-        // }
-        // FIXME: Have to be able to write to arbitrary offsets, actually.
-        // Need a Seek, Read, Write, and Cursor impl?
-
-        // Section data
-        for (s, bytes) in self.sections.iter() {
-            // Reserve space up
-            out.resize((s.file_offset() + s.file_size()) as usize, 0);
-            if let Some(o) = out
-                .get_mut(s.file_offset() as usize..)
-                .and_then(|o| o.get_mut(..s.file_size() as usize))
-            {
-                o[..s.virtual_size() as usize].copy_from_slice(bytes);
-            } else {
-                let start = out.len();
-                let end = s.file_offset() as usize + s.file_size() as usize;
-                let diff = end - start;
-                for _ in 0..(diff / 128) {
-                    out.extend_from_slice(&[0; 128])
-                }
-                for _ in 0..(diff % 128) {
-                    out.push(b'\0')
-                }
-
-                if let Some(o) = out
-                    .get_mut(s.file_offset() as usize..)
-                    .and_then(|o| o.get_mut(..s.file_size() as usize))
-                {
-                    o[..s.virtual_size() as usize].copy_from_slice(bytes);
-                } else {
-                    unimplemented!("Something serious went wrong")
-                }
-            }
-        }
+        self.write_sections(out)?;
 
         Ok(())
-    }
-
-    /// Assign sections their virtual offsets and file offsets
-    fn assign_sections(&mut self) {
-        //
     }
 
     /// Get the next virtual address available for a section, or section align
