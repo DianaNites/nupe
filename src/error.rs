@@ -14,7 +14,6 @@ pub enum Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // write!(f, "{self:?}")
         match self {
             Self::InvalidDosMagic => write!(f, "invalid DOS magic"),
             Self::InvalidPeMagic => write!(f, "invalid PE magic"),
