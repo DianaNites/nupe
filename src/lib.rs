@@ -636,6 +636,9 @@ pub struct PeBuilder<'data, State> {
     /// Sections to write to the image.
     sections: VecOrSlice<'data, Section<'data>>,
 
+    /// Sections to write to the image.
+    sections_: VecOrSlice<'data, SectionBuilder<'data>>,
+
     /// Data dirs to write to the image, defaults to zeroed.
     data_dirs: VecOrSlice<'data, RawDataDirectory>,
 
@@ -682,6 +685,7 @@ impl<'data> PeBuilder<'data, states::Empty> {
         Self {
             state: PhantomData,
             sections: VecOrSlice::Vec(Vec::new()),
+            sections_: VecOrSlice::Vec(Vec::new()),
             data_dirs: VecOrSlice::Vec(vec![RawDataDirectory::new(0, 0); 15]),
             machine: MachineType::UNKNOWN,
             timestamp: None,
@@ -755,14 +759,26 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Append a section
     pub fn section(&mut self, section: &mut SectionBuilder) -> &mut Self {
-        #[cfg(no)]
+        let len = section.data.len().try_into().unwrap();
+        let va = self.next_virtual_address();
+        let file_offset = self.next_file_offset();
+        let mut header = RawSectionHeader {
+            name: section.name,
+            virtual_size: len,
+            virtual_address: va,
+            raw_size: len,
+            raw_ptr: file_offset,
+            reloc_ptr: 0,
+            line_ptr: 0,
+            num_reloc: 0,
+            num_lines: 0,
+            characteristics: section.attr,
+        };
+
         match &mut self.sections {
             VecOrSlice::Vec(v) => v.push(Section {
-                header: match section.header {
-                    OwnedOrRef::Owned(o) => OwnedOrRef::Owned(o),
-                    OwnedOrRef::Ref(r) => OwnedOrRef::Ref(r),
-                },
-                base: section.base,
+                header: OwnedOrRef::Owned(header),
+                base: None,
             }),
             VecOrSlice::Slice(_) => todo!(),
         }
@@ -1027,6 +1043,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
         /// which needs to go through all sections to sum up their sizes before
         /// being written.
         struct _DummyHoverWriteDocs;
+        // TODO: Go through sections, assign virtual addresses
+        // Now knowing the full scope of sections, assign file offsets
         out.clear();
         let machine = self.machine;
         let plus = match machine {
@@ -1091,15 +1109,46 @@ impl<'data> PeBuilder<'data, states::Machine> {
         Ok(())
     }
 
-    /// Get the next virtual address available for a section
+    /// Assign sections their virtual offsets and file offsets
+    fn assign_sections(&mut self) {
+        //
+    }
+
+    /// Get the next virtual address available for a section, or section align
+    /// as a default.
     fn next_virtual_address(&mut self) -> u32 {
-        let mut max_va = (4096, 0);
+        // Highest VA seen, and its size
+        let mut max_va = (self.section_align as u32, 0);
         for section in self.sections.iter() {
             let va = max_va.0.max(section.virtual_address());
             let size = section.virtual_size();
             max_va = (va, size);
         }
-        0
+        let ret = max_va.0 + max_va.1;
+        if ret % self.section_align as u32 != 0 {
+            ret + (self.section_align as u32 - (ret % self.section_align as u32))
+        } else {
+            ret
+        }
+    }
+
+    /// Get the next file offset available for a section, or file align
+    /// as a default.
+    fn next_file_offset(&mut self) -> u32 {
+        // Highest offset seen, and its size
+        let mut max_off = (self.file_align as u32, 0);
+        for section in self.sections.iter() {
+            let off = max_off.0.max(section.file_offset());
+            let size = section.file_size();
+            max_off = (off, size);
+        }
+
+        let ret = max_off.0 + max_off.1;
+        if ret % self.file_align as u32 != 0 {
+            ret + (self.file_align as u32 - (ret % self.file_align as u32))
+        } else {
+            ret
+        }
     }
 }
 
@@ -1107,16 +1156,16 @@ impl<'data> PeBuilder<'data, states::Machine> {
 #[derive(Debug)]
 pub struct SectionBuilder<'data> {
     name: [u8; 8],
-    data: Option<&'data [u8]>,
-    attr: Option<SectionFlags>,
+    data: VecOrSlice<'data, u8>,
+    attr: SectionFlags,
 }
 
 impl<'data> SectionBuilder<'data> {
     pub fn new() -> Self {
         Self {
             name: [b'\0'; 8],
-            data: None,
-            attr: None,
+            data: VecOrSlice::Slice(&[]),
+            attr: SectionFlags::empty(),
         }
     }
 
@@ -1143,7 +1192,14 @@ impl<'data> SectionBuilder<'data> {
 
     /// Data in the section. Required.
     pub fn data(&mut self, data: &'data [u8]) -> &mut Self {
-        self.data = Some(data);
+        self.data = VecOrSlice::Slice(data);
+        self
+    }
+
+    /// Data in the section. Required.
+    pub fn data_vec(&mut self, data: Vec<u8>) -> &mut Self {
+        // TODO: From/Into impl
+        self.data = VecOrSlice::Vec(data);
         self
     }
 
