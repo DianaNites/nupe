@@ -939,7 +939,7 @@ pub struct PeBuilder<'data, State> {
     /// Sections to write to the image.
     sections: VecOrSlice<'data, (Section<'data>, VecOrSlice<'data, u8>)>,
 
-    /// Data dirs to write to the image, defaults to zeroed.
+    /// Data dirs to write to the image, defaults to all 16, zeroed.
     data_dirs: VecOrSlice<'data, RawDataDirectory>,
 
     /// Machine type. Required.
