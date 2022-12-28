@@ -1062,17 +1062,17 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let len = section.data.len().try_into().unwrap();
         let va = self.next_virtual_address();
         let file_offset = section.offset.unwrap_or_else(|| self.next_file_offset());
+        let file_size = section.size.unwrap_or(len);
+        let file_size = if file_size % self.file_align as u32 != 0 {
+            file_size + (self.file_align as u32 - (file_size % self.file_align as u32))
+        } else {
+            file_size
+        };
         let mut header = RawSectionHeader {
             name: section.name,
             virtual_size: { len },
             virtual_address: va,
-            raw_size: {
-                if len % self.file_align as u32 != 0 {
-                    len + (self.file_align as u32 - (len % self.file_align as u32))
-                } else {
-                    len
-                }
-            },
+            raw_size: file_size,
             raw_ptr: file_offset,
             reloc_ptr: 0,
             line_ptr: 0,
@@ -1408,7 +1408,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
                     out.push(b'\0')
                 }
             }
-            out[s.file_offset() as usize..][..s.virtual_size() as usize].copy_from_slice(bytes);
+            let end = s.virtual_size();
+            let end = end.min(s.file_size()) as usize;
+            out[s.file_offset() as usize..][..end].copy_from_slice(&bytes[..end]);
         }
         Ok(())
     }
@@ -1516,6 +1518,7 @@ pub struct SectionBuilder<'data> {
     data: VecOrSlice<'data, u8>,
     attr: SectionFlags,
     offset: Option<u32>,
+    size: Option<u32>,
 }
 
 impl<'data> SectionBuilder<'data> {
@@ -1525,6 +1528,7 @@ impl<'data> SectionBuilder<'data> {
             data: VecOrSlice::Slice(&[]),
             attr: SectionFlags::empty(),
             offset: None,
+            size: None,
         }
     }
 
@@ -1550,8 +1554,14 @@ impl<'data> SectionBuilder<'data> {
     }
 
     /// Data in the section. Required.
-    pub fn data(&mut self, data: &'data [u8]) -> &mut Self {
+    ///
+    /// The length of the slice is used as virtual_size,
+    /// and `file_size` is the size on disk, or the same as virtual_size
+    ///
+    /// This is useful for partially uninitialized sections
+    pub fn data(&mut self, data: &'data [u8], file_size: Option<u32>) -> &mut Self {
         self.data = VecOrSlice::Slice(data);
+        self.size = file_size;
         self
     }
 
@@ -1645,70 +1655,85 @@ mod tests {
                 .section(
                     SectionBuilder::new()
                         .name(".text")
-                        .data({
-                            //
-                            let sec = in_pe.section(".text").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
+                        .data(
+                            {
+                                //
+                                let sec = in_pe.section(".text").unwrap();
+                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                    [..sec.virtual_size() as usize]
+                            },
+                            None,
+                        )
                         .file_offset(1024)
                         .attributes(SectionFlags::CODE | SectionFlags::EXEC | SectionFlags::READ),
                 )
                 .section(
                     SectionBuilder::new()
                         .name(".rdata")
-                        .data({
-                            //
-                            let sec = in_pe.section(".rdata").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
+                        .data(
+                            {
+                                //
+                                let sec = in_pe.section(".rdata").unwrap();
+                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                    [..sec.virtual_size() as usize]
+                            },
+                            None,
+                        )
                         .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
                 )
-                .section(
+                .section({
+                    let sec = in_pe.section(".data").unwrap();
                     SectionBuilder::new()
                         .name(".data")
-                        .data({
-                            //
-                            let sec = in_pe.section(".data").unwrap();
+                        .data(
                             &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
+                                [..sec.virtual_size() as usize],
+                            Some(sec.file_size()),
+                        )
                         .attributes(
                             SectionFlags::INITIALIZED | SectionFlags::READ | SectionFlags::WRITE,
-                        ),
-                )
+                        )
+                })
                 .section(
                     SectionBuilder::new()
                         .name(".pdata")
-                        .data({
-                            //
-                            let sec = in_pe.section(".pdata").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
+                        .data(
+                            {
+                                //
+                                let sec = in_pe.section(".pdata").unwrap();
+                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                    [..sec.virtual_size() as usize]
+                            },
+                            None,
+                        )
                         .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
                 )
                 .section(
                     SectionBuilder::new()
                         .name("_RDATA")
-                        .data({
-                            //
-                            let sec = in_pe.section("_RDATA").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
+                        .data(
+                            {
+                                //
+                                let sec = in_pe.section("_RDATA").unwrap();
+                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                    [..sec.virtual_size() as usize]
+                            },
+                            None,
+                        )
                         .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
                 )
                 .section(
                     SectionBuilder::new()
                         .name(".reloc")
-                        .data({
-                            //
-                            let sec = in_pe.section(".reloc").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
+                        .data(
+                            {
+                                //
+                                let sec = in_pe.section(".reloc").unwrap();
+                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                    [..sec.virtual_size() as usize]
+                            },
+                            None,
+                        )
                         .attributes(
                             SectionFlags::INITIALIZED
                                 | SectionFlags::READ
