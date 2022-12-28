@@ -1,5 +1,6 @@
 //! Error types
-use core::{fmt, fmt::Write};
+use core::fmt;
+
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// NuPe Error type

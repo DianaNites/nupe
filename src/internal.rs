@@ -1,12 +1,9 @@
 //! Internal traits and utilities
 use alloc::vec::Vec;
-use core::{
-    fmt,
-    mem::MaybeUninit,
-    ops::{Deref, DerefMut},
-};
+use core::ops::{Deref, DerefMut};
 
 /// Helper trait providing an interface to I/O in both no_std and std
+#[cfg(no)]
 pub trait PeWrite {
     /// Error type returned by this trait
     type Error: fmt::Debug + fmt::Display;
@@ -18,6 +15,7 @@ pub trait PeWrite {
 }
 
 /// Blanket impl for `&mut CpioWrite`
+#[cfg(no)]
 impl<'a, T: PeWrite> PeWrite for &'a mut T {
     type Error = T::Error;
 
@@ -27,6 +25,7 @@ impl<'a, T: PeWrite> PeWrite for &'a mut T {
 }
 
 /// Helper trait providing an interface to I/O in both no_std and std
+#[cfg(no)]
 pub trait PeRead {
     /// Error type returned by this trait
     type Error: fmt::Debug + fmt::Display;
@@ -42,6 +41,7 @@ pub trait PeRead {
 }
 
 /// Blanket impl for `&mut CpioRead`
+#[cfg(no)]
 impl<'a, T: PeRead> PeRead for &'a mut T {
     type Error = T::Error;
 
@@ -51,6 +51,7 @@ impl<'a, T: PeRead> PeRead for &'a mut T {
 }
 
 /// Blanket impl for `&mut &[u8]`
+#[cfg(no)]
 impl PeRead for &[u8] {
     type Error = &'static str;
 

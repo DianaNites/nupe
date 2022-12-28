@@ -1,17 +1,17 @@
 //! PE image handling
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
-#![allow(
-    unused_variables,
-    unused_imports,
-    unused_mut,
-    unused_assignments,
-    dead_code,
-    clippy::let_unit_value,
-    clippy::diverging_sub_expression,
-    clippy::new_without_default,
-    clippy::too_many_arguments,
-    unreachable_code
-)]
+// #![allow(
+//     unused_variables,
+//     unused_imports,
+//     unused_mut,
+//     unused_assignments,
+//     dead_code,
+//     clippy::let_unit_value,
+//     clippy::diverging_sub_expression,
+//     clippy::new_without_default,
+//     clippy::too_many_arguments,
+//     unreachable_code
+// )]
 extern crate alloc;
 
 pub mod error;
@@ -19,26 +19,13 @@ mod internal;
 pub mod raw;
 pub mod section;
 use alloc::{vec, vec::Vec};
-use core::{
-    cmp::Ordering,
-    fmt,
-    marker::PhantomData,
-    mem::{self, size_of, MaybeUninit},
-    ops::{Deref, DerefMut},
-    slice::from_raw_parts,
-};
+use core::{fmt, marker::PhantomData, mem::size_of, slice::from_raw_parts};
 
 use bitflags::bitflags;
 use raw::*;
 
 use crate::error::{Error, Result};
 pub use crate::internal::{OwnedOrRef, VecOrSlice};
-
-/// Windows PE Section alignment
-const AMD64_SECTION_ALIGN: u32 = 4096;
-
-/// Windows PE Section alignment
-const AMD64_FILE_ALIGN: u32 = 512;
 
 /// Default image base to use
 const DEFAULT_IMAGE_BASE: u64 = 0x10000000;
@@ -403,17 +390,6 @@ impl<'data> ImageHeader<'data> {
             Err(Error::InvalidPeMagic)
         }
     }
-
-    /// Get a [`ImageHeader`] from `bytes`, and data dirs as slice
-    ///
-    /// Checks for the magic.
-    fn from_bytes(bytes: &'data [u8]) -> Result<(Self, &'data [RawDataDirectory])> {
-        // Safety: Slice pointer is trivially valid for its own length.
-        let (opt, (data_ptr, data_len)) = unsafe { Self::from_ptr(bytes.as_ptr(), bytes.len())? };
-        // Safety: Above guarantees these are valid
-        let data = unsafe { core::slice::from_raw_parts(data_ptr, data_len) };
-        Ok((opt, data))
-    }
 }
 
 /// Known tables/data directories
@@ -631,6 +607,7 @@ impl<'data> Section<'data> {
 #[derive(Debug)]
 pub struct DataDir<'data> {
     header: OwnedOrRef<'data, RawDataDirectory>,
+    #[allow(dead_code)]
     base: Option<(*const u8, usize)>,
 }
 
@@ -1138,7 +1115,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         } else {
             file_size
         };
-        let mut header = RawSectionHeader {
+        let header = RawSectionHeader {
             name: section.name,
             virtual_size: { len },
             virtual_address: va,
@@ -1307,8 +1284,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let mut uninit_sum = 0;
         let mut code_base = 0;
         let mut data_base = 0;
-        let mut sections_sum: usize = 0;
-        let mut data_sum: usize = 0;
         // Get section sizes
         for (section, _) in self.sections.iter() {
             if section.flags() & SectionFlags::CODE != SectionFlags::empty() {
@@ -1327,19 +1302,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
             } else if section.flags() & SectionFlags::UNINITIALIZED != SectionFlags::empty() {
                 uninit_sum += section.virtual_size()
             }
-
-            let size: usize = section
-                .virtual_size()
-                .try_into()
-                .map_err(|_| Error::InvalidData)?;
-            sections_sum += size;
-        }
-        // sections_sum = init_sum as usize + code_sum as usize;
-        for (i, data) in self.data_dirs.iter().enumerate() {
-            if i == DataDirIdent::Certificate.index() || i == DataDirIdent::Debug.index() {
-                continue;
-            }
-            data_sum += data.size as usize;
         }
 
         // Create standard subset
@@ -1400,34 +1362,33 @@ impl<'data> PeBuilder<'data, states::Machine> {
             };
             out.extend_from_slice(bytes);
         } else {
-            #[cfg(no)]
             let pe = RawPe32::new(
                 opt,
-                self.image_base,
+                self.image_base as u32,
+                data_base,
                 self.section_align as u32,
                 self.file_align as u32,
-                0, // os_major,
-                0, // os_minor,
-                0, // image_major,
-                0, // image_minor,
-                0, // subsystem_major,
-                0, // subsystem_minor,
+                self.os_ver.0,
+                self.os_ver.1,
+                self.image_ver.0,
+                self.image_ver.1,
+                self.subsystem_ver.0,
+                self.subsystem_ver.1,
                 image_size as u32,
                 headers_size as u32,
                 self.subsystem,
                 self.dll_attributes,
-                self.stack.0,
-                self.stack.1,
-                self.heap.0,
-                self.heap.1,
+                self.stack.0 as u32,
+                self.stack.1 as u32,
+                self.heap.0 as u32,
+                self.heap.1 as u32,
                 self.data_dirs
                     .len()
                     .try_into()
                     .map_err(|_| Error::InvalidData)?,
             );
-            let pe = todo!();
             let bytes = unsafe {
-                let ptr = &pe as *const () as *const RawPe32 as *const u8;
+                let ptr = &pe as *const RawPe32 as *const u8;
                 from_raw_parts(ptr, size_of::<RawPe32>())
             };
             out.extend_from_slice(bytes);
@@ -1592,6 +1553,12 @@ impl<'data> PeBuilder<'data, states::Machine> {
     }
 }
 
+impl<'data> Default for PeBuilder<'data, states::Empty> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Build a section for a [`Pe`] file.
 pub struct SectionBuilder<'data> {
     name: [u8; 8],
@@ -1669,6 +1636,12 @@ impl<'data> SectionBuilder<'data> {
     }
 }
 
+impl<'data> Default for SectionBuilder<'data> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'data> fmt::Debug for SectionBuilder<'data> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct("SectionBuilder");
@@ -1687,8 +1660,18 @@ impl<'data> fmt::Debug for SectionBuilder<'data> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, path::Path};
-
+    // #![allow(
+    //     unused_variables,
+    //     unused_imports,
+    //     unused_mut,
+    //     unused_assignments,
+    //     dead_code,
+    //     clippy::let_unit_value,
+    //     clippy::diverging_sub_expression,
+    //     clippy::new_without_default,
+    //     clippy::too_many_arguments,
+    //     unreachable_code
+    // )]
     use anyhow::Result;
 
     use super::*;
@@ -1703,7 +1686,7 @@ mod tests {
     #[test]
     fn dev() -> Result<()> {
         // let mut pe = PeHeader::from_bytes(TEST_IMAGE);
-        let mut pe = unsafe { Pe::from_ptr(TEST_IMAGE.as_ptr(), TEST_IMAGE.len()) };
+        let pe = unsafe { Pe::from_ptr(TEST_IMAGE.as_ptr(), TEST_IMAGE.len()) };
         dbg!(&pe);
         let pe = pe?;
         for section in pe.sections() {
@@ -1718,17 +1701,17 @@ mod tests {
 
         panic!();
 
-        Ok(())
+        // Ok(())
     }
 
     /// Test ability to write a copy of rustup-init.exe, from our own parsed
     /// data structures.
     #[test]
     fn write_rustup() -> Result<()> {
-        let mut in_pe = Pe::from_bytes(RUSTUP_IMAGE)?;
+        let in_pe = Pe::from_bytes(RUSTUP_IMAGE)?;
         dbg!(&in_pe);
         let mut pe = PeBuilder::new();
-        let mut pe = pe.machine(MachineType::AMD64);
+        let pe = pe.machine(MachineType::AMD64);
         {
             pe.subsystem(Subsystem::WINDOWS_CLI)
                 .dos(*in_pe.dos(), VecOrSlice::Slice(in_pe.dos_stub()))
@@ -1861,8 +1844,8 @@ mod tests {
     /// Test ability to read rustup-init.exe
     #[test]
     fn read_rustup() -> Result<()> {
-        let mut pe = Pe::from_bytes(RUSTUP_IMAGE)?;
-        dbg!(&pe);
+        let pe = Pe::from_bytes(RUSTUP_IMAGE)?;
+
         assert_eq!(pe.machine_type(), MachineType::AMD64);
         assert_eq!(pe.sections().count(), 6);
         assert_eq!(pe.timestamp(), 1657657359);
