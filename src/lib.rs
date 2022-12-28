@@ -435,7 +435,7 @@ pub enum DataDirIdent {
     /// IAT table
     Iat,
 
-    /// Delay Import table
+    /// Delay Import Descriptor
     DelayImport,
 
     /// CLR Runtime header
@@ -443,6 +443,80 @@ pub enum DataDirIdent {
 
     /// Reserved, zero
     Reserved,
+}
+
+impl DataDirIdent {
+    /// Return the index for this table
+    fn index(&self) -> usize {
+        match self {
+            DataDirIdent::Export => 0,
+            DataDirIdent::Import => 1,
+            DataDirIdent::Resource => 2,
+            DataDirIdent::Exception => 3,
+            DataDirIdent::Certificate => 4,
+            DataDirIdent::BaseReloc => 5,
+            DataDirIdent::Debug => 6,
+            DataDirIdent::Architecture => 7,
+            DataDirIdent::GlobalPtr => 8,
+            DataDirIdent::ThreadLocalStorage => 9,
+            DataDirIdent::LoadConfig => 10,
+            DataDirIdent::BoundImport => 11,
+            DataDirIdent::Iat => 12,
+            DataDirIdent::DelayImport => 13,
+            DataDirIdent::ClrRuntime => 14,
+            DataDirIdent::Reserved => 15,
+        }
+    }
+}
+
+impl TryFrom<usize> for DataDirIdent {
+    type Error = ();
+
+    fn try_from(value: usize) -> core::result::Result<Self, ()> {
+        match value {
+            0 => Ok(DataDirIdent::Export),
+            1 => Ok(DataDirIdent::Import),
+            2 => Ok(DataDirIdent::Resource),
+            3 => Ok(DataDirIdent::Exception),
+            4 => Ok(DataDirIdent::Certificate),
+            5 => Ok(DataDirIdent::BaseReloc),
+            6 => Ok(DataDirIdent::Debug),
+            7 => Ok(DataDirIdent::Architecture),
+            8 => Ok(DataDirIdent::GlobalPtr),
+            9 => Ok(DataDirIdent::ThreadLocalStorage),
+            10 => Ok(DataDirIdent::LoadConfig),
+            11 => Ok(DataDirIdent::BoundImport),
+            12 => Ok(DataDirIdent::Iat),
+            13 => Ok(DataDirIdent::DelayImport),
+            14 => Ok(DataDirIdent::ClrRuntime),
+            15 => Ok(DataDirIdent::Reserved),
+            _ => Err(()),
+        }
+    }
+}
+
+impl fmt::Display for DataDirIdent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DataDirIdent::Export => write!(f, "Export Table"),
+            DataDirIdent::Import => write!(f, "Import Table"),
+            DataDirIdent::Resource => write!(f, "Resource Table"),
+            DataDirIdent::Exception => write!(f, "Exception Table"),
+            DataDirIdent::Certificate => write!(f, "Certificate Table"),
+            DataDirIdent::BaseReloc => write!(f, "Base Relocations Table"),
+            DataDirIdent::Debug => write!(f, "Debug Data"),
+            DataDirIdent::Architecture => write!(f, "Architecture"),
+            DataDirIdent::GlobalPtr => write!(f, "Global Ptr"),
+            DataDirIdent::ThreadLocalStorage => write!(f, "Thread Local Storage Table"),
+            DataDirIdent::LoadConfig => write!(f, "Load Config Table"),
+            DataDirIdent::BoundImport => write!(f, "Bound Import Table"),
+            DataDirIdent::Iat => write!(f, "IAT"),
+            DataDirIdent::DelayImport => write!(f, "Delay Import Descriptor"),
+            DataDirIdent::ClrRuntime => write!(f, "CLR Runtime Header"),
+            DataDirIdent::Reserved => write!(f, "Reserved"),
+            _ => Ok(()),
+        }
+    }
 }
 
 /// A PE Section
@@ -718,24 +792,7 @@ impl<'data> Pe<'data> {
 
     /// Get a known [`DataDir`]s by its [`DataDirIdent`] identifier.
     pub fn data_dir(&self, id: DataDirIdent) -> Option<DataDir> {
-        let index = match id {
-            DataDirIdent::Export => 0,
-            DataDirIdent::Import => 1,
-            DataDirIdent::Resource => 2,
-            DataDirIdent::Exception => 3,
-            DataDirIdent::Certificate => 4,
-            DataDirIdent::BaseReloc => 5,
-            DataDirIdent::Debug => 6,
-            DataDirIdent::Architecture => 7,
-            DataDirIdent::GlobalPtr => 8,
-            DataDirIdent::ThreadLocalStorage => 9,
-            DataDirIdent::LoadConfig => 10,
-            DataDirIdent::BoundImport => 11,
-            DataDirIdent::Iat => 12,
-            DataDirIdent::DelayImport => 13,
-            DataDirIdent::ClrRuntime => 14,
-            DataDirIdent::Reserved => 15,
-        };
+        let index = id.index();
         self.data_dirs.get(index).map(|s| DataDir {
             header: OwnedOrRef::Ref(s),
             base: self.base,
