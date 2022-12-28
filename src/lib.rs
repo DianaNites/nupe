@@ -322,6 +322,7 @@ impl<'data> DataDir<'data> {
 }
 
 /// A PE file
+#[derive(Clone)]
 pub struct Pe<'data> {
     dos: OwnedOrRef<'data, RawDos>,
     dos_stub: VecOrSlice<'data, u8>,
@@ -333,7 +334,12 @@ pub struct Pe<'data> {
     _phantom: PhantomData<&'data u8>,
 }
 
+/// Internal base API
 impl<'data> Pe<'data> {
+    /// Create a [`Pe`]
+    ///
+    /// `loaded` determines whether this pointer represents a loaded PE or not
+    ///
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
@@ -373,6 +379,7 @@ impl<'data> Pe<'data> {
     }
 }
 
+/// Public deserialization API
 impl<'data> Pe<'data> {
     /// Get a [`crate::Pe`] from `data`, checking to make sure its valid.
     ///
@@ -405,6 +412,7 @@ impl<'data> Pe<'data> {
     }
 }
 
+/// Public data API
 impl<'data> Pe<'data> {
     /// Get a [`Section`] by `name`. Ignores nul.
     ///
@@ -540,6 +548,7 @@ impl<'data> Pe<'data> {
     }
 }
 
+/// Public advanced API
 impl<'data> Pe<'data> {
     /// Raw COFF header for this PE file
     ///
