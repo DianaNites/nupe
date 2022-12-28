@@ -1563,8 +1563,30 @@ mod tests {
         dbg!(&pe);
         assert_eq!(pe.machine_type(), MachineType::AMD64);
         assert_eq!(pe.sections().count(), 6);
-        // assert_eq!(pe.time(), 1657657359);
+        assert_eq!(pe.timestamp(), 1657657359);
         assert_eq!(pe.subsystem(), Subsystem::WINDOWS_CLI);
+        assert_eq!(
+            pe.attributes(),
+            CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE
+        );
+        assert_eq!(pe.image_base(), 5368709120);
+        // assert_eq!(pe.section_align(), 4096);
+        // assert_eq!(pe.file_align(), 512);
+        assert_eq!(pe.os_version(), (6, 0));
+        // assert_eq!(pe.image_size(), 10096640);
+        // assert_eq!(pe.headers_size(), 1024);
+        // assert_eq!(
+        //     pe.dll_attributes(),
+        //     DllCharacteristics::HIGH_ENTROPY_VA
+        //         | DllCharacteristics::DYNAMIC_BASE
+        //         | DllCharacteristics::NX_COMPAT
+        //         | DllCharacteristics::TERMINAL_SERVER
+        // );
+        // assert_eq!(pe.stack_reserve(), 1048576);
+        // assert_eq!(pe.stack_commit(), 4096);
+        // assert_eq!(pe.heap_reserve(), 1048576);
+        // assert_eq!(pe.heap_commit(), 4096);
+        // assert_eq!(pe.data_dirs(), 16);
 
         assert_eq!({ pe.coff.machine }, MachineType::AMD64);
         assert_eq!({ pe.coff.sections }, 6);
@@ -1614,29 +1636,6 @@ mod tests {
         assert_eq!({ opt.stack_commit }, 4096);
         assert_eq!({ opt._reserved_loader_flags }, 0);
         assert_eq!({ opt.data_dirs }, 16);
-        // assert_eq!(
-        //     pe.attributes(),
-        //     CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE
-        // );
-        // assert_eq!(pe.image_base(), 5368709120);
-        // assert_eq!(pe.section_align(), 4096);
-        // assert_eq!(pe.file_align(), 512);
-        // assert_eq!(pe.os_ver(), (6, 0));
-        // assert_eq!(pe.os(), (6, 0));
-        // assert_eq!(pe.image_size(), 10096640);
-        // assert_eq!(pe.headers_size(), 1024);
-        // assert_eq!(
-        //     pe.dll_attributes(),
-        //     DllCharacteristics::HIGH_ENTROPY_VA
-        //         | DllCharacteristics::DYNAMIC_BASE
-        //         | DllCharacteristics::NX_COMPAT
-        //         | DllCharacteristics::TERMINAL_SERVER
-        // );
-        // assert_eq!(pe.stack_reserve(), 1048576);
-        // assert_eq!(pe.stack_commit(), 4096);
-        // assert_eq!(pe.heap_reserve(), 1048576);
-        // assert_eq!(pe.heap_commit(), 4096);
-        // assert_eq!(pe.data_dirs(), 16);
 
         // panic!();
 
