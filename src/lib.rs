@@ -514,7 +514,6 @@ impl fmt::Display for DataDirIdent {
             DataDirIdent::DelayImport => write!(f, "Delay Import Descriptor"),
             DataDirIdent::ClrRuntime => write!(f, "CLR Runtime Header"),
             DataDirIdent::Reserved => write!(f, "Reserved"),
-            _ => Ok(()),
         }
     }
 }
@@ -1847,6 +1846,8 @@ mod tests {
         let out_pe = Pe::from_bytes(&out);
         dbg!(&out_pe);
         // assert_eq!(&out[..64], &RUSTUP_IMAGE[..64]);
+        let x = 128 * 2 + 45;
+        assert_eq!(&out[..x], &RUSTUP_IMAGE[..x]);
 
         panic!();
         Ok(())
