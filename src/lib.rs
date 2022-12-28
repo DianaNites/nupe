@@ -1145,6 +1145,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let mut code_base = 0;
         let mut data_base = 0;
         let mut sections_sum: usize = 0;
+        let mut data_sum: usize = 0;
         // Get section sizes
         for section in self.sections.iter() {
             if section.flags() & SectionFlags::CODE != SectionFlags::empty() {
@@ -1177,7 +1178,10 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 .virtual_size()
                 .try_into()
                 .map_err(|_| Error::InvalidData)?;
-            sections_sum += size;
+            // sections_sum += size;
+        }
+        for data in self.data_dirs.iter() {
+            data_sum += data.size as usize;
         }
 
         // Create standard subset
@@ -1200,12 +1204,15 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
         // Image size, calculated as the headers size as a base, plus what its missing
         // Specifically:
-        // - Data dirs
-        // - Size of all section
+        // - Data dirs headers
+        // - Size of all sections
+        // - Data dirs data
         let image_size = headers_size as usize
             + (size_of::<RawDataDirectory>() * self.data_dirs.len())
-            + sections_sum;
+            + sections_sum
+            + data_sum;
 
+        // Aligned up to the section alignment
         let image_size = image_size as u64;
         let image_size = image_size + (self.section_align - (image_size % self.section_align));
         // 568 + (512 - (568 % 512))
