@@ -155,7 +155,6 @@ impl RawDos {
         size.checked_sub(size_of::<RawDos>())
             .ok_or(Error::NotEnoughData)?;
         let dos = unsafe { &*(data as *const RawDos) };
-        dbg!(dos);
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
         }
