@@ -291,6 +291,38 @@ impl<'data> ImageHeader<'data> {
             ImageHeader::Raw64(h) => h.standard.entry_offset,
         }
     }
+
+    /// OS (major, minor)
+    fn os_version(&self) -> (u16, u16) {
+        match self {
+            ImageHeader::Raw32(h) => (h.os_major, h.os_minor),
+            ImageHeader::Raw64(h) => (h.os_major, h.os_minor),
+        }
+    }
+
+    /// Image (major, minor)
+    fn image_version(&self) -> (u16, u16) {
+        match self {
+            ImageHeader::Raw32(h) => (h.image_major, h.image_minor),
+            ImageHeader::Raw64(h) => (h.image_major, h.image_minor),
+        }
+    }
+
+    /// Subsystem (major, minor)
+    fn subsystem_version(&self) -> (u16, u16) {
+        match self {
+            ImageHeader::Raw32(h) => (h.subsystem_major, h.subsystem_minor),
+            ImageHeader::Raw64(h) => (h.subsystem_major, h.subsystem_minor),
+        }
+    }
+
+    /// Linker (major, minor)
+    fn linker_version(&self) -> (u8, u8) {
+        match self {
+            ImageHeader::Raw32(h) => (h.standard.linker_major, h.standard.linker_minor),
+            ImageHeader::Raw64(h) => (h.standard.linker_major, h.standard.linker_minor),
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -584,6 +616,36 @@ impl<'data> Pe<'data> {
     pub fn dos_stub(&self) -> &[u8] {
         &self.dos_stub
     }
+
+    /// Low 32-bits of a unix timestamp
+    pub fn timestamp(&self) -> u32 {
+        self.coff.time
+    }
+
+    /// Preferred base address of the image
+    pub fn image_base(&self) -> u64 {
+        self.opt.image_base()
+    }
+
+    /// OS (major, minor)
+    pub fn os_version(&self) -> (u16, u16) {
+        self.opt.os_version()
+    }
+
+    /// Image (major, minor)
+    pub fn image_version(&self) -> (u16, u16) {
+        self.opt.image_version()
+    }
+
+    /// Subsystem (major, minor)
+    pub fn subsystem_version(&self) -> (u16, u16) {
+        self.opt.subsystem_version()
+    }
+
+    /// Linker (major, minor)
+    pub fn linker_version(&self) -> (u8, u8) {
+        self.opt.linker_version()
+    }
 }
 
 impl<'data> Pe<'data> {
@@ -651,8 +713,8 @@ pub struct PeBuilder<'data, State> {
     /// Sections to write to the image.
     sections: VecOrSlice<'data, Section<'data>>,
 
-    /// Sections to write to the image.
-    sections_: VecOrSlice<'data, SectionBuilder<'data>>,
+    /// Data of sections. 1:1 with sections
+    sections_data: VecOrSlice<'data, u8>,
 
     /// Data dirs to write to the image, defaults to zeroed.
     data_dirs: VecOrSlice<'data, RawDataDirectory>,
@@ -661,7 +723,7 @@ pub struct PeBuilder<'data, State> {
     machine: MachineType,
 
     /// Timestamp. Defaults to 0.
-    timestamp: Option<u32>,
+    timestamp: u32,
 
     /// Defaults to [`DEFAULT_IMAGE_BASE`]
     image_base: u64,
@@ -692,6 +754,18 @@ pub struct PeBuilder<'data, State> {
 
     /// Heap reserve and commit
     heap: (u64, u64),
+
+    /// OS version
+    os_ver: (u16, u16),
+
+    /// Image version
+    image_ver: (u16, u16),
+
+    /// Subsystem version
+    subsystem_ver: (u16, u16),
+
+    /// Subsystem version
+    linker_ver: (u8, u8),
 }
 
 impl<'data> PeBuilder<'data, states::Empty> {
@@ -700,10 +774,10 @@ impl<'data> PeBuilder<'data, states::Empty> {
         Self {
             state: PhantomData,
             sections: VecOrSlice::Vec(Vec::new()),
-            sections_: VecOrSlice::Vec(Vec::new()),
-            data_dirs: VecOrSlice::Vec(vec![RawDataDirectory::new(0, 0); 15]),
+            sections_data: VecOrSlice::Vec(Vec::new()),
+            data_dirs: VecOrSlice::Vec(vec![RawDataDirectory::new(0, 0); 16]),
             machine: MachineType::UNKNOWN,
-            timestamp: None,
+            timestamp: 0,
             image_base: DEFAULT_IMAGE_BASE,
             section_align: 4096,
             file_align: 512,
@@ -714,6 +788,10 @@ impl<'data> PeBuilder<'data, states::Empty> {
             dll_attributes: DllCharacteristics::empty(),
             stack: (0, 0),
             heap: (0, 0),
+            os_ver: (0, 0),
+            image_ver: (0, 0),
+            subsystem_ver: (0, 0),
+            linker_ver: (0, 0),
         }
     }
 
@@ -745,6 +823,30 @@ impl<'data> PeBuilder<'data, states::Machine> {
         self
     }
 
+    /// OS (major, minor)
+    pub fn os_version(&mut self, ver: (u16, u16)) -> &mut Self {
+        self.os_ver = ver;
+        self
+    }
+
+    /// Image (major, minor)
+    pub fn image_version(&mut self, ver: (u16, u16)) -> &mut Self {
+        self.image_ver = ver;
+        self
+    }
+
+    /// Subsystem (major, minor)
+    pub fn subsystem_version(&mut self, ver: (u16, u16)) -> &mut Self {
+        self.subsystem_ver = ver;
+        self
+    }
+
+    /// Linker (major, minor)
+    pub fn linker_version(&mut self, ver: (u8, u8)) -> &mut Self {
+        self.linker_ver = ver;
+        self
+    }
+
     /// Stack reserve and commit, respectively
     pub fn subsystem(&mut self, subsystem: Subsystem) -> &mut Self {
         self.subsystem = subsystem;
@@ -769,6 +871,24 @@ impl<'data> PeBuilder<'data, states::Machine> {
     /// This completely overwrites the header and stub.
     pub fn dos(&mut self, dos: RawDos, stub: VecOrSlice<'data, u8>) -> &mut Self {
         self.dos = Some((dos, stub));
+        self
+    }
+
+    /// Low 32 bits of the unix timestamp for this image.
+    pub fn timestamp(&mut self, time: u32) -> &mut Self {
+        self.timestamp = time;
+        self
+    }
+
+    /// Preferred base address of the image
+    pub fn image_base(&mut self, image_base: u64) -> &mut Self {
+        self.image_base = image_base;
+        self
+    }
+
+    /// DLL Attributes for the [`Pe`] image.
+    pub fn dll_attributes(&mut self, attr: DllCharacteristics) -> &mut Self {
+        self.dll_attributes = attr;
         self
     }
 
@@ -803,6 +923,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
             }),
             VecOrSlice::Slice(_) => todo!(),
         }
+        // FIXME: to_vec
+        self.sections_data = VecOrSlice::Vec(section.data.to_vec());
         self
     }
 }
@@ -881,7 +1003,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     fn write_pe(&mut self, out: &mut Vec<u8>, machine: MachineType, plus: bool) -> Result<usize> {
         out.extend_from_slice(PE_MAGIC);
 
-        // We always write the full 15, zeroed, data dirs, and either the 32 or 64-bit
+        // We always write the full 16, zeroed, data dirs, and either the 32 or 64-bit
         // header.
         let optional_size = self.data_dirs.len() * size_of::<RawDataDirectory>()
             + if plus {
@@ -896,7 +1018,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 .len()
                 .try_into()
                 .map_err(|_| Error::InvalidData)?,
-            0, // TODO: Times
+            self.timestamp,
             optional_size.try_into().map_err(|_| Error::InvalidData)?,
             self.attributes,
         ));
@@ -919,16 +1041,29 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let mut sections_sum: usize = 0;
         // Get section sizes
         for section in self.sections.iter() {
+            if section.flags() & SectionFlags::CODE != SectionFlags::empty() {
+                code_sum += section.virtual_size();
+                code_base = section.virtual_address();
+            }
+
+            if section.flags() & SectionFlags::INITIALIZED != SectionFlags::empty() {
+                init_sum += section.virtual_size();
+                data_base = section.virtual_address();
+            }
+
+            if section.flags() & SectionFlags::INITIALIZED != SectionFlags::empty() {
+                uninit_sum += section.virtual_size()
+            }
             match section.flags() {
                 SectionFlags::CODE => {
-                    code_sum += section.virtual_size();
-                    code_base = section.virtual_address();
+                    // code_sum += section.virtual_size();
+                    // code_base = section.virtual_address();
                 }
                 SectionFlags::INITIALIZED => {
-                    init_sum += section.virtual_size();
-                    data_base = section.virtual_address();
+                    // init_sum += section.virtual_size();
+                    // data_base = section.virtual_address();
                 }
-                SectionFlags::UNINITIALIZED => uninit_sum += section.virtual_size(),
+                // SectionFlags::UNINITIALIZED => uninit_sum += section.virtual_size(),
                 _ => (),
             }
 
@@ -942,8 +1077,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // Create standard subset
         let opt = RawPeOptStandard::new(
             if plus { PE32_64_MAGIC } else { PE32_MAGIC },
-            0, // Linker_major
-            0, // Linker_minor
+            self.linker_ver.0,
+            self.linker_ver.1,
             code_sum,
             init_sum,
             uninit_sum,
@@ -974,12 +1109,12 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 self.image_base,
                 self.section_align as u32,
                 self.file_align as u32,
-                0, // os_major,
-                0, // os_minor,
-                0, // image_major,
-                0, // image_minor,
-                0, // subsystem_major,
-                0, // subsystem_minor,
+                self.os_ver.0,
+                self.os_ver.1,
+                self.image_ver.0,
+                self.image_ver.1,
+                self.subsystem_ver.0,
+                self.subsystem_ver.1,
                 image_size as u32,
                 headers_size as u32,
                 self.subsystem,
@@ -1327,6 +1462,18 @@ mod tests {
             .stack((1048576, 4096))
             .heap((1048576, 4096))
             .entry(in_pe.entry())
+            .timestamp(in_pe.timestamp())
+            .dll_attributes(
+                DllCharacteristics::DYNAMIC_BASE
+                    | DllCharacteristics::HIGH_ENTROPY_VA
+                    | DllCharacteristics::NX_COMPAT
+                    | DllCharacteristics::TERMINAL_SERVER,
+            )
+            .image_base(in_pe.image_base())
+            .os_version(in_pe.os_version())
+            .image_version(in_pe.image_version())
+            .subsystem_version(in_pe.subsystem_version())
+            .linker_version(in_pe.linker_version())
             //
             .section(
                 SectionBuilder::new()
@@ -1338,33 +1485,61 @@ mod tests {
                     })
                     .file_offset(1024)
                     .attributes(SectionFlags::CODE | SectionFlags::EXEC | SectionFlags::READ),
-            )
-            .section(
-                SectionBuilder::new()
-                    .name(".rdata")
-                    .data({
-                        //
-                        let sec = in_pe.section(".rdata").unwrap();
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
-                    })
-                    // .file_offset(1024)
-                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
             );
-        // .section()
-        // .name(".rdata")
-        // .finish()
-        // .section()
-        // .name(".data")
-        // .finish()
-        // .section()
-        // .name(".pdata")
-        // .finish()
-        // .section()
-        // .name("_RDATA")
-        // .finish()
-        // .section()
-        // .name(".reloc")
-        // .finish();
+        // .section(
+        //     SectionBuilder::new()
+        //         .name(".rdata")
+        //         .data({
+        //             //
+        //             let sec = in_pe.section(".rdata").unwrap();
+        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
+        // as usize]         })
+        //         .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+        // );
+        // .section(
+        //     SectionBuilder::new()
+        //         .name(".data")
+        //         .data({
+        //             //
+        //             let sec = in_pe.section(".data").unwrap();
+        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
+        // as usize]         })
+        //         .attributes(
+        //             SectionFlags::INITIALIZED | SectionFlags::READ |
+        // SectionFlags::WRITE,         ),
+        // )
+        // .section(
+        //     SectionBuilder::new()
+        //         .name(".pdata")
+        //         .data({
+        //             //
+        //             let sec = in_pe.section(".pdata").unwrap();
+        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
+        // as usize]         })
+        //         .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+        // )
+        // .section(
+        //     SectionBuilder::new()
+        //         .name("_RDATA")
+        //         .data({
+        //             //
+        //             let sec = in_pe.section("_RDATA").unwrap();
+        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
+        // as usize]         })
+        //         .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+        // )
+        // .section(
+        //     SectionBuilder::new()
+        //         .name(".reloc")
+        //         .data({
+        //             //
+        //             let sec = in_pe.section(".reloc").unwrap();
+        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
+        // as usize]         })
+        //         .attributes(
+        //             SectionFlags::INITIALIZED | SectionFlags::READ |
+        // SectionFlags::DISCARDABLE,         ),
+        // );
         let mut out: Vec<u8> = Vec::new();
         pe.write(&mut out)?;
         //
