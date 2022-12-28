@@ -1362,6 +1362,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
             code_base,
         );
         let headers_size = (size_of::<RawDos>()
+            + self
+                .dos
+                .as_ref()
+                .map(|(_, stub)| stub.len())
+                .unwrap_or_default()
             + size_of::<RawPe>()
             + (size_of::<RawSectionHeader>() * self.sections.len()))
             as u64;
