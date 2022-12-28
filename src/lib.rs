@@ -781,7 +781,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     /// Write the DOS header
     ///
     /// The PE offset is expected to point directly after the DOS header and
-    /// stub.
+    /// stub, aligned up to 8 bytes.
     ///
     /// TODO: May need to support more of the DOS format to be able to perfectly
     /// represent this, because of hidden metadata between the stub and PE.
@@ -797,8 +797,18 @@ impl<'data> PeBuilder<'data, states::Machine> {
             out.extend_from_slice(bytes);
             // Stub
             out.extend_from_slice(stub);
+            // Align
+            let size = size_of::<RawDos>() + stub.len();
+            if size % 8 != 0 {
+                let align = size + (8 - (size % 8));
+                let align = align - size;
+                out.reserve(3);
+                for _ in 0..align {
+                    out.push(b'\0')
+                }
+            }
         } else {
-            // No stub, PE expected directly after this.
+            // No stub, PE expected directly after this, 64 is already 8 aligned.
             let dos = RawDos::new(size_of::<RawDos>() as u32);
             let bytes = unsafe {
                 let ptr = &dos as *const RawDos as *const u8;
@@ -809,8 +819,170 @@ impl<'data> PeBuilder<'data, states::Machine> {
         Ok(())
     }
 
-    /// Write the PE header
-    fn write_pe(&mut self, out: &mut Vec<u8>) -> Result<()> {
+    /// Write the PE header.
+    ///
+    /// If `plus` is true then expect PE32+ for the optional header.
+    fn write_pe(&mut self, out: &mut Vec<u8>, machine: MachineType, plus: bool) -> Result<usize> {
+        out.extend_from_slice(PE_MAGIC);
+
+        // We always write the full 15, zeroed, data dirs, and either the 32 or 64-bit
+        // header.
+        let optional_size = self.data_dirs.len() * size_of::<RawDataDirectory>()
+            + if plus {
+                size_of::<RawPe32x64>()
+            } else {
+                size_of::<RawPe32>()
+            };
+
+        let coff = OwnedOrRef::Owned(RawCoff::new(
+            machine,
+            self.sections
+                .len()
+                .try_into()
+                .map_err(|_| Error::InvalidData)?,
+            0, // TODO: Times
+            optional_size.try_into().map_err(|_| Error::InvalidData)?,
+            self.attributes,
+        ));
+
+        let bytes = unsafe {
+            let ptr = coff.as_ref() as *const RawCoff as *const u8;
+            from_raw_parts(ptr, size_of::<RawCoff>())
+        };
+        out.extend_from_slice(bytes);
+        Ok(optional_size)
+    }
+
+    /// Write the optional header, including data dirs.
+    fn write_opt(&mut self, out: &mut Vec<u8>, plus: bool) -> Result<()> {
+        let mut code_sum = 0;
+        let mut init_sum = 0;
+        let mut uninit_sum = 0;
+        let mut code_base = 0;
+        let mut data_base = 0;
+        let mut sections_sum: usize = 0;
+        // Get section sizes
+        for section in self.sections.iter() {
+            match section.flags() {
+                SectionFlags::CODE => {
+                    code_sum += section.virtual_size();
+                    code_base = section.virtual_address();
+                }
+                SectionFlags::INITIALIZED => {
+                    init_sum += section.virtual_size();
+                    data_base = section.virtual_address();
+                }
+                SectionFlags::UNINITIALIZED => uninit_sum += section.virtual_size(),
+                _ => (),
+            }
+
+            let size: usize = section
+                .virtual_size()
+                .try_into()
+                .map_err(|_| Error::InvalidData)?;
+            sections_sum += size;
+        }
+
+        // Create standard subset
+        let opt = RawPeOptStandard::new(
+            if plus { PE32_64_MAGIC } else { PE32_MAGIC },
+            0, // Linker_major
+            0, // Linker_minor
+            code_sum,
+            init_sum,
+            uninit_sum,
+            // FIXME: Entry point will be incredibly error prone.
+            self.entry,
+            code_base,
+        );
+        let headers_size = (size_of::<RawDos>()
+            + size_of::<RawPe>()
+            + (size_of::<RawSectionHeader>() * self.sections.len()))
+            as u64;
+        let headers_size = headers_size + (self.file_align - (headers_size % self.file_align));
+
+        // Image size, calculated as the headers size as a base, plus what its missing
+        // Specifically:
+        // - Data dirs
+        // - Size of all section
+        let image_size = headers_size as usize
+            + (size_of::<RawDataDirectory>() * self.data_dirs.len())
+            + sections_sum;
+
+        let image_size = image_size as u64;
+        let image_size = image_size + (self.section_align - (image_size % self.section_align));
+        // 568 + (512 - (568 % 512))
+        if plus {
+            let pe = RawPe32x64::new(
+                opt,
+                self.image_base,
+                self.section_align as u32,
+                self.file_align as u32,
+                0, // os_major,
+                0, // os_minor,
+                0, // image_major,
+                0, // image_minor,
+                0, // subsystem_major,
+                0, // subsystem_minor,
+                image_size as u32,
+                headers_size as u32,
+                self.subsystem,
+                self.dll_attributes,
+                self.stack.0,
+                self.stack.1,
+                self.heap.0,
+                self.heap.1,
+                self.data_dirs
+                    .len()
+                    .try_into()
+                    .map_err(|_| Error::InvalidData)?,
+            );
+            let bytes = unsafe {
+                let ptr = &pe as *const RawPe32x64 as *const u8;
+                from_raw_parts(ptr, size_of::<RawPe32x64>())
+            };
+            out.extend_from_slice(bytes);
+        } else {
+            #[cfg(no)]
+            let pe = RawPe32::new(
+                opt,
+                self.image_base,
+                self.section_align as u32,
+                self.file_align as u32,
+                0, // os_major,
+                0, // os_minor,
+                0, // image_major,
+                0, // image_minor,
+                0, // subsystem_major,
+                0, // subsystem_minor,
+                image_size as u32,
+                headers_size as u32,
+                self.subsystem,
+                self.dll_attributes,
+                self.stack.0,
+                self.stack.1,
+                self.heap.0,
+                self.heap.1,
+                self.data_dirs
+                    .len()
+                    .try_into()
+                    .map_err(|_| Error::InvalidData)?,
+            );
+            let pe = todo!();
+            let bytes = unsafe {
+                let ptr = &pe as *const () as *const RawPe32 as *const u8;
+                from_raw_parts(ptr, size_of::<RawPe32>())
+            };
+            out.extend_from_slice(bytes);
+        };
+
+        // Data dirs
+        let bytes = unsafe {
+            let ptr = self.data_dirs.as_ptr() as *const u8;
+            from_raw_parts(ptr, size_of::<RawDataDirectory>() * self.data_dirs.len())
+        };
+        out.extend_from_slice(bytes);
+
         Ok(())
     }
 
@@ -838,158 +1010,21 @@ impl<'data> PeBuilder<'data, states::Machine> {
         struct _DummyHoverWriteDocs;
         out.clear();
         let machine = self.machine;
+        let plus = match machine {
+            MachineType::AMD64 => Ok(true),
+            MachineType::I386 => Ok(false),
+            _ => Err(Error::InvalidData),
+        }?;
 
         self.write_dos(out)?;
+        let expected_opt_size = self.write_pe(out, machine, plus)?;
 
-        // NOTE: Remember to align to 8 bytes if we write a stub.
-        out.extend_from_slice(PE_MAGIC);
+        let size = out.len();
+        self.write_opt(out, plus)?;
+        let size = out.len() - size;
+        dbg!(expected_opt_size, size);
+        assert_eq!(expected_opt_size, size);
 
-        // We always write the full 15, zeroed, data dirs, and either the 32 or 64-bit
-        // header.
-        let optional_size = self.data_dirs.len()
-            + match machine {
-                MachineType::AMD64 => Ok(size_of::<RawPe32x64>()),
-                MachineType::I386 => Ok(size_of::<RawPe32>()),
-                _ => Err(Error::InvalidData),
-            }?;
-
-        let coff = OwnedOrRef::Owned(RawCoff::new(
-            machine,
-            self.sections
-                .len()
-                .try_into()
-                .map_err(|_| Error::InvalidData)?,
-            0, // TODO: Times
-            optional_size.try_into().map_err(|_| Error::InvalidData)?,
-            self.attributes,
-        ));
-
-        let bytes = unsafe {
-            let ptr = coff.as_ref() as *const RawCoff as *const u8;
-            from_raw_parts(ptr, size_of::<RawCoff>())
-        };
-        out.extend_from_slice(bytes);
-
-        let opt = {
-            let mut code_sum = 0;
-            let mut init_sum = 0;
-            let mut uninit_sum = 0;
-            let mut code_base = 0;
-            let mut data_base = 0;
-            let mut sections_sum: usize = 0;
-            // Get section sizes
-            for section in self.sections.iter() {
-                match section.flags() {
-                    SectionFlags::CODE => {
-                        code_sum += section.virtual_size();
-                        code_base = section.virtual_address();
-                    }
-                    SectionFlags::INITIALIZED => {
-                        init_sum += section.virtual_size();
-                        data_base = section.virtual_address();
-                    }
-                    SectionFlags::UNINITIALIZED => uninit_sum += section.virtual_size(),
-                    _ => (),
-                }
-
-                let size: usize = section
-                    .virtual_size()
-                    .try_into()
-                    .map_err(|_| Error::InvalidData)?;
-                sections_sum += size;
-            }
-
-            // Create standard subset
-            let opt = RawPeOptStandard::new(
-                match machine {
-                    MachineType::AMD64 => Ok(PE32_64_MAGIC),
-                    MachineType::I386 => Ok(PE32_MAGIC),
-                    _ => Err(Error::InvalidData),
-                }?,
-                0, // Linker_major
-                0, // Linker_minor
-                code_sum,
-                init_sum,
-                uninit_sum,
-                // FIXME: Entry point will be incredibly error prone.
-                self.entry,
-                code_base,
-            );
-            let headers_size = (size_of::<RawDos>()
-                + size_of::<RawPe>()
-                + (size_of::<RawSectionHeader>() * self.sections.len()))
-                as u64;
-            let headers_size = headers_size + (self.file_align - (headers_size % self.file_align));
-
-            // Image size, calculated as the headers size as a base, plus what its missing
-            // Specifically:
-            // - Data dirs
-            // - Size of all section
-            let image_size = headers_size as usize
-                + (size_of::<RawDataDirectory>() * self.data_dirs.len())
-                + sections_sum;
-
-            let image_size = image_size as u64;
-            let image_size = image_size + (self.section_align - (image_size % self.section_align));
-            // 568 + (512 - (568 % 512))
-            match machine {
-                MachineType::AMD64 => {
-                    let pe = RawPe32x64::new(
-                        opt,
-                        self.image_base,
-                        self.section_align as u32,
-                        self.file_align as u32,
-                        0, // os_major,
-                        0, // os_minor,
-                        0, // image_major,
-                        0, // image_minor,
-                        0, // subsystem_major,
-                        0, // subsystem_minor,
-                        image_size as u32,
-                        headers_size as u32,
-                        self.subsystem,
-                        self.dll_attributes,
-                        self.stack.0,
-                        self.stack.1,
-                        self.heap.0,
-                        self.heap.1,
-                        self.data_dirs
-                            .len()
-                            .try_into()
-                            .map_err(|_| Error::InvalidData)?,
-                    );
-                    ImageHeader::Raw64(OwnedOrRef::Owned(pe))
-                }
-                MachineType::I386 => {
-                    todo!();
-                }
-                _ => unimplemented!(),
-            }
-        };
-
-        match opt {
-            ImageHeader::Raw32(h) => {
-                let bytes = unsafe {
-                    let ptr = h.as_ref() as *const RawPe32 as *const u8;
-                    from_raw_parts(ptr, size_of::<RawPe32>())
-                };
-                out.extend_from_slice(bytes);
-            }
-            ImageHeader::Raw64(h) => {
-                let bytes = unsafe {
-                    let ptr = h.as_ref() as *const RawPe32x64 as *const u8;
-                    from_raw_parts(ptr, size_of::<RawPe32x64>())
-                };
-                out.extend_from_slice(bytes);
-            }
-        }
-
-        // TODO: Data dirs
-        let bytes = unsafe {
-            let ptr = self.data_dirs.as_ptr() as *const u8;
-            from_raw_parts(ptr, size_of::<RawDataDirectory>() * self.data_dirs.len())
-        };
-        out.extend_from_slice(bytes);
         // TODO: Section table
         let sections: Vec<*const RawSectionHeader> = self
             .sections
@@ -1074,8 +1109,6 @@ mod tests {
         //
         let out_pe = Pe::from_bytes(&out);
         dbg!(&out_pe);
-        dbg!(&RawDos::from_bytes(&out[..64]));
-        dbg!(&in_pe.dos());
 
         panic!();
         Ok(())
