@@ -1834,8 +1834,7 @@ mod tests {
         //
         let out_pe = Pe::from_bytes(&out);
         dbg!(&out_pe);
-        // assert_eq!(&out[..64], &RUSTUP_IMAGE[..64]);
-        let x = 128 * 2 + 45;
+        let x = 128 * 2 + 50;
         assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
 
         panic!();
