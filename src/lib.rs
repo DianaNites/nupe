@@ -1847,7 +1847,7 @@ mod tests {
         let pe = Pe::from_bytes(RUSTUP_IMAGE)?;
 
         assert_eq!(pe.machine_type(), MachineType::AMD64);
-        assert_eq!(pe.sections().count(), 6);
+        assert_eq!(pe.sections_len(), 6);
         assert_eq!(pe.timestamp(), 1657657359);
         assert_eq!(pe.subsystem(), Subsystem::WINDOWS_CLI);
         assert_eq!(
@@ -1860,18 +1860,19 @@ mod tests {
         assert_eq!(pe.os_version(), (6, 0));
         // assert_eq!(pe.image_size(), 10096640);
         // assert_eq!(pe.headers_size(), 1024);
-        // assert_eq!(
-        //     pe.dll_attributes(),
-        //     DllCharacteristics::HIGH_ENTROPY_VA
-        //         | DllCharacteristics::DYNAMIC_BASE
-        //         | DllCharacteristics::NX_COMPAT
-        //         | DllCharacteristics::TERMINAL_SERVER
-        // );
-        // assert_eq!(pe.stack_reserve(), 1048576);
-        // assert_eq!(pe.stack_commit(), 4096);
-        // assert_eq!(pe.heap_reserve(), 1048576);
-        // assert_eq!(pe.heap_commit(), 4096);
-        // assert_eq!(pe.data_dirs(), 16);
+        assert_eq!(
+            pe.dll_attributes(),
+            DllCharacteristics::HIGH_ENTROPY_VA
+                | DllCharacteristics::DYNAMIC_BASE
+                | DllCharacteristics::NX_COMPAT
+                | DllCharacteristics::TERMINAL_SERVER
+        );
+        assert_eq!(pe.stack(), (4096, 1048576));
+        assert_eq!(pe.heap(), (4096, 1048576));
+        assert_eq!(pe.data_dirs_len(), 16);
+
+        assert_eq!(pe.data_dirs().count(), 16);
+        assert_eq!(pe.sections().count(), 6);
 
         assert_eq!({ pe.coff.machine }, MachineType::AMD64);
         assert_eq!({ pe.coff.sections }, 6);
@@ -1921,8 +1922,6 @@ mod tests {
         assert_eq!({ opt.stack_commit }, 4096);
         assert_eq!({ opt._reserved_loader_flags }, 0);
         assert_eq!({ opt.data_dirs }, 16);
-
-        // panic!();
 
         Ok(())
     }
