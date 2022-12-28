@@ -6,7 +6,10 @@ export MIRIFLAGS := "\
 @_default:
 
 @miri *args='':
-    cargo +nightly miri test {{args}}
+    cargo +nightly miri nextest run {{args}}
+
+@test *args='':
+    cargo +nightly nextest run {{args}}
 
 @clippy:
     cargo clippy --all-targets
