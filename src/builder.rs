@@ -684,10 +684,16 @@ impl<'data> PeBuilder<'data, states::Machine> {
                                 .to_vec(),
                         );
                         (s, v)
+                        // (Section::new(header, file_align, base), v)
                     })
                     .collect(),
             ),
-            data_dirs: VecOrSlice::Vec(pe.data_dirs().map(|d| *d.header).collect()),
+            data_dirs: VecOrSlice::Vec({
+                let mut v: Vec<_> = pe.data_dirs().map(|d| *d.header).collect();
+                let len = v.len().max(16);
+                v.resize(len, RawDataDirectory::new(0, 0));
+                v
+            }),
             machine: pe.machine_type(),
             timestamp: pe.timestamp(),
             image_base: pe.image_base(),
@@ -740,8 +746,6 @@ impl<'data, State> fmt::Debug for PeBuilder<'data, State> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PeBuilder")
             .field("state", &self.state)
-            // TODO: Add helper
-            // .field("sections", &self.sections)
             .field("sections", &{
                 struct Helper<'data>(
                     &'data VecOrSlice<'data, (Section<'data>, VecOrSlice<'data, u8>)>,

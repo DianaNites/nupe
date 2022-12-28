@@ -634,8 +634,11 @@ mod tests {
     fn write_rustup() -> Result<()> {
         let in_pe = Pe::from_bytes(RUSTUP_IMAGE)?;
         dbg!(&in_pe);
+        // #[cfg(no)]
         let mut pe = PeBuilder::new();
+        // #[cfg(no)]
         let pe = pe.machine(MachineType::AMD64);
+        // #[cfg(no)]
         {
             pe.subsystem(Subsystem::WINDOWS_CLI)
                 .dos(*in_pe.dos(), VecOrSlice::Slice(in_pe.dos_stub()))
@@ -750,6 +753,7 @@ mod tests {
                         ),
                 );
         }
+        // let mut pe = PeBuilder::from_pe(&in_pe, &RUSTUP_IMAGE);
         let mut out: Vec<u8> = Vec::new();
         pe.write(&mut out)?;
         //
