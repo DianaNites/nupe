@@ -620,7 +620,10 @@ impl<'data> fmt::Debug for Pe<'data> {
 mod states {
     //! States for [`PeBuilder`]
 
+    #[derive(Debug, Clone, Copy)]
     pub struct Empty;
+
+    #[derive(Debug, Clone, Copy)]
     pub struct Machine;
 }
 
@@ -749,6 +752,26 @@ impl<'data> PeBuilder<'data, states::Machine> {
         self.dos = Some((dos, stub));
         self
     }
+
+    /// Append a section
+    pub fn section(&mut self) -> SectionBuilder<'data, '_> {
+        SectionBuilder::new(self)
+    }
+
+    /// Append an existing section from elsewhere
+    pub fn section_exist(&mut self, section: Section<'data>) -> &mut Self {
+        match &mut self.sections {
+            VecOrSlice::Vec(v) => v.push(Section {
+                header: match section.header {
+                    OwnedOrRef::Owned(o) => OwnedOrRef::Owned(o),
+                    OwnedOrRef::Ref(r) => OwnedOrRef::Ref(r),
+                },
+                base: section.base,
+            }),
+            VecOrSlice::Slice(_) => todo!(),
+        }
+        self
+    }
 }
 
 impl<'data> PeBuilder<'data, states::Machine> {
@@ -802,7 +825,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             if size % 8 != 0 {
                 let align = size + (8 - (size % 8));
                 let align = align - size;
-                out.reserve(3);
+                out.reserve(align);
                 for _ in 0..align {
                     out.push(b'\0')
                 }
@@ -1022,7 +1045,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let size = out.len();
         self.write_opt(out, plus)?;
         let size = out.len() - size;
-        dbg!(expected_opt_size, size);
+        // dbg!(expected_opt_size, size);
         assert_eq!(expected_opt_size, size);
 
         // TODO: Section table
@@ -1038,7 +1061,25 @@ impl<'data> PeBuilder<'data, states::Machine> {
             };
             out.extend_from_slice(bytes);
         }
+
         // TODO: Section data
+        for s in self.sections.iter() {
+            // let bytes = unsafe {
+            //     let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
+            //     from_raw_parts(ptr, size_of::<RawSectionHeader>() * self.sections.len())
+            // };
+            let bytes = &[];
+            out.extend_from_slice(bytes);
+            // TODO: File align
+            let size = bytes.len();
+            let align = size + (self.file_align as usize - (size % self.file_align as usize));
+            let align = align - size;
+            out.reserve(align);
+            for _ in 0..align {
+                out.push(b'\0')
+            }
+            // FIXME: SizeOfRawData
+        }
 
         #[cfg(no)]
         let pe = Pe {
@@ -1052,6 +1093,91 @@ impl<'data> PeBuilder<'data, states::Machine> {
         };
 
         Ok(())
+    }
+
+    /// Get the next virtual address available for a section
+    fn next_virtual_address(&mut self) -> u32 {
+        let mut max_va = (0, 0);
+        for section in self.sections.iter() {
+            let va = max_va.0.max(section.virtual_address());
+            let size = section.virtual_size();
+            max_va = (va, size);
+        }
+        0
+    }
+}
+
+/// Build a section for a [`Pe`] file.
+#[derive(Debug)]
+pub struct SectionBuilder<'data, 'a> {
+    builder: &'a mut PeBuilder<'data, states::Machine>,
+    name: [u8; 8],
+    data: Option<&'data [u8]>,
+    attr: Option<SectionFlags>,
+}
+
+impl<'data, 'a> SectionBuilder<'data, 'a> {
+    fn new(builder: &'a mut PeBuilder<'data, states::Machine>) -> Self {
+        Self {
+            builder,
+            name: [b'\0'; 8],
+            data: None,
+            attr: None,
+        }
+    }
+
+    /// Name of the section. Required.
+    ///
+    /// If `name` is more than 8 bytes, it is truncated.
+    pub fn name(&mut self, name: &str) -> &mut Self {
+        self.name[..name.len().min(8)].copy_from_slice(name.as_bytes());
+        self
+    }
+
+    /// Name of the section
+    ///
+    /// # Errors
+    ///
+    /// - If `name` is more than 8 bytes.
+    pub fn try_name(&mut self, name: &str) -> Result<&mut Self> {
+        if name.len() > 8 {
+            return Err(Error::InvalidData);
+        }
+        self.name[..name.len()].copy_from_slice(name.as_bytes());
+        Ok(self)
+    }
+
+    /// Data in the section. Required.
+    pub fn data(&mut self, data: &'data [u8]) -> &mut Self {
+        self.data = Some(data);
+        self
+    }
+
+    pub fn finish(&mut self) -> &mut PeBuilder<'data, states::Machine> {
+        // let len = self.data.unwrap().len().try_into().unwrap();
+        // let mut header = RawSectionHeader {
+        //     name: self.name,
+        //     virtual_size: len,
+        //     virtual_address: self.builder.next_virtual_address(),
+        //     raw_size: len,
+        //     raw_ptr: todo!(),
+        //     reloc_ptr: todo!(),
+        //     line_ptr: todo!(),
+        //     num_reloc: todo!(),
+        //     num_lines: todo!(),
+        //     characteristics: self.attr.unwrap(),
+        // };
+
+        // match &mut self.builder.sections {
+        //     VecOrSlice::Vec(v) => v.push(Section {
+        //         header: OwnedOrRef::Owned(header),
+        //         base: None,
+        //     }),
+        //     VecOrSlice::Slice(_) => todo!(),
+        // }
+
+        //
+        self.builder
     }
 }
 
@@ -1103,7 +1229,31 @@ mod tests {
             .dos(*in_pe.dos(), VecOrSlice::Slice(in_pe.dos_stub()))
             .stack((1048576, 4096))
             .heap((1048576, 4096))
-            .entry(in_pe.entry());
+            .entry(in_pe.entry())
+            //
+            .section()
+            .name(".text")
+            .data({
+                //
+                let sec = in_pe.section(".text").unwrap();
+                &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
+            })
+            .finish();
+        // .section()
+        // .name(".rdata")
+        // .finish()
+        // .section()
+        // .name(".data")
+        // .finish()
+        // .section()
+        // .name(".pdata")
+        // .finish()
+        // .section()
+        // .name("_RDATA")
+        // .finish()
+        // .section()
+        // .name(".reloc")
+        // .finish();
         let mut out: Vec<u8> = Vec::new();
         pe.write(&mut out)?;
         //
