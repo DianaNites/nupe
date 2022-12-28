@@ -32,7 +32,7 @@ use crate::{
 const DEFAULT_IMAGE_BASE: u64 = 0x10000000;
 
 mod states {
-    //! States for [`PeBuilder`]
+    //! States for [`crate::Pe`]
 
     #[derive(Debug, Clone, Copy)]
     pub struct Empty;
@@ -41,7 +41,7 @@ mod states {
     pub struct Machine;
 }
 
-/// Builder for a [`Pe`] file
+/// Builder for a [`crate::Pe`] file
 #[derive(Debug)]
 pub struct PeBuilder<'data, State> {
     /// Type state.
@@ -186,7 +186,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         self
     }
 
-    /// Attributes for the [`Pe`] file.
+    /// Attributes for the [`crate::Pe`] file.
     ///
     /// If unset, this defaults to `IMAGE | LARGE_ADDRESS_AWARE`.
     ///
@@ -219,7 +219,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         self
     }
 
-    /// DLL Attributes for the [`Pe`] image.
+    /// DLL Attributes for the [`crate::Pe`] image.
     pub fn dll_attributes(&mut self, attr: DllCharacteristics) -> &mut Self {
         self.dll_attributes = attr;
         self
@@ -575,7 +575,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         Ok(())
     }
 
-    /// Truncates `out` and writes [`Pe`] to it
+    /// Truncates `out` and writes [`crate::Pe`] to it
     pub fn write(&mut self, out: &mut Vec<u8>) -> Result<()> {
         /// The way we create and write a PE file is primarily virtually.
         /// This means we pretend we've written a file and fill things in based
@@ -677,7 +677,7 @@ impl<'data> Default for PeBuilder<'data, states::Empty> {
     }
 }
 
-/// Build a section for a [`Pe`] file.
+/// Build a section for a [`crate::Pe`] file.
 pub struct SectionBuilder<'data> {
     name: [u8; 8],
     data: VecOrSlice<'data, u8>,

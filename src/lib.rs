@@ -371,7 +371,7 @@ impl<'data> Pe<'data> {
 }
 
 impl<'data> Pe<'data> {
-    /// Get a [`PeHeader`] from `data`, checking to make sure its valid.
+    /// Get a [`crate::Pe`] from `data`, checking to make sure its valid.
     ///
     /// # Safety
     ///
@@ -381,7 +381,7 @@ impl<'data> Pe<'data> {
         Self::from_ptr_internal(data, size, true)
     }
 
-    /// Get a [`PeHeader`] from `data`, checking to make sure its valid.
+    /// Get a [`crate::Pe`] from `data`, checking to make sure its valid.
     ///
     /// # Safety
     ///
