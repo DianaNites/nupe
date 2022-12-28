@@ -1,6 +1,10 @@
 //! Internal traits and utilities
 use alloc::vec::Vec;
-use core::{fmt, mem::MaybeUninit, ops::Deref};
+use core::{
+    fmt,
+    mem::MaybeUninit,
+    ops::{Deref, DerefMut},
+};
 
 /// Helper trait providing an interface to I/O in both no_std and std
 pub trait PeWrite {
@@ -128,6 +132,15 @@ impl<'data, T> AsRef<[T]> for VecOrSlice<'data, T> {
         match self {
             VecOrSlice::Vec(v) => v,
             VecOrSlice::Slice(r) => r,
+        }
+    }
+}
+
+impl<'data, T> DerefMut for VecOrSlice<'data, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            VecOrSlice::Vec(v) => v,
+            VecOrSlice::Slice(s) => s,
         }
     }
 }
