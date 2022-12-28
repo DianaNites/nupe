@@ -490,6 +490,8 @@ bitflags! {
         const RESERVED_3 = 0x4;
 
         /// Obsolete [`SectionFlags::ALIGN_1`]
+        ///
+        /// Only valid on object files
         const NO_PAD = 0x8;
 
         const RESERVED_4 = 0x10;
@@ -506,14 +508,20 @@ bitflags! {
         const RESERVED_OTHER = 0x100;
 
         /// Section contains comments or other info
+        ///
+        /// Only valid on object files
         const INFO = 0x200;
 
         const RESERVED_6 = 0x400;
 
         /// Section will not become part of the image
+        ///
+        /// Only valid on object files
         const REMOVE = 0x800;
 
         /// Section contains COMDAT data
+        ///
+        /// Only valid on object files
         const COMDAT = 0x1000;
 
         /// Section contains data referenced through the global pointer
