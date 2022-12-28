@@ -777,6 +777,11 @@ impl<'data> Pe<'data> {
         self.coff.sections.into()
     }
 
+    /// Number of sections
+    pub fn data_dirs_len(&self) -> u32 {
+        self.opt.data_dirs()
+    }
+
     /// Machine type
     pub fn machine_type(&self) -> MachineType {
         self.coff.machine
