@@ -20,7 +20,7 @@ A `no_std` library for handling PE files
 
 - [x] Create images
   - [x] Builder pattern, correct by construction.
-  - Add sections
+  - [x] Add sections
   - Remove sections
   - Re-order sections
   - Remove gaps
