@@ -135,18 +135,16 @@ impl<'data> Pe<'data> {
     /// Get a known [`DataDir`]s by its [`DataDirIdent`] identifier.
     pub fn data_dir(&self, id: DataDirIdent) -> Option<DataDir> {
         let index = id.index();
-        self.data_dirs.get(index).map(|s| DataDir {
-            header: OwnedOrRef::Ref(s),
-            base: self.base,
-        })
+        self.data_dirs
+            .get(index)
+            .map(|s| DataDir::new(OwnedOrRef::Ref(s)))
     }
 
     /// Iterator over [`DataDir`]s
     pub fn data_dirs(&self) -> impl Iterator<Item = DataDir> {
-        self.data_dirs.iter().map(|s| DataDir {
-            header: OwnedOrRef::Ref(s),
-            base: self.base,
-        })
+        self.data_dirs
+            .iter()
+            .map(|s| DataDir::new(OwnedOrRef::Ref(s)))
     }
 
     /// Number of sections
@@ -312,5 +310,16 @@ impl<'data> fmt::Debug for Pe<'data> {
             .field("base", &self.base)
             .field("_phantom", &self._phantom)
             .finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn test_name() {
+        //
     }
 }

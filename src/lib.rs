@@ -307,11 +307,13 @@ impl<'data> Section<'data> {
 #[derive(Debug)]
 pub struct DataDir<'data> {
     header: OwnedOrRef<'data, RawDataDirectory>,
-    #[allow(dead_code)]
-    base: Option<(*const u8, usize)>,
 }
 
 impl<'data> DataDir<'data> {
+    pub(crate) fn new(header: OwnedOrRef<'data, RawDataDirectory>) -> Self {
+        Self { header }
+    }
+
     /// Address of the data directory, relative to the image base.
     pub fn address(&self) -> u32 {
         self.header.address
