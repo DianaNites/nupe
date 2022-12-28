@@ -1101,12 +1101,20 @@ impl<'data> PeBuilder<'data, states::Machine> {
     /// Write the PE header.
     ///
     /// If `plus` is true then expect PE32+ for the optional header.
-    fn write_pe(&mut self, out: &mut Vec<u8>, machine: MachineType, plus: bool) -> Result<usize> {
+    ///
+    /// Returns the expected/computed size of the optional header
+    fn write_pe(
+        out: &mut Vec<u8>,
+        machine: MachineType,
+        plus: bool,
+        sections: u16,
+        timestamp: u32,
+        attributes: CoffAttributes,
+        data_dirs: usize,
+    ) -> Result<usize> {
         out.extend_from_slice(PE_MAGIC);
 
-        // We always write the full 16, zeroed, data dirs, and either the 32 or 64-bit
-        // header.
-        let optional_size = self.data_dirs.len() * size_of::<RawDataDirectory>()
+        let optional_size = (data_dirs * size_of::<RawDataDirectory>())
             + if plus {
                 size_of::<RawPe32x64>()
             } else {
@@ -1115,13 +1123,10 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
         let coff = OwnedOrRef::Owned(RawCoff::new(
             machine,
-            self.sections
-                .len()
-                .try_into()
-                .map_err(|_| Error::InvalidData)?,
-            self.timestamp,
+            sections,
+            timestamp,
             optional_size.try_into().map_err(|_| Error::InvalidData)?,
-            self.attributes,
+            attributes,
         ));
 
         let bytes = unsafe {
@@ -1311,7 +1316,18 @@ impl<'data> PeBuilder<'data, states::Machine> {
         }?;
 
         self.write_dos(out)?;
-        let expected_opt_size = self.write_pe(out, machine, plus)?;
+        let expected_opt_size = Self::write_pe(
+            out,
+            machine,
+            plus,
+            self.sections
+                .len()
+                .try_into()
+                .map_err(|_| Error::InvalidData)?,
+            self.timestamp,
+            self.attributes,
+            self.data_dirs.len(),
+        )?;
 
         let size = out.len();
         self.write_opt(out, plus)?;
