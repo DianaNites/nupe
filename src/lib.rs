@@ -1588,7 +1588,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
 }
 
 /// Build a section for a [`Pe`] file.
-#[derive(Debug)]
 pub struct SectionBuilder<'data> {
     name: [u8; 8],
     data: VecOrSlice<'data, u8>,
@@ -1662,6 +1661,22 @@ impl<'data> SectionBuilder<'data> {
     pub fn attributes(&mut self, attr: SectionFlags) -> &mut Self {
         self.attr = attr;
         self
+    }
+}
+
+impl<'data> fmt::Debug for SectionBuilder<'data> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("SectionBuilder");
+        if let Ok(name) = core::str::from_utf8(&self.name) {
+            s.field("name", &name);
+        } else {
+            s.field("name", &self.name);
+        }
+        s.field("data", &"VecOrSlice")
+            .field("attr", &self.attr)
+            .field("offset", &self.offset)
+            .field("size", &self.size)
+            .finish()
     }
 }
 
