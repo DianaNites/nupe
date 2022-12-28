@@ -203,7 +203,7 @@ bitflags! {
 bitflags! {
     #[repr(transparent)]
     pub struct SectionFlags: u32 {
-        const RESERVED_0 = 0x0;
+        const EMPTY = 0x0;
         const RESERVED_1 = 0x1;
         const RESERVED_2 = 0x2;
         const RESERVED_3 = 0x4;
@@ -248,8 +248,14 @@ bitflags! {
         const NO_CACHE = 0x4000000;
         const NO_PAGE = 0x8000000;
         const SHARED = 0x10000000;
+
+        /// Memory is executable
         const EXEC = 0x20000000;
+
+        /// Memory is readable
         const READ = 0x40000000;
+
+        /// Memory is writeable
         const WRITE = 0x80000000;
     }
 }
@@ -377,6 +383,15 @@ impl<'data> Section<'data> {
     }
 
     /// Size of the section data on disk
+    ///
+    /// # WARNING
+    ///
+    /// Be sure this is what you want. This field is a trap.
+    /// You may instead want [`Section::virtual_size`]
+    ///
+    /// The file_size field is rounded up to a multiple of the file alignment,
+    /// but virtual_size is not. That means file_size includes extra padding not
+    /// actually part of the section, and that virtual_size is the true size.
     pub fn file_size(&self) -> u32 {
         self.header.raw_size
     }
@@ -761,12 +776,18 @@ impl<'data> PeBuilder<'data, states::Machine> {
     pub fn section(&mut self, section: &mut SectionBuilder) -> &mut Self {
         let len = section.data.len().try_into().unwrap();
         let va = self.next_virtual_address();
-        let file_offset = self.next_file_offset();
+        let file_offset = section.offset.unwrap_or_else(|| self.next_file_offset());
         let mut header = RawSectionHeader {
             name: section.name,
-            virtual_size: len,
+            virtual_size: { len },
             virtual_address: va,
-            raw_size: len,
+            raw_size: {
+                if len % self.file_align as u32 != 0 {
+                    len + (self.file_align as u32 - (len % self.file_align as u32))
+                } else {
+                    len
+                }
+            },
             raw_ptr: file_offset,
             reloc_ptr: 0,
             line_ptr: 0,
@@ -1158,6 +1179,7 @@ pub struct SectionBuilder<'data> {
     name: [u8; 8],
     data: VecOrSlice<'data, u8>,
     attr: SectionFlags,
+    offset: Option<u32>,
 }
 
 impl<'data> SectionBuilder<'data> {
@@ -1166,6 +1188,7 @@ impl<'data> SectionBuilder<'data> {
             name: [b'\0'; 8],
             data: VecOrSlice::Slice(&[]),
             attr: SectionFlags::empty(),
+            offset: None,
         }
     }
 
@@ -1200,6 +1223,22 @@ impl<'data> SectionBuilder<'data> {
     pub fn data_vec(&mut self, data: Vec<u8>) -> &mut Self {
         // TODO: From/Into impl
         self.data = VecOrSlice::Vec(data);
+        self
+    }
+
+    /// File offset. Defaults to next available, or file alignment.
+    ///
+    /// This MUST be a power of 2 between 512 and 64K.
+    ///
+    /// If not it will silently be rounded up to the next alignment.
+    pub fn file_offset(&mut self, offset: u32) -> &mut Self {
+        self.offset = Some(offset);
+        self
+    }
+
+    /// Flags/Attributes for the section
+    pub fn attributes(&mut self, attr: SectionFlags) -> &mut Self {
+        self.attr = attr;
         self
     }
 
@@ -1289,11 +1328,28 @@ mod tests {
             .heap((1048576, 4096))
             .entry(in_pe.entry())
             //
-            .section(SectionBuilder::new().name(".text").data({
-                //
-                let sec = in_pe.section(".text").unwrap();
-                &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
-            }));
+            .section(
+                SectionBuilder::new()
+                    .name(".text")
+                    .data({
+                        //
+                        let sec = in_pe.section(".text").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .file_offset(1024)
+                    .attributes(SectionFlags::CODE | SectionFlags::EXEC | SectionFlags::READ),
+            )
+            .section(
+                SectionBuilder::new()
+                    .name(".rdata")
+                    .data({
+                        //
+                        let sec = in_pe.section(".rdata").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    // .file_offset(1024)
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+            );
         // .section()
         // .name(".rdata")
         // .finish()
