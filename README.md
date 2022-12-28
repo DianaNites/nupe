@@ -27,6 +27,8 @@ A `no_std` library for handling PE files
   - Shrink/expand sections
   - Header must be created/modified last?
 
+- In-place modification
+
 - [x] Given a pointer to a loaded image in memory, be able to safely interact with and manipulate the image.
   - [x] Specifically, read the header, locate sections and their data, etc,
     without needing to repeatedly specify the image base.
