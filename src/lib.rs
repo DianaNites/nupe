@@ -392,6 +392,59 @@ impl<'data> ImageHeader<'data> {
     }
 }
 
+/// Known tables/data directories
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
+pub enum DataDirIdent {
+    /// Export table
+    Export,
+
+    /// Import table
+    Import,
+
+    /// Resource table
+    Resource,
+
+    /// Exception table
+    Exception,
+
+    /// Certificate table
+    Certificate,
+
+    /// Base relocations table
+    BaseReloc,
+
+    /// Debug data
+    Debug,
+
+    /// Reserved, 0.
+    Architecture,
+
+    /// Global Ptr
+    GlobalPtr,
+
+    /// Thread Local Storage table
+    ThreadLocalStorage,
+
+    /// Load Config table
+    LoadConfig,
+
+    /// Bound Import table
+    BoundImport,
+
+    /// IAT table
+    Iat,
+
+    /// Delay Import table
+    DelayImport,
+
+    /// CLR Runtime header
+    ClrRuntime,
+
+    /// Reserved, zero
+    Reserved,
+}
+
 /// A PE Section
 #[derive(Debug)]
 pub struct Section<'data> {
@@ -663,9 +716,30 @@ impl<'data> Pe<'data> {
         })
     }
 
-    /// Get a [`DataDir`]s by identifier.
-    pub fn data_dir(&self) -> Option<DataDir> {
-        None
+    /// Get a known [`DataDir`]s by its [`DataDirIdent`] identifier.
+    pub fn data_dir(&self, id: DataDirIdent) -> Option<DataDir> {
+        let index = match id {
+            DataDirIdent::Export => 0,
+            DataDirIdent::Import => 1,
+            DataDirIdent::Resource => 2,
+            DataDirIdent::Exception => 3,
+            DataDirIdent::Certificate => 4,
+            DataDirIdent::BaseReloc => 5,
+            DataDirIdent::Debug => 6,
+            DataDirIdent::Architecture => 7,
+            DataDirIdent::GlobalPtr => 8,
+            DataDirIdent::ThreadLocalStorage => 9,
+            DataDirIdent::LoadConfig => 10,
+            DataDirIdent::BoundImport => 11,
+            DataDirIdent::Iat => 12,
+            DataDirIdent::DelayImport => 13,
+            DataDirIdent::ClrRuntime => 14,
+            DataDirIdent::Reserved => 15,
+        };
+        self.data_dirs.get(index).map(|s| DataDir {
+            header: OwnedOrRef::Ref(s),
+            base: self.base,
+        })
     }
 
     /// Iterator over [`DataDir`]s
