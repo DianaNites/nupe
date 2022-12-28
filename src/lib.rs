@@ -1290,6 +1290,17 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Write section table and data
     fn write_sections(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        // out.reserve(size_of::<RawSectionHeader>() * self.sections.len());
+        out.reserve(
+            (size_of::<RawSectionHeader>() * self.sections.len())
+                + self
+                    .sections
+                    .iter()
+                    .map(|(s, _)| s.file_offset() + s.file_size())
+                    .map(|s| s as usize)
+                    .sum::<usize>(),
+        );
+
         // Section table
         for (s, _) in self.sections.iter() {
             let bytes = unsafe {
@@ -1297,23 +1308,15 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 from_raw_parts(ptr, size_of::<RawSectionHeader>())
             };
             out.extend_from_slice(bytes);
+            // panic!("{}", bytes.len());
         }
 
-        // Align to next potential section start
-        // let size = out.len();
-        // let align = size + (self.section_align as usize - (size % self.section_align
-        // as usize)); let align = align - size;
-        // out.reserve(align);
-        // for _ in 0..align {
-        //     out.push(b'\0')
-        // }
         // FIXME: Have to be able to write to arbitrary offsets, actually.
         // Need a Seek, Read, Write, and Cursor impl?
 
         // Section data
         for (s, bytes) in self.sections.iter() {
-            // Reserve space up
-            out.resize((s.file_offset() + s.file_size()) as usize, 0);
+            // &out[s.file_offset() as usize..][..s.file_size() as usize];
             if let Some(o) = out
                 .get_mut(s.file_offset() as usize..)
                 .and_then(|o| o.get_mut(..s.file_size() as usize))
