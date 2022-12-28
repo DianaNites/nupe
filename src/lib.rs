@@ -1156,6 +1156,15 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
         self
     }
+
+    /// Add the data directory `id`
+    pub fn data_dir(&mut self, id: DataDirIdent, address: u32, size: u32) -> &mut Self {
+        if let Some(dir) = self.data_dirs.get_mut(id.index()) {
+            dir.address = address;
+            dir.size = size;
+        }
+        self
+    }
 }
 
 impl<'data> PeBuilder<'data, states::Machine> {
@@ -1708,7 +1717,7 @@ mod tests {
                 .image_version(in_pe.image_version())
                 .subsystem_version(in_pe.subsystem_version())
                 .linker_version(in_pe.linker_version())
-                //
+                // .data_dir(Data, address, size)
                 .section(
                     SectionBuilder::new()
                         .name(".text")
@@ -1803,6 +1812,7 @@ mod tests {
         //
         let out_pe = Pe::from_bytes(&out);
         dbg!(&out_pe);
+        // assert_eq!(&out[..64], &RUSTUP_IMAGE[..64]);
 
         panic!();
         Ok(())
