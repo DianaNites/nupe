@@ -136,11 +136,13 @@ impl<'data, T> AsRef<[T]> for VecOrSlice<'data, T> {
     }
 }
 
+/// Bad DerefMut, sometimes fails.
+#[doc(hidden)]
 impl<'data, T> DerefMut for VecOrSlice<'data, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             VecOrSlice::Vec(v) => v,
-            VecOrSlice::Slice(s) => s,
+            VecOrSlice::Slice(_) => unimplemented!("DerefMut on VecOrSlice::Slice"),
         }
     }
 }
