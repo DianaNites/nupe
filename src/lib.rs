@@ -754,12 +754,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
     }
 
     /// Append a section
-    pub fn section(&mut self) -> SectionBuilder<'data, '_> {
-        SectionBuilder::new(self)
-    }
-
-    /// Append an existing section from elsewhere
-    pub fn section_exist(&mut self, section: Section<'data>) -> &mut Self {
+    pub fn section(&mut self, section: &mut SectionBuilder) -> &mut Self {
+        #[cfg(no)]
         match &mut self.sections {
             VecOrSlice::Vec(v) => v.push(Section {
                 header: match section.header {
@@ -1097,7 +1093,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Get the next virtual address available for a section
     fn next_virtual_address(&mut self) -> u32 {
-        let mut max_va = (0, 0);
+        let mut max_va = (4096, 0);
         for section in self.sections.iter() {
             let va = max_va.0.max(section.virtual_address());
             let size = section.virtual_size();
@@ -1109,17 +1105,15 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
 /// Build a section for a [`Pe`] file.
 #[derive(Debug)]
-pub struct SectionBuilder<'data, 'a> {
-    builder: &'a mut PeBuilder<'data, states::Machine>,
+pub struct SectionBuilder<'data> {
     name: [u8; 8],
     data: Option<&'data [u8]>,
     attr: Option<SectionFlags>,
 }
 
-impl<'data, 'a> SectionBuilder<'data, 'a> {
-    fn new(builder: &'a mut PeBuilder<'data, states::Machine>) -> Self {
+impl<'data> SectionBuilder<'data> {
+    pub fn new() -> Self {
         Self {
-            builder,
             name: [b'\0'; 8],
             data: None,
             attr: None,
@@ -1153,7 +1147,8 @@ impl<'data, 'a> SectionBuilder<'data, 'a> {
         self
     }
 
-    pub fn finish(&mut self) -> &mut PeBuilder<'data, states::Machine> {
+    #[cfg(no)]
+    fn _finish(&mut self) -> &mut PeBuilder<'data, states::Machine> {
         // let len = self.data.unwrap().len().try_into().unwrap();
         // let mut header = RawSectionHeader {
         //     name: self.name,
@@ -1178,6 +1173,13 @@ impl<'data, 'a> SectionBuilder<'data, 'a> {
 
         //
         self.builder
+    }
+}
+
+impl<'data> From<Section<'data>> for SectionBuilder<'data> {
+    fn from(value: Section<'data>) -> Self {
+        // Self::new()
+        todo!()
     }
 }
 
@@ -1231,14 +1233,11 @@ mod tests {
             .heap((1048576, 4096))
             .entry(in_pe.entry())
             //
-            .section()
-            .name(".text")
-            .data({
+            .section(SectionBuilder::new().name(".text").data({
                 //
                 let sec = in_pe.section(".text").unwrap();
                 &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
-            })
-            .finish();
+            }));
         // .section()
         // .name(".rdata")
         // .finish()
