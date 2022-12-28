@@ -458,6 +458,7 @@ bitflags! {
 }
 
 bitflags! {
+    /// DLL Characteristics
     #[repr(transparent)]
     pub struct DllCharacteristics: u16 {
         const EMPTY = 0x0;
@@ -480,30 +481,44 @@ bitflags! {
 }
 
 bitflags! {
+    /// COFF Section flags
     #[repr(transparent)]
     pub struct SectionFlags: u32 {
         const EMPTY = 0x0;
         const RESERVED_1 = 0x1;
         const RESERVED_2 = 0x2;
         const RESERVED_3 = 0x4;
+
+        /// Obsolete [`SectionFlags::ALIGN_1`]
         const NO_PAD = 0x8;
+
         const RESERVED_4 = 0x10;
 
-        /// Code/executable
+        /// Section contains executable code
         const CODE = 0x20;
 
-        /// Initialized/data
+        /// Section contains initialized data
         const INITIALIZED = 0x40;
 
-        /// Uninitialized/bss
+        /// Section contains uninitialized data
         const UNINITIALIZED = 0x80;
 
         const RESERVED_OTHER = 0x100;
+
+        /// Section contains comments or other info
         const INFO = 0x200;
+
         const RESERVED_6 = 0x400;
+
+        /// Section will not become part of the image
         const REMOVE = 0x800;
+
+        /// Section contains COMDAT data
         const COMDAT = 0x1000;
+
+        /// Section contains data referenced through the global pointer
         const GLOBAL_REL = 0x8000;
+
         const RESERVED_MEM_PURGE = 0x20000;
         const RESERVED_MEM_16BIT = 0x20000;
         const RESERVED_MEM_LOCKED = 0x40000;
@@ -522,19 +537,29 @@ bitflags! {
         const ALIGN_2048 = 0xC00000;
         const ALIGN_4096 = 0xD00000;
         const ALIGN_8192 = 0xE00000;
+
+        /// Section contains extended relocations
         const EXTENDED_RELOC = 0x1000000;
+
+        /// Section can be discarded
         const DISCARDABLE = 0x2000000;
+
+        /// Section cannot be cached
         const NO_CACHE = 0x4000000;
+
+        /// Section cannot be paged
         const NO_PAGE = 0x8000000;
+
+        /// Section can be shared
         const SHARED = 0x10000000;
 
-        /// Memory is executable
+        /// Section can be executed
         const EXEC = 0x20000000;
 
-        /// Memory is readable
+        /// Section can be read
         const READ = 0x40000000;
 
-        /// Memory is writeable
+        /// Section can be written
         const WRITE = 0x80000000;
     }
 }
