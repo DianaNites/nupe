@@ -342,6 +342,22 @@ impl<'data> ImageHeader<'data> {
             ImageHeader::Raw64(h) => h.dll_characteristics,
         }
     }
+
+    /// Stack (commit, reserve)
+    pub fn stack(&self) -> (u64, u64) {
+        match self {
+            ImageHeader::Raw32(h) => (h.stack_commit.into(), h.stack_reserve.into()),
+            ImageHeader::Raw64(h) => (h.stack_commit, h.stack_reserve),
+        }
+    }
+
+    /// Heap (commit, reserve)
+    pub fn heap(&self) -> (u64, u64) {
+        match self {
+            ImageHeader::Raw32(h) => (h.heap_commit.into(), h.heap_reserve.into()),
+            ImageHeader::Raw64(h) => (h.heap_commit, h.heap_reserve),
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -617,78 +633,16 @@ pub struct DataDir<'data> {
     header: OwnedOrRef<'data, RawDataDirectory>,
     base: Option<(*const u8, usize)>,
 }
-#[cfg(no)]
+
 impl<'data> DataDir<'data> {
-    /// Address to the first byte of the section, relative to the image base.
-    pub fn virtual_address(&self) -> u32 {
-        self.header.virtual_address
+    /// Address of the data directory, relative to the image base.
+    pub fn address(&self) -> u32 {
+        self.header.address
     }
 
-    /// Size of the section in memory, zero padded if needed.
-    pub fn virtual_size(&self) -> u32 {
-        self.header.virtual_size
-    }
-
-    /// Offset of the section data on disk
-    pub fn file_offset(&self) -> u32 {
-        self.header.raw_ptr
-    }
-
-    /// Size of the section data on disk
-    ///
-    /// # WARNING
-    ///
-    /// Be sure this is what you want. This field is a trap.
-    /// You may instead want [`Section::virtual_size`]
-    ///
-    /// The file_size field is rounded up to a multiple of the file alignment,
-    /// but virtual_size is not. That means file_size includes extra padding not
-    /// actually part of the section, and that virtual_size is the true size.
-    pub fn file_size(&self) -> u32 {
-        self.header.raw_size
-    }
-
-    /// Name of the section, with nul bytes stripped.
-    ///
-    /// Empty string is returned if invalid ASCII/UTF-8 somehow makes it here.
-    pub fn name(&self) -> &str {
-        self.header.name().unwrap_or_default()
-    }
-
-    /// Section flags/attributes/characteristics
-    pub fn flags(&self) -> SectionFlags {
-        self.header.characteristics
-    }
-
-    /// Slice of the section data
-    ///
-    /// Returns [`None`] if not called on a loaded image, or if the section is
-    /// outside the loaded image.
-    pub fn virtual_data(&self) -> Option<&'data [u8]> {
-        if let Some((base, size)) = self.base {
-            if size
-                .checked_sub(self.virtual_address() as usize)
-                .and_then(|s| s.checked_sub(self.virtual_size() as usize))
-                .ok_or(Error::NotEnoughData)
-                .is_err()
-            {
-                return None;
-            }
-            // Safety:
-            // - Base is guaranteed valid for size in `from_ptr_internal`
-            // - from_ptr_internal does the checking to make sure we're a PE file, without
-            //   which we couldnt be here
-            // - 'data lifetime means data is still valid
-            // - We double check to make sure we're in-bounds above
-            Some(unsafe {
-                core::slice::from_raw_parts(
-                    base.wrapping_add(self.virtual_address() as usize),
-                    self.virtual_size() as usize,
-                )
-            })
-        } else {
-            None
-        }
+    /// Size of the data directory
+    pub fn size(&self) -> u32 {
+        self.header.size
     }
 }
 
@@ -888,6 +842,16 @@ impl<'data> Pe<'data> {
     pub fn linker_version(&self) -> (u8, u8) {
         self.opt.linker_version()
     }
+
+    /// Stack (commit, reserve)
+    pub fn stack(&self) -> (u64, u64) {
+        self.opt.stack()
+    }
+
+    /// Heap (commit, reserve)
+    pub fn heap(&self) -> (u64, u64) {
+        self.opt.heap()
+    }
 }
 
 impl<'data> Pe<'data> {
@@ -898,7 +862,7 @@ impl<'data> Pe<'data> {
         &self.coff
     }
 
-    /// Raw COFF header for this PE file
+    /// Raw Optional header for this PE file
     ///
     /// This is only for advanced users.
     pub fn opt(&self) -> &'data ImageHeader {
@@ -1206,6 +1170,18 @@ impl<'data> PeBuilder<'data, states::Machine> {
         if let Some(dir) = self.data_dirs.get_mut(id.index()) {
             dir.address = address;
             dir.size = size;
+        }
+        self
+    }
+
+    /// Append a data directory to the header.
+    ///
+    /// Only use this if you know wat you're doing.
+    /// The standard data directories are always included.
+    pub fn append_data_dir(&mut self, address: u32, size: u32) -> &mut Self {
+        match &mut self.data_dirs {
+            VecOrSlice::Vec(v) => v.push(RawDataDirectory::new(address, size)),
+            VecOrSlice::Slice(_) => todo!(),
         }
         self
     }
