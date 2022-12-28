@@ -23,7 +23,6 @@ use core::{fmt, marker::PhantomData, mem::size_of};
 
 use raw::*;
 
-use crate::error::{Error, Result};
 pub use crate::internal::{
     CoffAttributes,
     DataDirIdent,
@@ -33,6 +32,10 @@ pub use crate::internal::{
     SectionFlags,
     Subsystem,
     VecOrSlice,
+};
+use crate::{
+    error::{Error, Result},
+    internal::debug::RawDataDirectoryHelper,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -577,31 +580,7 @@ impl<'data> fmt::Debug for Pe<'data> {
             .field("opt", &self.opt);
 
         s.field("data_dirs", &{
-            struct Helper2<'data>(usize, &'data RawDataDirectory);
-            impl<'data> fmt::Debug for Helper2<'data> {
-                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                    let name = DataDirIdent::try_from(self.0);
-                    let name: &dyn fmt::Display = &name
-                        .as_ref()
-                        .map(|d| d as &dyn fmt::Display)
-                        .unwrap_or_else(|_| &self.0 as &dyn fmt::Display);
-                    if f.alternate() {
-                        write!(f, r#""{}" {:#?}"#, name, self.1)
-                    } else {
-                        write!(f, r#""{}" {:?}"#, name, self.1)
-                    }
-                }
-            }
-
-            struct Helper<'data>(&'data VecOrSlice<'data, RawDataDirectory>);
-            impl<'data> fmt::Debug for Helper<'data> {
-                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                    f.debug_list()
-                        .entries(self.0.iter().enumerate().map(|(i, r)| Helper2(i, r)))
-                        .finish()
-                }
-            }
-            Helper(&self.data_dirs)
+            RawDataDirectoryHelper::new(&self.data_dirs)
         });
 
         s.field("sections", &self.sections)
