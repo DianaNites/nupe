@@ -20,6 +20,7 @@ pub mod raw;
 pub mod section;
 use alloc::{vec, vec::Vec};
 use core::{
+    cmp::Ordering,
     fmt,
     marker::PhantomData,
     mem::{self, size_of, MaybeUninit},
@@ -714,7 +715,7 @@ pub struct PeBuilder<'data, State> {
     sections: VecOrSlice<'data, Section<'data>>,
 
     /// Data of sections. 1:1 with sections
-    sections_data: VecOrSlice<'data, u8>,
+    sections_data: VecOrSlice<'data, VecOrSlice<'data, u8>>,
 
     /// Data dirs to write to the image, defaults to zeroed.
     data_dirs: VecOrSlice<'data, RawDataDirectory>,
@@ -923,8 +924,13 @@ impl<'data> PeBuilder<'data, states::Machine> {
             }),
             VecOrSlice::Slice(_) => todo!(),
         }
+
         // FIXME: to_vec
-        self.sections_data = VecOrSlice::Vec(section.data.to_vec());
+        match &mut self.sections_data {
+            VecOrSlice::Vec(v) => v.push(VecOrSlice::Vec(section.data.to_vec())),
+            VecOrSlice::Slice(_) => todo!(),
+        }
+
         self
     }
 }
@@ -1051,7 +1057,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 data_base = section.virtual_address();
             }
 
-            if section.flags() & SectionFlags::INITIALIZED != SectionFlags::empty() {
+            if section.flags() & SectionFlags::UNINITIALIZED != SectionFlags::empty() {
                 uninit_sum += section.virtual_size()
             }
             match section.flags() {
@@ -1218,12 +1224,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // dbg!(expected_opt_size, size);
         assert_eq!(expected_opt_size, size);
 
-        // TODO: Section table
-        let sections: Vec<*const RawSectionHeader> = self
-            .sections
-            .iter()
-            .map(|s| s.header.as_ref() as *const RawSectionHeader)
-            .collect();
+        // Section table
         for s in self.sections.iter() {
             let bytes = unsafe {
                 let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
@@ -1232,23 +1233,28 @@ impl<'data> PeBuilder<'data, states::Machine> {
             out.extend_from_slice(bytes);
         }
 
-        // TODO: Section data
-        for s in self.sections.iter() {
-            // let bytes = unsafe {
-            //     let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
-            //     from_raw_parts(ptr, size_of::<RawSectionHeader>() * self.sections.len())
-            // };
-            let bytes = &[];
-            out.extend_from_slice(bytes);
-            // TODO: File align
-            let size = bytes.len();
-            let align = size + (self.file_align as usize - (size % self.file_align as usize));
+        // Align to next potential section start
+        let size = out.len();
+        let align = size + (self.section_align as usize - (size % self.section_align as usize));
+        let align = align - size;
+        out.reserve(align);
+        for _ in 0..align {
+            out.push(b'\0')
+        }
+        // FIXME: Have to be able to write to arbitrary offsets, actually.
+        // Need a Seek, Read, Write, and Cursor impl?
+
+        // Section data
+        for (s, bytes) in self.sections.iter().zip(self.sections_data.iter()) {
+            // Align
+            let size = out.len();
+            let align = size + (self.section_align as usize - (size % self.section_align as usize));
             let align = align - size;
-            out.reserve(align);
+            out.reserve(align + bytes.len());
             for _ in 0..align {
                 out.push(b'\0')
             }
-            // FIXME: SizeOfRawData
+            out.extend_from_slice(bytes);
         }
 
         #[cfg(no)]
@@ -1485,17 +1491,17 @@ mod tests {
                     })
                     .file_offset(1024)
                     .attributes(SectionFlags::CODE | SectionFlags::EXEC | SectionFlags::READ),
+            )
+            .section(
+                SectionBuilder::new()
+                    .name(".rdata")
+                    .data({
+                        //
+                        let sec = in_pe.section(".rdata").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
             );
-        // .section(
-        //     SectionBuilder::new()
-        //         .name(".rdata")
-        //         .data({
-        //             //
-        //             let sec = in_pe.section(".rdata").unwrap();
-        //             &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size()
-        // as usize]         })
-        //         .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
-        // );
         // .section(
         //     SectionBuilder::new()
         //         .name(".data")
