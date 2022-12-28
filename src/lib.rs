@@ -1321,7 +1321,14 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 code_sum += section.file_size();
                 code_base = section.virtual_address();
             } else if section.flags() & SectionFlags::INITIALIZED != SectionFlags::empty() {
-                init_sum += section.file_size();
+                init_sum += section.file_size().max({
+                    let size = section.virtual_size();
+                    if size % self.file_align as u32 != 0 {
+                        size + (self.file_align as u32 - (size % self.file_align as u32))
+                    } else {
+                        size
+                    }
+                });
                 data_base = section.virtual_address();
             } else if section.flags() & SectionFlags::UNINITIALIZED != SectionFlags::empty() {
                 uninit_sum += section.virtual_size()
