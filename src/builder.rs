@@ -805,6 +805,10 @@ impl<'data> SectionBuilder<'data> {
         }
     }
 
+    pub fn from_section(sec: &'data Section<'data>) -> Self {
+        todo!()
+    }
+
     /// Name of the section. Required.
     ///
     /// If `name` is more than 8 bytes, it is truncated.

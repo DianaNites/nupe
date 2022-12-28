@@ -11,6 +11,9 @@ pub enum Error {
     NotEnoughData,
     MissingOpt,
     InvalidData,
+
+    /// Tried to modify data that was immutable
+    ImmutableData,
 }
 
 impl fmt::Display for Error {
@@ -21,6 +24,7 @@ impl fmt::Display for Error {
             Self::NotEnoughData => write!(f, "not enough data"),
             Self::MissingOpt => write!(f, "missing optional header"),
             Self::InvalidData => write!(f, "invalid data"),
+            Self::ImmutableData => write!(f, "immutable data"),
         }
     }
 }

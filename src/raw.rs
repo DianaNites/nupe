@@ -769,7 +769,7 @@ impl RawDataDirectory {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C, packed)]
 pub struct RawSectionHeader {
     /// Name of the section
@@ -809,6 +809,22 @@ impl RawSectionHeader {
         core::str::from_utf8(&self.name)
             .map(|s| s.trim_end_matches('\0'))
             .map_err(|_| Error::InvalidData)
+    }
+
+    /// A zeroed [`RawSectionHeader`]
+    pub fn zeroed() -> Self {
+        RawSectionHeader {
+            name: Default::default(),
+            virtual_size: Default::default(),
+            virtual_address: Default::default(),
+            raw_size: Default::default(),
+            raw_ptr: Default::default(),
+            reloc_ptr: Default::default(),
+            line_ptr: Default::default(),
+            num_reloc: Default::default(),
+            num_lines: Default::default(),
+            characteristics: SectionFlags::empty(),
+        }
     }
 }
 
