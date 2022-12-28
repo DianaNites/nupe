@@ -1317,12 +1317,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // Section data
         for (s, bytes) in self.sections.iter() {
             // &out[s.file_offset() as usize..][..s.file_size() as usize];
-            if let Some(o) = out
-                .get_mut(s.file_offset() as usize..)
-                .and_then(|o| o.get_mut(..s.file_size() as usize))
+            if out.len()
+                < (s.file_offset() as usize
+                    + s.file_size() as usize
+                    + (s.file_size().abs_diff(s.virtual_size()) as usize))
             {
-                o[..s.virtual_size() as usize].copy_from_slice(bytes);
-            } else {
                 let start = out.len();
                 let end = s.file_offset() as usize + s.file_size() as usize;
                 let diff = end - start;
@@ -1332,16 +1331,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 for _ in 0..(diff % 128) {
                     out.push(b'\0')
                 }
-
-                if let Some(o) = out
-                    .get_mut(s.file_offset() as usize..)
-                    .and_then(|o| o.get_mut(..s.file_size() as usize))
-                {
-                    o[..s.virtual_size() as usize].copy_from_slice(bytes);
-                } else {
-                    unimplemented!("Something serious went wrong")
-                }
             }
+            out[s.file_offset() as usize..][..s.virtual_size() as usize].copy_from_slice(bytes);
         }
         Ok(())
     }
