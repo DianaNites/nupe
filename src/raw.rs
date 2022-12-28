@@ -11,10 +11,7 @@
 //! - [RawPe32] or [RawPe32x64]
 //! - Variable number of [RawDataDirectory]
 //! - Variable number of [RawSectionHeader]
-use core::{
-    fmt,
-    mem::{self, size_of},
-};
+use core::{fmt, mem::size_of};
 
 use crate::{
     error::{Error, Result},
@@ -402,6 +399,7 @@ pub struct RawPeOptStandard {
 }
 
 impl RawPeOptStandard {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         magic: u16,
         linker_major: u8,
@@ -526,6 +524,56 @@ pub struct RawPe32 {
 }
 
 impl RawPe32 {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        standard: RawPeOptStandard,
+        data_base: u32,
+        image_base: u32,
+        section_align: u32,
+        file_align: u32,
+        os_major: u16,
+        os_minor: u16,
+        image_major: u16,
+        image_minor: u16,
+        subsystem_major: u16,
+        subsystem_minor: u16,
+        image_size: u32,
+        headers_size: u32,
+        subsystem: Subsystem,
+        dll_characteristics: DllCharacteristics,
+        stack_reserve: u32,
+        stack_commit: u32,
+        heap_reserve: u32,
+        heap_commit: u32,
+        data_dirs: u32,
+    ) -> Self {
+        Self {
+            standard,
+            data_base,
+            image_base,
+            section_align,
+            file_align,
+            os_major,
+            os_minor,
+            image_major,
+            image_minor,
+            subsystem_major,
+            subsystem_minor,
+            _reserved_win32: 0,
+            image_size,
+            headers_size,
+            checksum: 0,
+            subsystem,
+            dll_characteristics,
+            stack_reserve,
+            stack_commit,
+            heap_reserve,
+            heap_commit,
+            _reserved_loader_flags: 0,
+            data_dirs,
+        }
+    }
+
     /// Get a [`RawPe32`] from `data`. Checks for the magic.
     ///
     /// # Safety
@@ -635,6 +683,7 @@ pub struct RawPe32x64 {
 }
 
 impl RawPe32x64 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         standard: RawPeOptStandard,
         image_base: u64,
@@ -788,7 +837,7 @@ impl fmt::Debug for RawSectionHeader {
 mod tests {
     use core::mem::align_of;
 
-    use static_assertions::{assert_eq_align, assert_eq_size, const_assert_eq};
+    use static_assertions::{assert_eq_size, const_assert_eq};
 
     use super::*;
 
