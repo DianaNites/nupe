@@ -571,3 +571,58 @@ bitflags! {
         const WRITE = 0x80000000;
     }
 }
+
+pub(crate) mod debug {
+    //! Debug/Display helpers
+    use core::fmt;
+
+    use crate::{raw::RawDataDirectory, DataDirIdent, VecOrSlice};
+
+    struct Helper2<'data>(usize, &'data RawDataDirectory);
+    impl<'data> fmt::Debug for Helper2<'data> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let name = DataDirIdent::try_from(self.0);
+            let name: &dyn fmt::Display = &name
+                .as_ref()
+                .map(|d| d as &dyn fmt::Display)
+                .unwrap_or_else(|_| &self.0 as &dyn fmt::Display);
+            if f.alternate() {
+                write!(f, r#""{}" {:#?}"#, name, self.1)
+            } else {
+                write!(f, r#""{}" {:?}"#, name, self.1)
+            }
+        }
+    }
+
+    /// Displays lists of data dirs with their known names
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// [
+    ///     "Export Table" RawDataDirectory {
+    ///         address: 0,
+    ///         size: 0,
+    ///     },
+    ///     "Import Table" RawDataDirectory {
+    ///         address: 0,
+    ///         size: 0,
+    ///     }
+    /// ]
+    /// ```
+    pub struct RawDataDirectoryHelper<'data>(&'data VecOrSlice<'data, RawDataDirectory>);
+
+    impl<'data> RawDataDirectoryHelper<'data> {
+        pub fn new(data_dirs: &'data VecOrSlice<'data, RawDataDirectory>) -> Self {
+            Self(data_dirs)
+        }
+    }
+
+    impl<'data> fmt::Debug for RawDataDirectoryHelper<'data> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_list()
+                .entries(self.0.iter().enumerate().map(|(i, r)| Helper2(i, r)))
+                .finish()
+        }
+    }
+}
