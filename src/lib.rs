@@ -542,10 +542,27 @@ impl fmt::Display for DataDirIdent {
 #[derive(Debug)]
 pub struct Section<'data> {
     header: OwnedOrRef<'data, RawSectionHeader>,
+    size: u32,
     base: Option<(*const u8, usize)>,
 }
 
 impl<'data> Section<'data> {
+    fn new(
+        header: OwnedOrRef<'data, RawSectionHeader>,
+        _file_align: u32,
+        base: Option<(*const u8, usize)>,
+    ) -> Self {
+        Self {
+            header,
+            size: {
+                // let big = header.raw_size.max(header.virtual_size);
+                // TODO: Calculate size
+                0
+            },
+            base,
+        }
+    }
+
     /// Address to the first byte of the section, relative to the image base.
     pub fn virtual_address(&self) -> u32 {
         self.header.virtual_address
@@ -573,6 +590,11 @@ impl<'data> Section<'data> {
     /// actually part of the section, and that virtual_size is the true size.
     pub fn file_size(&self) -> u32 {
         self.header.raw_size
+    }
+
+    /// Actual size of the sections data, without rounding or alignment.
+    pub fn size(&self) -> u32 {
+        self.size
     }
 
     /// Name of the section, with nul bytes stripped.
@@ -734,18 +756,14 @@ impl<'data> Pe<'data> {
         self.sections
             .iter()
             .find(|s| s.name().unwrap() == name)
-            .map(|s| Section {
-                header: OwnedOrRef::Ref(s),
-                base: self.base,
-            })
+            .map(|s| Section::new(OwnedOrRef::Ref(s), self.file_align(), self.base))
     }
 
     /// Iterator over [`Section`]s
     pub fn sections(&self) -> impl Iterator<Item = Section> {
-        self.sections.iter().map(|s| Section {
-            header: OwnedOrRef::Ref(s),
-            base: self.base,
-        })
+        self.sections
+            .iter()
+            .map(|s| Section::new(OwnedOrRef::Ref(s), self.file_align(), self.base))
     }
 
     /// Get a known [`DataDir`]s by its [`DataDirIdent`] identifier.
@@ -1156,10 +1174,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
         match &mut self.sections {
             VecOrSlice::Vec(v) => v.push((
-                Section {
-                    header: OwnedOrRef::Owned(header),
-                    base: None,
-                },
+                Section::new(OwnedOrRef::Owned(header), self.file_align as u32, None),
                 // FIXME: to_vec
                 VecOrSlice::Vec(section.data.to_vec()),
                 // VecOrSlice::Slice(&section.data),
