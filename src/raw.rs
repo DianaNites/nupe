@@ -1,4 +1,7 @@
-//! Raw PE structures
+//! Raw PE data structures
+//!
+//! These are all the raw, C compatible and packed,
+//! representations of various data structures.
 //!
 //! PE Files are laid out as so
 //!
