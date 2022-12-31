@@ -404,15 +404,12 @@ mod tests {
                 .section(
                     SectionBuilder::new()
                         .name(".text")
-                        .data(
-                            {
-                                //
-                                let sec = in_pe.section(".text").unwrap();
-                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                    [..sec.virtual_size() as usize]
-                            },
-                            None,
-                        )
+                        .data({
+                            //
+                            let sec = in_pe.section(".text").unwrap();
+                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                [..sec.virtual_size() as usize]
+                        })
                         .file_offset(1024)
                         .attributes(
                             SectionAttributes::CODE
@@ -423,15 +420,12 @@ mod tests {
                 .section(
                     SectionBuilder::new()
                         .name(".rdata")
-                        .data(
-                            {
-                                //
-                                let sec = in_pe.section(".rdata").unwrap();
-                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                    [..sec.virtual_size() as usize]
-                            },
-                            None,
-                        )
+                        .data({
+                            //
+                            let sec = in_pe.section(".rdata").unwrap();
+                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                [..sec.virtual_size() as usize]
+                        })
                         .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
                 )
                 .section({
@@ -441,7 +435,7 @@ mod tests {
                         .data(
                             &RUSTUP_IMAGE[sec.file_offset() as usize..]
                                 [..sec.virtual_size() as usize],
-                            Some(sec.file_size()),
+                            // FIXME: Some(sec.file_size()),
                         )
                         .attributes(
                             SectionAttributes::INITIALIZED
@@ -452,43 +446,34 @@ mod tests {
                 .section(
                     SectionBuilder::new()
                         .name(".pdata")
-                        .data(
-                            {
-                                //
-                                let sec = in_pe.section(".pdata").unwrap();
-                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                    [..sec.virtual_size() as usize]
-                            },
-                            None,
-                        )
+                        .data({
+                            //
+                            let sec = in_pe.section(".pdata").unwrap();
+                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                [..sec.virtual_size() as usize]
+                        })
                         .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
                 )
                 .section(
                     SectionBuilder::new()
                         .name("_RDATA")
-                        .data(
-                            {
-                                //
-                                let sec = in_pe.section("_RDATA").unwrap();
-                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                    [..sec.virtual_size() as usize]
-                            },
-                            None,
-                        )
+                        .data({
+                            //
+                            let sec = in_pe.section("_RDATA").unwrap();
+                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                [..sec.virtual_size() as usize]
+                        })
                         .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
                 )
                 .section(
                     SectionBuilder::new()
                         .name(".reloc")
-                        .data(
-                            {
-                                //
-                                let sec = in_pe.section(".reloc").unwrap();
-                                &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                    [..sec.virtual_size() as usize]
-                            },
-                            None,
-                        )
+                        .data({
+                            //
+                            let sec = in_pe.section(".reloc").unwrap();
+                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
+                                [..sec.virtual_size() as usize]
+                        })
                         .attributes(
                             SectionAttributes::INITIALIZED
                                 | SectionAttributes::READ
