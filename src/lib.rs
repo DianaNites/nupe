@@ -61,8 +61,8 @@ impl<'data> ImageHeader<'data> {
     /// Entry point address relative to the image base
     fn entry(&self) -> u32 {
         match self {
-            ImageHeader::Raw32(h) => h.standard.entry_offset,
-            ImageHeader::Raw64(h) => h.standard.entry_offset,
+            ImageHeader::Raw32(h) => h.standard.entry_ptr,
+            ImageHeader::Raw64(h) => h.standard.entry_ptr,
         }
     }
 
@@ -165,9 +165,9 @@ impl<'data> ImageHeader<'data> {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
-        size.checked_sub(size_of::<RawPeOptStandard>())
+        size.checked_sub(size_of::<RawPeImageStandard>())
             .ok_or(Error::NotEnoughData)?;
-        let opt = unsafe { &*(data as *const RawPeOptStandard) };
+        let opt = unsafe { &*(data as *const RawPeImageStandard) };
         if opt.magic == PE32_64_MAGIC {
             let opt = RawPe32x64::from_ptr(data, size)?;
             let _data_size = size_of::<RawDataDirectory>()
@@ -534,10 +534,10 @@ mod tests {
         assert_eq!({ pe.coff().sections }, 6);
         assert_eq!({ pe.coff().time }, 1657657359);
         assert_eq!({ pe.coff().sym_offset }, 0);
-        assert_eq!({ pe.coff().num_sym }, 0);
-        assert_eq!({ pe.coff().optional_size }, 240);
+        assert_eq!({ pe.coff().sym_len }, 0);
+        assert_eq!({ pe.coff().img_hdr_size }, 240);
         assert_eq!(
-            { pe.coff().attributes },
+            { pe.coff().file_attributes },
             CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE
         );
         let opt = match pe.opt() {
@@ -549,8 +549,8 @@ mod tests {
         assert_eq!({ opt.standard.code_size }, 7170048);
         assert_eq!({ opt.standard.init_size }, 2913792);
         assert_eq!({ opt.standard.uninit_size }, 0);
-        assert_eq!({ opt.standard.entry_offset }, 6895788);
-        assert_eq!({ opt.standard.code_base }, 4096);
+        assert_eq!({ opt.standard.entry_ptr }, 6895788);
+        assert_eq!({ opt.standard.code_ptr }, 4096);
         assert_eq!({ opt.image_base }, 5368709120);
         assert_eq!({ opt.section_align }, 4096);
         assert_eq!({ opt.file_align }, 512);

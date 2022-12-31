@@ -252,12 +252,12 @@ pub struct RawCoff {
     /// Timestamp
     pub time: u32,
     pub sym_offset: u32,
-    pub num_sym: u32,
+    pub sym_len: u32,
 
-    /// Size in bytes of the PE optional header
-    pub optional_size: u16,
+    /// Size in bytes of the Image Header
+    pub img_hdr_size: u16,
 
-    pub attributes: CoffAttributes,
+    pub file_attributes: CoffAttributes,
 }
 
 impl RawCoff {
@@ -276,9 +276,9 @@ impl RawCoff {
             sections,
             time,
             sym_offset: 0,
-            num_sym: 0,
-            optional_size,
-            attributes,
+            sym_len: 0,
+            img_hdr_size: optional_size,
+            file_attributes: attributes,
         }
     }
 }
@@ -317,7 +317,7 @@ impl RawPe {
             return Err(Error::InvalidPeMagic);
         }
 
-        let opt_size = pe.coff.optional_size as usize;
+        let opt_size = pe.coff.img_hdr_size as usize;
         size.checked_sub(
             size_of::<RawPe>()
                 .checked_add(opt_size)
@@ -371,7 +371,7 @@ impl RawPe {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
-pub struct RawPeOptStandard {
+pub struct RawPeImageStandard {
     /// Magic identifying PE32 vs PE32+
     pub magic: u16,
 
@@ -391,13 +391,13 @@ pub struct RawPeOptStandard {
     pub uninit_size: u32,
 
     /// Offset to image entry point, relative to image base.
-    pub entry_offset: u32,
+    pub entry_ptr: u32,
 
     /// Offset to beginning-of-code section, relative to image base.
-    pub code_base: u32,
+    pub code_ptr: u32,
 }
 
-impl RawPeOptStandard {
+impl RawPeImageStandard {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         magic: u16,
@@ -416,8 +416,8 @@ impl RawPeOptStandard {
             code_size,
             init_size,
             uninit_size,
-            entry_offset,
-            code_base,
+            entry_ptr: entry_offset,
+            code_ptr: code_base,
         }
     }
 
@@ -425,9 +425,9 @@ impl RawPeOptStandard {
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
         let opt = unsafe {
             &*(bytes
-                .get(..size_of::<RawPeOptStandard>())
+                .get(..size_of::<RawPeImageStandard>())
                 .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawPeOptStandard)
+                .as_ptr() as *const RawPeImageStandard)
         };
         if !(opt.magic == PE32_64_MAGIC || opt.magic != PE32_MAGIC) {
             return Err(Error::InvalidPeMagic);
@@ -441,10 +441,10 @@ impl RawPeOptStandard {
 #[repr(C, packed)]
 pub struct RawPe32 {
     /// Standard/common subset
-    pub standard: RawPeOptStandard,
+    pub standard: RawPeImageStandard,
 
     /// Offset to beginning-of-data section, relative to image base.
-    pub data_base: u32,
+    pub data_ptr: u32,
 
     /// Preferred base address of the image when loaded in memory.
     pub image_base: u32,
@@ -525,7 +525,7 @@ pub struct RawPe32 {
 impl RawPe32 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        standard: RawPeOptStandard,
+        standard: RawPeImageStandard,
         data_base: u32,
         image_base: u32,
         section_align: u32,
@@ -548,7 +548,7 @@ impl RawPe32 {
     ) -> Self {
         Self {
             standard,
-            data_base,
+            data_ptr: data_base,
             image_base,
             section_align,
             file_align,
@@ -603,7 +603,7 @@ impl RawPe32 {
 #[repr(C, packed)]
 pub struct RawPe32x64 {
     /// Standard/common subset
-    pub standard: RawPeOptStandard,
+    pub standard: RawPeImageStandard,
 
     /// Preferred base address of the image when loaded in memory.
     pub image_base: u64,
@@ -684,7 +684,7 @@ pub struct RawPe32x64 {
 impl RawPe32x64 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        standard: RawPeOptStandard,
+        standard: RawPeImageStandard,
         image_base: u64,
         section_align: u32,
         file_align: u32,
@@ -858,7 +858,7 @@ mod tests {
 
     assert_eq_size!(RawCoff, [u8; 20]);
     assert_eq_size!(RawDos, [u8; 64]);
-    assert_eq_size!(RawPeOptStandard, [u8; 24]);
+    assert_eq_size!(RawPeImageStandard, [u8; 24]);
     assert_eq_size!(RawPe32x64, [u8; 112]);
     assert_eq_size!(RawDataDirectory, [u8; 8]);
     assert_eq_size!(RawSectionHeader, [u8; 40]);
