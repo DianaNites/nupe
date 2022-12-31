@@ -400,86 +400,81 @@ mod tests {
                 .data_dir(DataDirIdent::Debug, 8757424, 84)
                 .data_dir(DataDirIdent::ThreadLocalStorage, 8757632, 40)
                 .data_dir(DataDirIdent::LoadConfig, 8757104, 320)
-                .data_dir(DataDirIdent::Iat, 7176192, 2248)
-                .section(
-                    SectionBuilder::new()
-                        .name(".text")
-                        .data({
-                            //
-                            let sec = in_pe.section(".text").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
-                        .file_offset(1024)
-                        .attributes(
-                            SectionAttributes::CODE
-                                | SectionAttributes::EXEC
-                                | SectionAttributes::READ,
-                        ),
-                )
-                .section(
-                    SectionBuilder::new()
-                        .name(".rdata")
-                        .data({
-                            //
-                            let sec = in_pe.section(".rdata").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
-                        .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
-                )
-                .section({
-                    let sec = in_pe.section(".data").unwrap();
-                    SectionBuilder::new()
-                        .name(".data")
-                        .data(
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize],
-                            // FIXME: Some(sec.file_size()),
-                        )
-                        .attributes(
-                            SectionAttributes::INITIALIZED
-                                | SectionAttributes::READ
-                                | SectionAttributes::WRITE,
-                        )
-                })
-                .section(
-                    SectionBuilder::new()
-                        .name(".pdata")
-                        .data({
-                            //
-                            let sec = in_pe.section(".pdata").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
-                        .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
-                )
-                .section(
-                    SectionBuilder::new()
-                        .name("_RDATA")
-                        .data({
-                            //
-                            let sec = in_pe.section("_RDATA").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
-                        .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
-                )
-                .section(
-                    SectionBuilder::new()
-                        .name(".reloc")
-                        .data({
-                            //
-                            let sec = in_pe.section(".reloc").unwrap();
-                            &RUSTUP_IMAGE[sec.file_offset() as usize..]
-                                [..sec.virtual_size() as usize]
-                        })
-                        .attributes(
-                            SectionAttributes::INITIALIZED
-                                | SectionAttributes::READ
-                                | SectionAttributes::DISCARDABLE,
-                        ),
-                );
+                .data_dir(DataDirIdent::Iat, 7176192, 2248);
+        }
+        #[cfg(no)]
+        {
+            pe.section(
+                SectionBuilder::new()
+                    .name(".text")
+                    .data({
+                        //
+                        let sec = in_pe.section(".text").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .file_offset(1024)
+                    .attributes(
+                        SectionAttributes::CODE | SectionAttributes::EXEC | SectionAttributes::READ,
+                    ),
+            )
+            .section(
+                SectionBuilder::new()
+                    .name(".rdata")
+                    .data({
+                        //
+                        let sec = in_pe.section(".rdata").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
+            )
+            .section({
+                let sec = in_pe.section(".data").unwrap();
+                SectionBuilder::new()
+                    .name(".data")
+                    .data(
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize],
+                        // FIXME: Some(sec.file_size()),
+                    )
+                    .attributes(
+                        SectionAttributes::INITIALIZED
+                            | SectionAttributes::READ
+                            | SectionAttributes::WRITE,
+                    )
+            })
+            .section(
+                SectionBuilder::new()
+                    .name(".pdata")
+                    .data({
+                        //
+                        let sec = in_pe.section(".pdata").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
+            )
+            .section(
+                SectionBuilder::new()
+                    .name("_RDATA")
+                    .data({
+                        //
+                        let sec = in_pe.section("_RDATA").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
+            )
+            .section(
+                SectionBuilder::new()
+                    .name(".reloc")
+                    .data({
+                        //
+                        let sec = in_pe.section(".reloc").unwrap();
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                    })
+                    .attributes(
+                        SectionAttributes::INITIALIZED
+                            | SectionAttributes::READ
+                            | SectionAttributes::DISCARDABLE,
+                    ),
+            );
         }
         // let mut pe = PeBuilder::from_pe(&in_pe, &RUSTUP_IMAGE);
         let mut out: Vec<u8> = Vec::new();
@@ -492,7 +487,8 @@ mod tests {
         assert_eq!(in_pe.dos_stub(), out_pe.dos_stub());
         assert_eq!({ in_pe.dos().pe_offset }, { out_pe.dos().pe_offset });
 
-        assert_eq!(RUSTUP_IMAGE, &out[..]);
+        let x = size_of::<RawDos>() + 128 + size_of::<RawPe>() + size_of::<RawPeImageStandard>();
+        assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
 
         Ok(())
     }

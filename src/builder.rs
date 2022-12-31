@@ -568,8 +568,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
         /// which needs to go through all sections to sum up their sizes before
         /// being written.
         struct _DummyHoverWriteDocs;
-        // TODO: Go through sections, assign virtual addresses
-        // Now knowing the full scope of sections, assign file offsets
         out.clear();
         let machine = self.machine;
         let plus = match machine {
@@ -792,7 +790,7 @@ impl<'data> SectionBuilder<'data> {
 
         RawSectionHeader {
             name: self.name,
-            mem_size: { len },
+            mem_size: len,
             mem_ptr: va,
             disk_size,
             disk_offset,
