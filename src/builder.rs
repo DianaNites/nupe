@@ -10,7 +10,7 @@ use crate::{
         PE32_64_MAGIC, PE32_MAGIC, PE_MAGIC,
     },
     CoffAttributes, DataDirIdent, DllCharacteristics, MachineType, OwnedOrRef, Pe,
-    RawDataDirectory, Section, SectionFlags, Subsystem, VecOrSlice,
+    RawDataDirectory, Section, SectionAttributes, Subsystem, VecOrSlice,
 };
 
 /// Default image base to use
@@ -222,15 +222,15 @@ impl<'data> PeBuilder<'data, states::Machine> {
         };
         let header = RawSectionHeader {
             name: section.name,
-            virtual_size: { len },
-            virtual_address: va,
-            raw_size: file_size,
-            raw_ptr: file_offset,
-            reloc_ptr: 0,
-            line_ptr: 0,
-            num_reloc: 0,
-            num_lines: 0,
-            characteristics: section.attr,
+            mem_size: { len },
+            mem_ptr: va,
+            disk_size: file_size,
+            disk_offset: file_offset,
+            reloc_offset: 0,
+            line_offset: 0,
+            reloc_len: 0,
+            lines_len: 0,
+            attributes: section.attr,
         };
 
         match &mut self.sections {
@@ -388,10 +388,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let mut data_base = 0;
         // Get section sizes
         for (section, _) in self.sections.iter() {
-            if section.flags() & SectionFlags::CODE != SectionFlags::empty() {
+            if section.flags() & SectionAttributes::CODE != SectionAttributes::empty() {
                 code_sum += section.file_size();
                 code_base = section.virtual_address();
-            } else if section.flags() & SectionFlags::INITIALIZED != SectionFlags::empty() {
+            } else if section.flags() & SectionAttributes::INITIALIZED != SectionAttributes::empty()
+            {
                 init_sum += section.file_size().max({
                     let size = section.virtual_size();
                     if size % self.file_align as u32 != 0 {
@@ -401,7 +402,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
                     }
                 });
                 data_base = section.virtual_address();
-            } else if section.flags() & SectionFlags::UNINITIALIZED != SectionFlags::empty() {
+            } else if section.flags() & SectionAttributes::UNINITIALIZED
+                != SectionAttributes::empty()
+            {
                 uninit_sum += section.virtual_size()
             }
         }
@@ -772,7 +775,7 @@ impl<'data, State> fmt::Debug for PeBuilder<'data, State> {
 pub struct SectionBuilder<'data> {
     name: [u8; 8],
     data: VecOrSlice<'data, u8>,
-    attr: SectionFlags,
+    attr: SectionAttributes,
     offset: Option<u32>,
     size: Option<u32>,
 }
@@ -782,7 +785,7 @@ impl<'data> SectionBuilder<'data> {
         Self {
             name: [b'\0'; 8],
             data: VecOrSlice::Slice(&[]),
-            attr: SectionFlags::empty(),
+            attr: SectionAttributes::empty(),
             offset: None,
             size: None,
         }
@@ -878,7 +881,7 @@ impl<'data> SectionBuilder<'data> {
     }
 
     /// Flags/Attributes for the section
-    pub fn attributes(&mut self, attr: SectionFlags) -> &mut Self {
+    pub fn attributes(&mut self, attr: SectionAttributes) -> &mut Self {
         self.attr = attr;
         self
     }

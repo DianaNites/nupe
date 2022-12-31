@@ -28,14 +28,8 @@ use crate::{
 };
 pub use crate::{
     internal::{
-        CoffAttributes,
-        DataDirIdent,
-        DllCharacteristics,
-        MachineType,
-        OwnedOrRef,
-        SectionFlags,
-        Subsystem,
-        VecOrSlice,
+        CoffAttributes, DataDirIdent, DllCharacteristics, MachineType, OwnedOrRef,
+        SectionAttributes, Subsystem, VecOrSlice,
     },
     pe::*,
 };
@@ -227,17 +221,17 @@ impl<'data> Section<'data> {
 
     /// Address to the first byte of the section, relative to the image base.
     pub fn virtual_address(&self) -> u32 {
-        self.header.virtual_address
+        self.header.mem_ptr
     }
 
     /// Size of the section in memory, zero padded if needed.
     pub fn virtual_size(&self) -> u32 {
-        self.header.virtual_size
+        self.header.mem_size
     }
 
     /// Offset of the section data on disk
     pub fn file_offset(&self) -> u32 {
-        self.header.raw_ptr
+        self.header.disk_offset
     }
 
     /// Size of the section data on disk
@@ -251,7 +245,7 @@ impl<'data> Section<'data> {
     /// but virtual_size is not. That means file_size includes extra padding not
     /// actually part of the section, and that virtual_size is the true size.
     pub fn file_size(&self) -> u32 {
-        self.header.raw_size
+        self.header.disk_size
     }
 
     /// Actual size of the sections data, without rounding or alignment.
@@ -267,8 +261,8 @@ impl<'data> Section<'data> {
     }
 
     /// Section flags/attributes/characteristics
-    pub fn flags(&self) -> SectionFlags {
-        self.header.characteristics
+    pub fn flags(&self) -> SectionAttributes {
+        self.header.attributes
     }
 
     /// Slice of the section data
@@ -420,7 +414,11 @@ mod tests {
                             None,
                         )
                         .file_offset(1024)
-                        .attributes(SectionFlags::CODE | SectionFlags::EXEC | SectionFlags::READ),
+                        .attributes(
+                            SectionAttributes::CODE
+                                | SectionAttributes::EXEC
+                                | SectionAttributes::READ,
+                        ),
                 )
                 .section(
                     SectionBuilder::new()
@@ -434,7 +432,7 @@ mod tests {
                             },
                             None,
                         )
-                        .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+                        .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
                 )
                 .section({
                     let sec = in_pe.section(".data").unwrap();
@@ -446,7 +444,9 @@ mod tests {
                             Some(sec.file_size()),
                         )
                         .attributes(
-                            SectionFlags::INITIALIZED | SectionFlags::READ | SectionFlags::WRITE,
+                            SectionAttributes::INITIALIZED
+                                | SectionAttributes::READ
+                                | SectionAttributes::WRITE,
                         )
                 })
                 .section(
@@ -461,7 +461,7 @@ mod tests {
                             },
                             None,
                         )
-                        .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+                        .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
                 )
                 .section(
                     SectionBuilder::new()
@@ -475,7 +475,7 @@ mod tests {
                             },
                             None,
                         )
-                        .attributes(SectionFlags::INITIALIZED | SectionFlags::READ),
+                        .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
                 )
                 .section(
                     SectionBuilder::new()
@@ -490,9 +490,9 @@ mod tests {
                             None,
                         )
                         .attributes(
-                            SectionFlags::INITIALIZED
-                                | SectionFlags::READ
-                                | SectionFlags::DISCARDABLE,
+                            SectionAttributes::INITIALIZED
+                                | SectionAttributes::READ
+                                | SectionAttributes::DISCARDABLE,
                         ),
                 );
         }

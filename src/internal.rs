@@ -483,7 +483,7 @@ bitflags! {
 bitflags! {
     /// COFF Section flags
     #[repr(transparent)]
-    pub struct SectionFlags: u32 {
+    pub struct SectionAttributes: u32 {
         const EMPTY = 0x0;
         const RESERVED_1 = 0x1;
         const RESERVED_2 = 0x2;
