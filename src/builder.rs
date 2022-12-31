@@ -6,7 +6,7 @@ use crate::{
     error::{Error, Result},
     internal::debug::{DosHelper, RawDataDirectoryHelper},
     raw::{
-        RawCoff, RawDos, RawPe, RawPe32, RawPe32x64, RawPeOptStandard, RawSectionHeader,
+        RawCoff, RawDos, RawPe, RawPe32, RawPe32x64, RawPeImageStandard, RawSectionHeader,
         PE32_64_MAGIC, PE32_MAGIC, PE_MAGIC,
     },
     CoffAttributes, DataDirIdent, DllCharacteristics, MachineType, OwnedOrRef, Pe,
@@ -394,7 +394,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         }
 
         // Create standard subset
-        let opt = RawPeOptStandard::new(
+        let opt = RawPeImageStandard::new(
             if plus { PE32_64_MAGIC } else { PE32_MAGIC },
             self.linker_ver.0,
             self.linker_ver.1,

@@ -157,7 +157,7 @@ impl<'data> Pe<'data> {
 
     /// COFF Attributes
     pub fn attributes(&self) -> CoffAttributes {
-        self.coff.attributes
+        self.coff.file_attributes
     }
 
     /// Subsystem, or type, of the PE file.
