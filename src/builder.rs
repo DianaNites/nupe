@@ -815,13 +815,33 @@ impl<'data> SectionBuilder<'data> {
 
     /// Data in the section. Required.
     ///
+    /// The length of `data` is used as the virtual and file size of the
+    /// section.
+    ///
+    /// The file size is rounded up to the file alignment, but the virtual size
+    /// is not.
+    ///
+    /// `uninit` represents additional space in memory the section should take,
+    /// zero-padded during loading.
+    ///
+    /// Specifically, the virtual size is `data.len() + uninit`,
+    /// and the file size is `data.len()` aligned to the PE file alignment.
+    ///
     /// The length of the slice is used as virtual_size,
     /// and `file_size` is the size on disk, or the same as virtual_size
     ///
     /// This is useful for partially uninitialized sections
-    pub fn data(&mut self, data: &'data [u8], file_size: Option<u32>) -> &mut Self {
+    // pub fn data(&mut self, data: &'data [u8], uninit: Option<u32>) -> &mut Self {
+    // pub fn data(&mut self, data: &'data [u8], uninit: u32) -> &mut Self {
+    // pub fn data(&mut self, data: &'data [u8]) -> &mut Self {
+    pub fn data(&mut self, data: &'data [u8], _file_size: Option<u32>) -> &mut Self {
         self.data = VecOrSlice::Slice(data);
-        self.size = file_size;
+        self
+    }
+
+    /// Additional, uninitialized, data in this section.
+    pub fn uninit(&mut self, uninit: u32) -> &mut Self {
+        self.size = Some(self.data.len() as u32 + uninit);
         self
     }
 
@@ -832,12 +852,27 @@ impl<'data> SectionBuilder<'data> {
         self
     }
 
-    /// File offset. Defaults to next available, or file alignment.
+    /// File offset to the section.
+    /// Defaults to next available, or the file alignment.
     ///
     /// This MUST be a power of 2 between 512 and 64K.
     ///
     /// If not it will silently be rounded up to the next alignment.
+    ///
+    /// This MUST not overlap with another section
     pub fn file_offset(&mut self, offset: u32) -> &mut Self {
+        self.offset = Some(offset);
+        self
+    }
+
+    /// Manually set the size of the section on disk
+    ///
+    /// By default this is the size of the slice given in
+    /// [`SectionBuilder::data`], rounded up to a multiple of the file
+    /// alignment.
+    ///
+    /// TODO: *Don't* enforce alignment here
+    pub fn file_size(&mut self, offset: u32) -> &mut Self {
         self.offset = Some(offset);
         self
     }
