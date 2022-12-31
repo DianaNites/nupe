@@ -211,7 +211,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Append a section
     pub fn section(&mut self, section: &mut SectionBuilder) -> &mut Self {
-        let header = section.to_raw_section();
+        let header = section.to_raw_section(
+            self.next_mem_ptr(),
+            self.next_disk_offset(),
+            self.file_align as u32,
+        );
 
         match &mut self.sections {
             VecOrSlice::Vec(v) => v.push((
@@ -412,7 +416,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             as u64;
 
         // NOTE: SizeOfImage is, apparently, just the next offset a section *would* go.
-        let image_size = self.next_virtual_address() as u64;
+        let image_size = self.next_mem_ptr() as u64;
 
         let headers_size = headers_size + (self.file_align - (headers_size % self.file_align));
         // 568 + (512 - (568 % 512))
@@ -602,7 +606,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Get the next virtual address available for a section, or section align
     /// as a default.
-    fn next_virtual_address(&mut self) -> u32 {
+    fn next_mem_ptr(&mut self) -> u32 {
         // Highest VA seen, and its size
         let mut max_va = (self.section_align as u32, 0);
         for (section, _) in self.sections.iter() {
@@ -620,7 +624,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Get the next file offset available for a section, or file align
     /// as a default.
-    fn next_file_offset(&mut self) -> u32 {
+    fn next_disk_offset(&mut self) -> u32 {
         // Highest offset seen, and its size
         let mut max_off = (self.file_align as u32, 0);
         for (section, _) in self.sections.iter() {
@@ -763,35 +767,41 @@ pub struct SectionBuilder<'data> {
 }
 
 impl<'data> SectionBuilder<'data> {
+    #[cfg(no)]
     fn to_raw_section(&self) -> RawSectionHeader {
         todo!()
     }
 
-    #[cfg(no)]
-    fn to_raw_section() -> RawSectionHeader {
-        let len = section.data.len().try_into().unwrap();
-        let va = self.next_virtual_address();
-        let file_offset = section
-            .disk_offset
-            .unwrap_or_else(|| self.next_file_offset());
-        let file_size = section.disk_size.unwrap_or(len);
-        let file_size = if file_size % self.file_align as u32 != 0 {
-            file_size + (self.file_align as u32 - (file_size % self.file_align as u32))
+    /// Convert to a [`RawSectionHeader`] using the supplied
+    /// values.
+    ///
+    /// It is important to make sure these uphold the PE invariants.
+    // #[cfg(no)]
+    fn to_raw_section(&self, mem_ptr: u32, disk_offset: u32, disk_align: u32) -> RawSectionHeader {
+        let len = self.mem_size.unwrap_or_default();
+        let va = mem_ptr;
+        let disk_offset = self.disk_offset.unwrap_or(disk_offset);
+
+        let disk_size = self.disk_size.unwrap_or(len);
+        // FIXME: Account for header size!
+        let disk_size = if disk_size % disk_align == 0 {
+            disk_size + (disk_align - (disk_size % disk_align))
         } else {
-            file_size
+            disk_size
         };
-        let header = RawSectionHeader {
-            name: section.name,
+
+        RawSectionHeader {
+            name: self.name,
             mem_size: { len },
             mem_ptr: va,
-            disk_size: file_size,
-            disk_offset: file_offset,
+            disk_size,
+            disk_offset,
             reloc_offset: 0,
             line_offset: 0,
             reloc_len: 0,
             lines_len: 0,
-            attributes: section.attr,
-        };
+            attributes: self.attr,
+        }
     }
 }
 
