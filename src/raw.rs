@@ -18,7 +18,7 @@ use core::{fmt, mem::size_of};
 
 use crate::{
     error::{Error, Result},
-    CoffAttributes, DllCharacteristics, MachineType, SectionFlags, Subsystem,
+    CoffAttributes, DllCharacteristics, MachineType, SectionAttributes, Subsystem,
 };
 
 /// DOS Magic signature
@@ -775,31 +775,31 @@ pub struct RawSectionHeader {
     pub name: [u8; 8],
 
     /// Size of the section in memory
-    pub virtual_size: u32,
+    pub mem_size: u32,
 
     /// Offset of the section in memory
-    pub virtual_address: u32,
+    pub mem_ptr: u32,
 
     /// Size of the section on disk
-    pub raw_size: u32,
+    pub disk_size: u32,
 
     /// Offset of the section on disk
-    pub raw_ptr: u32,
+    pub disk_offset: u32,
 
     /// Offset of the sections relocations on disk
-    pub reloc_ptr: u32,
+    pub reloc_offset: u32,
 
     /// Offset of the sections line numbers on disk
-    pub line_ptr: u32,
+    pub line_offset: u32,
 
-    /// Number of relocation entries at `reloc_ptr`
-    pub num_reloc: u16,
+    /// Number of relocation entries at `reloc_offset`
+    pub reloc_len: u16,
 
-    /// Number of lines at `line_ptr`
-    pub num_lines: u16,
+    /// Number of lines at `line_offset`
+    pub lines_len: u16,
 
     /// Section flags
-    pub characteristics: SectionFlags,
+    pub attributes: SectionAttributes,
 }
 
 impl RawSectionHeader {
@@ -814,15 +814,15 @@ impl RawSectionHeader {
     pub fn zeroed() -> Self {
         RawSectionHeader {
             name: Default::default(),
-            virtual_size: Default::default(),
-            virtual_address: Default::default(),
-            raw_size: Default::default(),
-            raw_ptr: Default::default(),
-            reloc_ptr: Default::default(),
-            line_ptr: Default::default(),
-            num_reloc: Default::default(),
-            num_lines: Default::default(),
-            characteristics: SectionFlags::empty(),
+            mem_size: Default::default(),
+            mem_ptr: Default::default(),
+            disk_size: Default::default(),
+            disk_offset: Default::default(),
+            reloc_offset: Default::default(),
+            line_offset: Default::default(),
+            reloc_len: Default::default(),
+            lines_len: Default::default(),
+            attributes: SectionAttributes::empty(),
         }
     }
 }
@@ -835,15 +835,15 @@ impl fmt::Debug for RawSectionHeader {
         } else {
             f.field("name(bytes)", &{ self.name });
         }
-        f.field("virtual_size", &{ self.virtual_size })
-            .field("virtual_address", &{ self.virtual_address })
-            .field("raw_size", &{ self.raw_size })
-            .field("raw_ptr", &{ self.raw_ptr })
-            .field("reloc_ptr", &{ self.reloc_ptr })
-            .field("line_ptr", &{ self.line_ptr })
-            .field("num_reloc", &{ self.num_reloc })
-            .field("num_lines", &{ self.num_lines })
-            .field("characteristics", &{ self.characteristics })
+        f.field("virtual_size", &{ self.mem_size })
+            .field("virtual_address", &{ self.mem_ptr })
+            .field("raw_size", &{ self.disk_size })
+            .field("raw_ptr", &{ self.disk_offset })
+            .field("reloc_ptr", &{ self.reloc_offset })
+            .field("line_ptr", &{ self.line_offset })
+            .field("num_reloc", &{ self.reloc_len })
+            .field("num_lines", &{ self.lines_len })
+            .field("characteristics", &{ self.attributes })
             .finish()
     }
 }
