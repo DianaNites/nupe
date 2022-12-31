@@ -18,7 +18,7 @@ use core::{fmt, mem::size_of};
 
 use crate::{
     error::{Error, Result},
-    CoffAttributes, DllCharacteristics, MachineType, SectionAttributes, Subsystem,
+    CoffAttributes, DllAttributes, MachineType, SectionAttributes, Subsystem,
 };
 
 /// DOS Magic signature
@@ -454,14 +454,14 @@ pub struct RawPe32 {
     /// Must be greater or equal to file_align.
     ///
     /// Default is architecture page size.
-    pub section_align: u32,
+    pub mem_align: u32,
 
     /// Alignment, in bytes, of the section on disk.
     ///
     /// Must be a power of two, between 512 and 64K inclusive.
     ///
     /// Default is 512
-    pub file_align: u32,
+    pub disk_align: u32,
 
     /// Required OS major version
     pub os_major: u16,
@@ -499,7 +499,7 @@ pub struct RawPe32 {
     pub subsystem: Subsystem,
 
     /// Flags for windows
-    pub dll_characteristics: DllCharacteristics,
+    pub dll_attributes: DllAttributes,
 
     /// Size of the stack to reserve.
     pub stack_reserve: u32,
@@ -516,7 +516,7 @@ pub struct RawPe32 {
     pub heap_commit: u32,
 
     /// Reserved, 0.
-    pub _reserved_loader_flags: u32,
+    pub _reserved_loader_attributes: u32,
 
     /// Number of data directories following the header.
     pub data_dirs: u32,
@@ -539,7 +539,7 @@ impl RawPe32 {
         image_size: u32,
         headers_size: u32,
         subsystem: Subsystem,
-        dll_characteristics: DllCharacteristics,
+        dll_characteristics: DllAttributes,
         stack_reserve: u32,
         stack_commit: u32,
         heap_reserve: u32,
@@ -550,8 +550,8 @@ impl RawPe32 {
             standard,
             data_ptr: data_base,
             image_base,
-            section_align,
-            file_align,
+            mem_align: section_align,
+            disk_align: file_align,
             os_major,
             os_minor,
             image_major,
@@ -563,12 +563,12 @@ impl RawPe32 {
             headers_size,
             checksum: 0,
             subsystem,
-            dll_characteristics,
+            dll_attributes: dll_characteristics,
             stack_reserve,
             stack_commit,
             heap_reserve,
             heap_commit,
-            _reserved_loader_flags: 0,
+            _reserved_loader_attributes: 0,
             data_dirs,
         }
     }
@@ -613,14 +613,14 @@ pub struct RawPe32x64 {
     /// Must be greater or equal to file_align.
     ///
     /// Default is architecture page size.
-    pub section_align: u32,
+    pub mem_align: u32,
 
     /// Alignment, in bytes, of the section on disk.
     ///
     /// Must be a power of two, between 512 and 64K inclusive.
     ///
     /// Default is 512
-    pub file_align: u32,
+    pub disk_align: u32,
 
     /// Required OS major version
     pub os_major: u16,
@@ -658,7 +658,7 @@ pub struct RawPe32x64 {
     pub subsystem: Subsystem,
 
     /// Flags for windows
-    pub dll_characteristics: DllCharacteristics,
+    pub dll_attributes: DllAttributes,
 
     /// Size of the stack to reserve.
     pub stack_reserve: u64,
@@ -675,7 +675,7 @@ pub struct RawPe32x64 {
     pub heap_commit: u64,
 
     /// Reserved, 0.
-    pub _reserved_loader_flags: u32,
+    pub _reserved_loader_attributes: u32,
 
     /// Number of data directories following the header.
     pub data_dirs: u32,
@@ -697,7 +697,7 @@ impl RawPe32x64 {
         image_size: u32,
         headers_size: u32,
         subsystem: Subsystem,
-        dll_characteristics: DllCharacteristics,
+        dll_characteristics: DllAttributes,
         stack_reserve: u64,
         stack_commit: u64,
         heap_reserve: u64,
@@ -707,8 +707,8 @@ impl RawPe32x64 {
         Self {
             standard,
             image_base,
-            section_align,
-            file_align,
+            mem_align: section_align,
+            disk_align: file_align,
             os_major,
             os_minor,
             image_major,
@@ -720,12 +720,12 @@ impl RawPe32x64 {
             headers_size,
             checksum: 0,
             subsystem,
-            dll_characteristics,
+            dll_attributes: dll_characteristics,
             stack_reserve,
             stack_commit,
             heap_reserve,
             heap_commit,
-            _reserved_loader_flags: 0,
+            _reserved_loader_attributes: 0,
             data_dirs,
         }
     }

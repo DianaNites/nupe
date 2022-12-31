@@ -460,7 +460,7 @@ bitflags! {
 bitflags! {
     /// DLL Characteristics
     #[repr(transparent)]
-    pub struct DllCharacteristics: u16 {
+    pub struct DllAttributes: u16 {
         const EMPTY = 0x0;
         const RESERVED_1 = 0x1;
         const RESERVED_2 = 0x2;

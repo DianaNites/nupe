@@ -28,8 +28,8 @@ use crate::{
 };
 pub use crate::{
     internal::{
-        CoffAttributes, DataDirIdent, DllCharacteristics, MachineType, OwnedOrRef,
-        SectionAttributes, Subsystem, VecOrSlice,
+        CoffAttributes, DataDirIdent, DllAttributes, MachineType, OwnedOrRef, SectionAttributes,
+        Subsystem, VecOrSlice,
     },
     pe::*,
 };
@@ -109,10 +109,10 @@ impl<'data> ImageHeader<'data> {
     }
 
     /// DLL Attributes
-    fn dll_attributes(&self) -> DllCharacteristics {
+    fn dll_attributes(&self) -> DllAttributes {
         match self {
-            ImageHeader::Raw32(h) => h.dll_characteristics,
-            ImageHeader::Raw64(h) => h.dll_characteristics,
+            ImageHeader::Raw32(h) => h.dll_attributes,
+            ImageHeader::Raw64(h) => h.dll_attributes,
         }
     }
 
@@ -135,16 +135,16 @@ impl<'data> ImageHeader<'data> {
     /// File alignment
     fn file_align(&self) -> u32 {
         match self {
-            ImageHeader::Raw32(h) => h.file_align,
-            ImageHeader::Raw64(h) => h.file_align,
+            ImageHeader::Raw32(h) => h.disk_align,
+            ImageHeader::Raw64(h) => h.disk_align,
         }
     }
 
     /// Section alignment
     fn section_align(&self) -> u32 {
         match self {
-            ImageHeader::Raw32(h) => h.section_align,
-            ImageHeader::Raw64(h) => h.section_align,
+            ImageHeader::Raw32(h) => h.mem_align,
+            ImageHeader::Raw64(h) => h.mem_align,
         }
     }
 }
@@ -384,10 +384,10 @@ mod tests {
                 .entry(in_pe.entry())
                 .timestamp(in_pe.timestamp())
                 .dll_attributes(
-                    DllCharacteristics::DYNAMIC_BASE
-                        | DllCharacteristics::HIGH_ENTROPY_VA
-                        | DllCharacteristics::NX_COMPAT
-                        | DllCharacteristics::TERMINAL_SERVER,
+                    DllAttributes::DYNAMIC_BASE
+                        | DllAttributes::HIGH_ENTROPY_VA
+                        | DllAttributes::NX_COMPAT
+                        | DllAttributes::TERMINAL_SERVER,
                 )
                 .image_base(in_pe.image_base())
                 .os_version(in_pe.os_version())
@@ -518,10 +518,10 @@ mod tests {
         // assert_eq!(pe.headers_size(), 1024);
         assert_eq!(
             pe.dll_attributes(),
-            DllCharacteristics::HIGH_ENTROPY_VA
-                | DllCharacteristics::DYNAMIC_BASE
-                | DllCharacteristics::NX_COMPAT
-                | DllCharacteristics::TERMINAL_SERVER
+            DllAttributes::HIGH_ENTROPY_VA
+                | DllAttributes::DYNAMIC_BASE
+                | DllAttributes::NX_COMPAT
+                | DllAttributes::TERMINAL_SERVER
         );
         assert_eq!(pe.stack(), (4096, 1048576));
         assert_eq!(pe.heap(), (4096, 1048576));
@@ -552,8 +552,8 @@ mod tests {
         assert_eq!({ opt.standard.entry_ptr }, 6895788);
         assert_eq!({ opt.standard.code_ptr }, 4096);
         assert_eq!({ opt.image_base }, 5368709120);
-        assert_eq!({ opt.section_align }, 4096);
-        assert_eq!({ opt.file_align }, 512);
+        assert_eq!({ opt.mem_align }, 4096);
+        assert_eq!({ opt.disk_align }, 512);
         assert_eq!({ opt.os_major }, 6);
         assert_eq!({ opt.os_minor }, 0);
         assert_eq!({ opt.image_major }, 0);
@@ -566,17 +566,17 @@ mod tests {
         assert_eq!({ opt.checksum }, 0);
         assert_eq!({ opt.subsystem }, Subsystem::WINDOWS_CLI);
         assert_eq!(
-            { opt.dll_characteristics },
-            DllCharacteristics::HIGH_ENTROPY_VA
-                | DllCharacteristics::DYNAMIC_BASE
-                | DllCharacteristics::NX_COMPAT
-                | DllCharacteristics::TERMINAL_SERVER
+            { opt.dll_attributes },
+            DllAttributes::HIGH_ENTROPY_VA
+                | DllAttributes::DYNAMIC_BASE
+                | DllAttributes::NX_COMPAT
+                | DllAttributes::TERMINAL_SERVER
         );
         assert_eq!({ opt.stack_reserve }, 1048576);
         assert_eq!({ opt.stack_commit }, 4096);
         assert_eq!({ opt.stack_reserve }, 1048576);
         assert_eq!({ opt.stack_commit }, 4096);
-        assert_eq!({ opt._reserved_loader_flags }, 0);
+        assert_eq!({ opt._reserved_loader_attributes }, 0);
         assert_eq!({ opt.data_dirs }, 16);
 
         Ok(())
