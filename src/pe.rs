@@ -5,18 +5,11 @@ use crate::{
     error::{Error, Result},
     internal::{
         debug::{DosHelper, RawDataDirectoryHelper},
-        CoffAttributes,
-        DataDirIdent,
-        DllCharacteristics,
-        MachineType,
-        OwnedOrRef,
-        Subsystem,
+        CoffAttributes, DataDirIdent, DllCharacteristics, MachineType, OwnedOrRef, Subsystem,
         VecOrSlice,
     },
     raw::*,
-    DataDir,
-    ImageHeader,
-    Section,
+    DataDir, ImageHeader, Section,
 };
 
 /// A PE file
