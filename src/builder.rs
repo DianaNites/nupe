@@ -213,8 +213,10 @@ impl<'data> PeBuilder<'data, states::Machine> {
     pub fn section(&mut self, section: &mut SectionBuilder) -> &mut Self {
         let len = section.data.len().try_into().unwrap();
         let va = self.next_virtual_address();
-        let file_offset = section.offset.unwrap_or_else(|| self.next_file_offset());
-        let file_size = section.size.unwrap_or(len);
+        let file_offset = section
+            .disk_offset
+            .unwrap_or_else(|| self.next_file_offset());
+        let file_size = section.disk_size.unwrap_or(len);
         let file_size = if file_size % self.file_align as u32 != 0 {
             file_size + (self.file_align as u32 - (file_size % self.file_align as u32))
         } else {
@@ -776,22 +778,23 @@ pub struct SectionBuilder<'data> {
     name: [u8; 8],
     data: VecOrSlice<'data, u8>,
     attr: SectionAttributes,
-    offset: Option<u32>,
-    size: Option<u32>,
+    disk_offset: Option<u32>,
+    disk_size: Option<u32>,
 }
 
 impl<'data> SectionBuilder<'data> {
+    /// Create a new [`SectionBuilder`]
     pub fn new() -> Self {
         Self {
             name: [b'\0'; 8],
             data: VecOrSlice::Slice(&[]),
             attr: SectionAttributes::empty(),
-            offset: None,
-            size: None,
+            disk_offset: None,
+            disk_size: None,
         }
     }
 
-    pub fn from_section(sec: &'data Section<'data>) -> Self {
+    pub fn from_section(_sec: &'data Section<'data>) -> Self {
         todo!()
     }
 
@@ -803,48 +806,31 @@ impl<'data> SectionBuilder<'data> {
         self
     }
 
-    /// Name of the section
-    ///
-    /// # Errors
-    ///
-    /// - If `name` is more than 8 bytes.
-    pub fn try_name(&mut self, name: &str) -> Result<&mut Self> {
-        if name.len() > 8 {
-            return Err(Error::InvalidData);
-        }
-        self.name[..name.len()].copy_from_slice(name.as_bytes());
-        Ok(self)
-    }
-
     /// Data in the section. Required.
     ///
-    /// The length of `data` is used as the virtual and file size of the
-    /// section.
+    /// The length of `data` is used as `DiskSize`, and `data.len() + uninit`
+    /// is used as `MemSize`. The additional data is zeroed during loading.
     ///
-    /// The file size is rounded up to the file alignment, but the virtual size
-    /// is not.
-    ///
-    /// `uninit` represents additional space in memory the section should take,
-    /// zero-padded during loading.
-    ///
-    /// Specifically, the virtual size is `data.len() + uninit`,
-    /// and the file size is `data.len()` aligned to the PE file alignment.
-    ///
-    /// The length of the slice is used as virtual_size,
-    /// and `file_size` is the size on disk, or the same as virtual_size
-    ///
-    /// This is useful for partially uninitialized sections
+    /// Note that `DiskSize` will be aligned/rounded up as needed.
+    /// `MemSize` is not rounded.
+    // pub fn data(&mut self, data: &'data [u8]) -> &mut Self {
     // pub fn data(&mut self, data: &'data [u8], uninit: Option<u32>) -> &mut Self {
     // pub fn data(&mut self, data: &'data [u8], uninit: u32) -> &mut Self {
     // pub fn data(&mut self, data: &'data [u8]) -> &mut Self {
     pub fn data(&mut self, data: &'data [u8], _file_size: Option<u32>) -> &mut Self {
         self.data = VecOrSlice::Slice(data);
+        self.disk_size = Some(data.len() as u32 + _file_size.unwrap_or(0));
         self
     }
 
     /// Additional, uninitialized, data in this section.
+    ///
+    /// The result of `MemSize + uninit` is used as
+    /// the `DiskSize` value for this section.
+    ///
+    /// `uninit` is added to the `MemSize` for this section.
     pub fn uninit(&mut self, uninit: u32) -> &mut Self {
-        self.size = Some(self.data.len() as u32 + uninit);
+        self.disk_size = Some(self.data.len() as u32 + uninit);
         self
     }
 
@@ -864,7 +850,7 @@ impl<'data> SectionBuilder<'data> {
     ///
     /// This MUST not overlap with another section
     pub fn file_offset(&mut self, offset: u32) -> &mut Self {
-        self.offset = Some(offset);
+        self.disk_offset = Some(offset);
         self
     }
 
@@ -876,7 +862,7 @@ impl<'data> SectionBuilder<'data> {
     ///
     /// TODO: *Don't* enforce alignment here
     pub fn file_size(&mut self, offset: u32) -> &mut Self {
-        self.offset = Some(offset);
+        self.disk_offset = Some(offset);
         self
     }
 
@@ -903,8 +889,8 @@ impl<'data> fmt::Debug for SectionBuilder<'data> {
         }
         s.field("data", &"VecOrSlice")
             .field("attr", &self.attr)
-            .field("offset", &self.offset)
-            .field("size", &self.size)
+            .field("offset", &self.disk_offset)
+            .field("size", &self.disk_size)
             .finish()
     }
 }

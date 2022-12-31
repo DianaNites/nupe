@@ -264,7 +264,7 @@ impl<'data> Pe<'data> {
 /// Public modification API
 impl<'data> Pe<'data> {
     pub fn append_section(&mut self, _section: ()) -> Result<()> {
-        if let VecOrSlice::Vec(v) = &mut self.sections {
+        if let VecOrSlice::Vec(_v) = &mut self.sections {
             // v.push(value);
             Ok(())
         } else {
