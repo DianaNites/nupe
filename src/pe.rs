@@ -5,7 +5,7 @@ use crate::{
     error::{Error, Result},
     internal::{
         debug::{DosHelper, RawDataDirectoryHelper},
-        CoffAttributes, DataDirIdent, DllCharacteristics, MachineType, OwnedOrRef, Subsystem,
+        CoffAttributes, DataDirIdent, DllAttributes, MachineType, OwnedOrRef, Subsystem,
         VecOrSlice,
     },
     raw::*,
@@ -172,7 +172,7 @@ impl<'data> Pe<'data> {
     }
 
     /// DLL Attributes
-    pub fn dll_attributes(&self) -> DllCharacteristics {
+    pub fn dll_attributes(&self) -> DllAttributes {
         self.opt.dll_attributes()
     }
 

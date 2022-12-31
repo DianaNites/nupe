@@ -9,8 +9,8 @@ use crate::{
         RawCoff, RawDos, RawPe, RawPe32, RawPe32x64, RawPeImageStandard, RawSectionHeader,
         PE32_64_MAGIC, PE32_MAGIC, PE_MAGIC,
     },
-    CoffAttributes, DataDirIdent, DllCharacteristics, MachineType, OwnedOrRef, Pe,
-    RawDataDirectory, Section, SectionAttributes, Subsystem, VecOrSlice,
+    CoffAttributes, DataDirIdent, DllAttributes, MachineType, OwnedOrRef, Pe, RawDataDirectory,
+    Section, SectionAttributes, Subsystem, VecOrSlice,
 };
 
 /// Default image base to use
@@ -62,7 +62,7 @@ pub struct PeBuilder<'data, State> {
     attributes: CoffAttributes,
 
     /// DLL Attributes
-    dll_attributes: DllCharacteristics,
+    dll_attributes: DllAttributes,
 
     /// Subsystem
     subsystem: Subsystem,
@@ -102,7 +102,7 @@ impl<'data> PeBuilder<'data, states::Empty> {
             dos: None,
             attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
             subsystem: Subsystem::UNKNOWN,
-            dll_attributes: DllCharacteristics::empty(),
+            dll_attributes: DllAttributes::empty(),
             stack: (0, 0),
             heap: (0, 0),
             os_ver: (0, 0),
@@ -204,7 +204,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     }
 
     /// DLL Attributes for the [`crate::Pe`] image.
-    pub fn dll_attributes(&mut self, attr: DllCharacteristics) -> &mut Self {
+    pub fn dll_attributes(&mut self, attr: DllAttributes) -> &mut Self {
         self.dll_attributes = attr;
         self
     }
