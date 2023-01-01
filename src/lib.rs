@@ -334,17 +334,17 @@ impl<'data> Section<'data> {
     }
 
     /// Address to the first byte of the section, relative to the image base.
-    pub fn virtual_address(&self) -> u32 {
+    pub fn mem_ptr(&self) -> u32 {
         self.header.mem_ptr
     }
 
     /// Size of the section in memory, zero padded if needed.
-    pub fn virtual_size(&self) -> u32 {
+    pub fn mem_size(&self) -> u32 {
         self.header.mem_size
     }
 
     /// Offset of the section data on disk
-    pub fn file_offset(&self) -> u32 {
+    pub fn disk_offset(&self) -> u32 {
         self.header.disk_offset
     }
 
@@ -358,7 +358,7 @@ impl<'data> Section<'data> {
     /// The file_size field is rounded up to a multiple of the file alignment,
     /// but virtual_size is not. That means file_size includes extra padding not
     /// actually part of the section, and that virtual_size is the true size.
-    pub fn file_size(&self) -> u32 {
+    pub fn disk_size(&self) -> u32 {
         self.header.disk_size
     }
 
@@ -386,8 +386,8 @@ impl<'data> Section<'data> {
     pub fn virtual_data(&self) -> Option<&'data [u8]> {
         if let Some((base, size)) = self.base {
             if size
-                .checked_sub(self.virtual_address() as usize)
-                .and_then(|s| s.checked_sub(self.virtual_size() as usize))
+                .checked_sub(self.mem_ptr() as usize)
+                .and_then(|s| s.checked_sub(self.mem_size() as usize))
                 .ok_or(Error::NotEnoughData)
                 .is_err()
             {
@@ -401,8 +401,8 @@ impl<'data> Section<'data> {
             // - We double check to make sure we're in-bounds above
             Some(unsafe {
                 core::slice::from_raw_parts(
-                    base.wrapping_add(self.virtual_address() as usize),
-                    self.virtual_size() as usize,
+                    base.wrapping_add(self.mem_ptr() as usize),
+                    self.mem_size() as usize,
                 )
             })
         } else {
@@ -470,7 +470,7 @@ mod tests {
         let cmdline = pe.section(".cmdline").unwrap();
         dbg!(&cmdline);
         let cmdline = core::str::from_utf8(
-            &TEST_IMAGE[cmdline.file_offset() as usize..][..cmdline.file_size() as usize],
+            &TEST_IMAGE[cmdline.disk_offset() as usize..][..cmdline.disk_size() as usize],
         );
         dbg!(&cmdline);
 
@@ -523,9 +523,9 @@ mod tests {
                 SectionBuilder::new()
                     .name(".text")
                     .data({
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
+                        &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
-                    .mem_size(sec.virtual_size())
+                    .mem_size(sec.mem_size())
                     .disk_offset(1024)
                     .attributes(
                         SectionAttributes::CODE | SectionAttributes::EXEC | SectionAttributes::READ,
@@ -536,17 +536,17 @@ mod tests {
                 SectionBuilder::new()
                     .name(".rdata")
                     .data({
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
+                        &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
-                    .mem_size(sec.virtual_size())
+                    .mem_size(sec.mem_size())
                     .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
             })
             .section({
                 let sec = in_pe.section(".data").unwrap();
                 SectionBuilder::new()
                     .name(".data")
-                    .data(&RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize])
-                    .mem_size(sec.virtual_size())
+                    .data(&RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize])
+                    .mem_size(sec.mem_size())
                     .attributes(
                         SectionAttributes::INITIALIZED
                             | SectionAttributes::READ
@@ -558,9 +558,9 @@ mod tests {
                 SectionBuilder::new()
                     .name(".pdata")
                     .data({
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
+                        &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
-                    .mem_size(sec.virtual_size())
+                    .mem_size(sec.mem_size())
                     .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
             })
             .section({
@@ -568,9 +568,9 @@ mod tests {
                 SectionBuilder::new()
                     .name("_RDATA")
                     .data({
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
+                        &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
-                    .mem_size(sec.virtual_size())
+                    .mem_size(sec.mem_size())
                     .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
             })
             .section({
@@ -578,9 +578,9 @@ mod tests {
                 SectionBuilder::new()
                     .name(".reloc")
                     .data({
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
+                        &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
-                    .mem_size(sec.virtual_size())
+                    .mem_size(sec.mem_size())
                     .attributes(
                         SectionAttributes::INITIALIZED
                             | SectionAttributes::READ

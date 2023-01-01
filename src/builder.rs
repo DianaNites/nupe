@@ -351,7 +351,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             .try_into()
             .map_err(|_| Error::TooMuchData)?;
         let sections_size = self.sections.len() * size_of::<RawSectionHeader>();
-        let section_data_size: u32 = self.sections.iter().map(|(s, _)| s.file_size()).sum();
+        let section_data_size: u32 = self.sections.iter().map(|(s, _)| s.disk_size()).sum();
         let section_data_size: usize = section_data_size
             .try_into()
             .map_err(|_| Error::TooMuchData)?;
@@ -384,16 +384,16 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // Get section sizes
         for (section, _) in self.sections.iter() {
             if section.flags() & SectionAttributes::CODE != SectionAttributes::empty() {
-                code_sum += section.virtual_size();
-                code_ptr = section.virtual_address();
+                code_sum += section.mem_size();
+                code_ptr = section.mem_ptr();
             } else if section.flags() & SectionAttributes::INITIALIZED != SectionAttributes::empty()
             {
-                init_sum += section.virtual_size();
-                data_ptr = section.virtual_address();
+                init_sum += section.mem_size();
+                data_ptr = section.mem_ptr();
             } else if section.flags() & SectionAttributes::UNINITIALIZED
                 != SectionAttributes::empty()
             {
-                uninit_sum += section.virtual_size()
+                uninit_sum += section.mem_size()
             }
         }
 
@@ -512,12 +512,12 @@ impl<'data> PeBuilder<'data, states::Machine> {
         for (s, bytes) in self.sections.iter() {
             // &out[s.file_offset() as usize..][..s.file_size() as usize];
             if out.len()
-                < (s.file_offset() as usize
-                    + s.file_size() as usize
-                    + (s.file_size().abs_diff(s.virtual_size()) as usize))
+                < (s.disk_offset() as usize
+                    + s.disk_size() as usize
+                    + (s.disk_size().abs_diff(s.mem_size()) as usize))
             {
                 let start = out.len();
-                let end = s.file_offset() as usize + s.file_size() as usize;
+                let end = s.disk_offset() as usize + s.disk_size() as usize;
                 let diff = end - start;
                 for _ in 0..(diff / 128) {
                     out.extend_from_slice(&[0; 128]);
@@ -526,10 +526,10 @@ impl<'data> PeBuilder<'data, states::Machine> {
                     out.push(b'\0');
                 }
             }
-            let end = s.virtual_size();
-            let end = end.min(s.file_size()) as usize;
-            out[s.file_offset() as usize..][..end].copy_from_slice(&bytes[..end]);
-            written += s.file_size() as usize;
+            let end = s.mem_size();
+            let end = end.min(s.disk_size()) as usize;
+            out[s.disk_offset() as usize..][..end].copy_from_slice(&bytes[..end]);
+            written += s.disk_size() as usize;
         }
 
         assert_eq!(min_size, written, "Min size didn't equal written");
@@ -569,8 +569,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // Highest VA seen, and its size
         let mut max_va = (self.section_align as u32, 0);
         for (section, _) in self.sections.iter() {
-            let va = max_va.0.max(section.virtual_address());
-            let size = section.virtual_size();
+            let va = max_va.0.max(section.mem_ptr());
+            let size = section.mem_size();
             max_va = (va, size);
         }
         let ret = max_va.0 + max_va.1;
@@ -590,8 +590,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
         for (section, _) in self.sections.iter() {
             // FIXME: Am I just high or is this wrong
             // size will be wrong????
-            let off = max_off.0.max(section.file_offset());
-            let size = section.file_size();
+            let off = max_off.0.max(section.disk_offset());
+            let size = section.disk_size();
             max_off = (off, size);
         }
 
@@ -613,7 +613,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
                     .map(|s| {
                         // FIXME: Why Vec?
                         let v = VecOrSlice::Vec(
-                            pe_bytes[s.file_offset() as usize..][..s.file_size() as usize].to_vec(),
+                            pe_bytes[s.disk_offset() as usize..][..s.disk_size() as usize].to_vec(),
                         );
                         (s, v)
                     })
