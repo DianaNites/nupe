@@ -330,189 +330,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
             + sections_sum
     }
 
-    /// Write the optional header, including data dirs.
-    fn write_opt(&mut self, out: &mut Vec<u8>, plus: bool) -> Result<()> {
-        let mut code_sum = 0;
-        let mut init_sum = 0;
-        let mut uninit_sum = 0;
-        let mut code_base = 0;
-        let mut data_base = 0;
-        // Get section sizes
-        for (section, _) in self.sections.iter() {
-            if section.flags() & SectionAttributes::CODE != SectionAttributes::empty() {
-                code_sum += section.file_size();
-                code_base = section.virtual_address();
-            } else if section.flags() & SectionAttributes::INITIALIZED != SectionAttributes::empty()
-            {
-                init_sum += section.file_size().max({
-                    let size = section.virtual_size();
-                    if size % self.disk_align as u32 != 0 {
-                        size + (self.disk_align as u32 - (size % self.disk_align as u32))
-                    } else {
-                        size
-                    }
-                });
-                data_base = section.virtual_address();
-            } else if section.flags() & SectionAttributes::UNINITIALIZED
-                != SectionAttributes::empty()
-            {
-                uninit_sum += section.virtual_size()
-            }
-        }
-
-        // Create standard subset
-        let opt = RawPeImageStandard::new(
-            if plus { PE32_64_MAGIC } else { PE32_MAGIC },
-            self.linker_ver.0,
-            self.linker_ver.1,
-            self.code_size.unwrap_or(code_sum),
-            self.init_size.unwrap_or(init_sum),
-            self.uninit_size.unwrap_or(uninit_sum),
-            // FIXME: Entry point will be incredibly error prone.
-            self.entry,
-            code_base,
-        );
-        let headers_size = (size_of::<RawDos>()
-            + self
-                .dos
-                .as_ref()
-                .map(|(_, stub)| stub.len())
-                .unwrap_or_default()
-            + size_of::<RawPe>()
-            + (size_of::<RawSectionHeader>() * self.sections.len()))
-            as u64;
-
-        // NOTE: SizeOfImage is, apparently, just the next offset a section *would* go.
-        let image_size = self.next_mem_ptr() as u64;
-
-        let headers_size = headers_size + (self.disk_align - (headers_size % self.disk_align));
-        // 568 + (512 - (568 % 512))
-        if plus {
-            let pe = RawPe32x64::new(
-                opt,
-                self.image_base,
-                self.section_align as u32,
-                self.disk_align as u32,
-                self.os_ver.0,
-                self.os_ver.1,
-                self.image_ver.0,
-                self.image_ver.1,
-                self.subsystem_ver.0,
-                self.subsystem_ver.1,
-                image_size as u32,
-                headers_size as u32,
-                self.subsystem,
-                self.dll_attributes,
-                self.stack.0,
-                self.stack.1,
-                self.heap.0,
-                self.heap.1,
-                self.data_dirs
-                    .len()
-                    .try_into()
-                    .map_err(|_| Error::InvalidData)?,
-            );
-            let bytes = unsafe {
-                let ptr = &pe as *const RawPe32x64 as *const u8;
-                from_raw_parts(ptr, size_of::<RawPe32x64>())
-            };
-            out.extend_from_slice(bytes);
-        } else {
-            let pe = RawPe32::new(
-                opt,
-                data_base,
-                self.image_base as u32,
-                self.section_align as u32,
-                self.disk_align as u32,
-                self.os_ver.0,
-                self.os_ver.1,
-                self.image_ver.0,
-                self.image_ver.1,
-                self.subsystem_ver.0,
-                self.subsystem_ver.1,
-                image_size as u32,
-                headers_size as u32,
-                self.subsystem,
-                self.dll_attributes,
-                self.stack.0 as u32,
-                self.stack.1 as u32,
-                self.heap.0 as u32,
-                self.heap.1 as u32,
-                self.data_dirs
-                    .len()
-                    .try_into()
-                    .map_err(|_| Error::InvalidData)?,
-            );
-            let bytes = unsafe {
-                let ptr = &pe as *const RawPe32 as *const u8;
-                from_raw_parts(ptr, size_of::<RawPe32>())
-            };
-            out.extend_from_slice(bytes);
-        };
-
-        // Data dirs
-        let bytes = unsafe {
-            let ptr = self.data_dirs.as_ptr() as *const u8;
-            from_raw_parts(ptr, size_of::<RawDataDirectory>() * self.data_dirs.len())
-        };
-        out.extend_from_slice(bytes);
-
-        Ok(())
-    }
-
-    /// Write section table and data
-    fn write_sections(&mut self, out: &mut Vec<u8>) -> Result<()> {
-        // Reserve all the needed on-disk space
-        // - The section table
-        // - The section data
-        out.reserve(
-            (size_of::<RawSectionHeader>() * self.sections.len())
-                + self
-                    .sections
-                    .iter()
-                    .map(|(s, _)| s.file_offset() + s.file_size())
-                    .map(|s| s as usize)
-                    .sum::<usize>(),
-        );
-
-        // Section table
-        for (s, _) in self.sections.iter() {
-            let bytes = unsafe {
-                let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
-                from_raw_parts(ptr, size_of::<RawSectionHeader>())
-            };
-            out.extend_from_slice(bytes);
-            // panic!("{}", bytes.len());
-        }
-
-        // FIXME: Have to be able to write to arbitrary offsets, actually.
-        // Need a Seek, Read, Write, and Cursor impl?
-
-        // Section data
-        for (s, bytes) in self.sections.iter() {
-            // &out[s.file_offset() as usize..][..s.file_size() as usize];
-            if out.len()
-                < (s.file_offset() as usize
-                    + s.file_size() as usize
-                    + (s.file_size().abs_diff(s.virtual_size()) as usize))
-            {
-                let start = out.len();
-                let end = s.file_offset() as usize + s.file_size() as usize;
-                let diff = end - start;
-                for _ in 0..(diff / 128) {
-                    out.extend_from_slice(&[0; 128])
-                }
-                for _ in 0..(diff % 128) {
-                    out.push(b'\0')
-                }
-            }
-            let end = s.virtual_size();
-            let end = end.min(s.file_size()) as usize;
-            out[s.file_offset() as usize..][..end].copy_from_slice(&bytes[..end]);
-        }
-        Ok(())
-    }
-
     /// Write the Image, appending to `out`
     // TODO: It should be perfectly possible to calculate the exact size of
     // the buffer needed, so allowing two different functions,
@@ -534,6 +351,14 @@ impl<'data> PeBuilder<'data, states::Machine> {
             .try_into()
             .map_err(|_| Error::TooMuchData)?;
         let sections_size = self.sections.len() * size_of::<RawSectionHeader>();
+        let section_data_size: u32 = self
+            .sections
+            .iter()
+            .map(|(s, _)| s.file_offset() + s.file_size())
+            .sum();
+        let section_data_size: usize = section_data_size
+            .try_into()
+            .map_err(|_| Error::TooMuchData)?;
 
         let img_hdr_size: u16 = if self.plus {
             size_of::<RawPe32x64>()
@@ -568,14 +393,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
             } else if section.flags() & SectionAttributes::INITIALIZED != SectionAttributes::empty()
             {
                 init_sum += section.virtual_size();
-                // init_sum += section.file_size().max({
-                //     let size = section.virtual_size();
-                //     if size % self.disk_align as u32 != 0 {
-                //         size + (self.disk_align as u32 - (size % self.disk_align as u32))
-                //     } else {
-                //         size
-                //     }
-                // });
                 data_ptr = section.virtual_address();
             } else if section.flags() & SectionAttributes::UNINITIALIZED
                 != SectionAttributes::empty()
@@ -637,8 +454,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
             + (dos.pe_offset as usize).saturating_sub(size_of::<RawDos>() + stub.len())
             + size_of::<RawPe>()
             + <u16 as Into<usize>>::into(img_hdr_size)
-            + <u16 as Into<usize>>::into(data_size);
-        // + sections_size;
+            + <u16 as Into<usize>>::into(data_size)
+            + sections_size;
+        // + section_data_size;
         out.reserve(min_size);
         let mut written = 0;
 
@@ -682,6 +500,20 @@ impl<'data> PeBuilder<'data, states::Machine> {
         out.extend_from_slice(bytes);
         written += bytes.len();
 
+        // Section Headers
+        for (s, _) in self.sections.iter() {
+            let bytes = unsafe {
+                let ptr = s.header.as_ref() as *const RawSectionHeader as *const u8;
+                from_raw_parts(ptr, size_of::<RawSectionHeader>())
+            };
+            out.extend_from_slice(bytes);
+            written += bytes.len();
+        }
+
+        // Section Data
+        // FIXME: Have to be able to write to arbitrary offsets, actually.
+        // Need a Seek, Read, Write, and Cursor impl?
+
         assert_eq!(min_size, written, "Min size didn't equal written");
         Ok(())
     }
@@ -709,23 +541,36 @@ impl<'data> PeBuilder<'data, states::Machine> {
         /// being written.
         struct _DummyHoverWriteDocs;
         out.clear();
-        let machine = self.machine;
-        let plus = match machine {
-            MachineType::AMD64 => Ok(true),
-            MachineType::I386 => Ok(false),
-            _ => Err(Error::Unsupported),
-        }?;
-
-        let expected_opt_size = 0;
-
-        let size = out.len();
-        self.write_opt(out, plus)?;
-        let size = out.len() - size;
-        // dbg!(expected_opt_size, size);
-        assert_eq!(expected_opt_size, size);
 
         self.write_sections(out)?;
 
+        Ok(())
+    }
+
+    /// Write section table and data
+    fn write_sections(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        // Section data
+        for (s, bytes) in self.sections.iter() {
+            // &out[s.file_offset() as usize..][..s.file_size() as usize];
+            if out.len()
+                < (s.file_offset() as usize
+                    + s.file_size() as usize
+                    + (s.file_size().abs_diff(s.virtual_size()) as usize))
+            {
+                let start = out.len();
+                let end = s.file_offset() as usize + s.file_size() as usize;
+                let diff = end - start;
+                for _ in 0..(diff / 128) {
+                    out.extend_from_slice(&[0; 128])
+                }
+                for _ in 0..(diff % 128) {
+                    out.push(b'\0')
+                }
+            }
+            let end = s.virtual_size();
+            let end = end.min(s.file_size()) as usize;
+            out[s.file_offset() as usize..][..end].copy_from_slice(&bytes[..end]);
+        }
         Ok(())
     }
 
@@ -895,7 +740,6 @@ pub struct SectionBuilder<'data> {
     disk_offset: Option<u32>,
     disk_size: Option<u32>,
     mem_size: Option<u32>,
-    uninit: u32,
 }
 
 impl<'data> SectionBuilder<'data> {
@@ -910,14 +754,12 @@ impl<'data> SectionBuilder<'data> {
     /// It is important to make sure these uphold the PE invariants.
     // #[cfg(no)]
     fn to_raw_section(&self, mem_ptr: u32, disk_offset: u32, disk_align: u32) -> RawSectionHeader {
-        let mem_size = self.mem_size.unwrap_or_default();
-        let len = mem_size + self.uninit;
-        let va = mem_ptr;
+        let mem_size = self.mem_size.unwrap();
+        let len = mem_size;
         let disk_offset = self.disk_offset.unwrap_or(disk_offset);
 
         let disk_size = self.disk_size.unwrap_or(mem_size);
-        // FIXME: Account for header size!
-        let disk_size = if disk_size % disk_align == 0 {
+        let disk_size = if disk_size % disk_align != 0 {
             disk_size + (disk_align - (disk_size % disk_align))
         } else {
             disk_size
@@ -926,7 +768,7 @@ impl<'data> SectionBuilder<'data> {
         RawSectionHeader {
             name: self.name,
             mem_size: len,
-            mem_ptr: va,
+            mem_ptr,
             disk_size,
             disk_offset,
             reloc_offset: 0,
@@ -948,7 +790,6 @@ impl<'data> SectionBuilder<'data> {
             disk_offset: None,
             disk_size: None,
             mem_size: None,
-            uninit: 0,
         }
     }
 
@@ -974,21 +815,21 @@ impl<'data> SectionBuilder<'data> {
         // TODO: From/Into impl
         self.data = VecOrSlice::Slice(data);
         self.mem_size = Some(data.len() as u32);
+        self.disk_size = Some(data.len() as u32);
         self
     }
 
-    /// Additional, uninitialized, data for this section.
+    /// Manually set `MemSize`
     ///
-    /// The result of `MemSize + uninit` is used as
-    /// the `MemSize` value for this section.
+    /// Defaults to the size of data
     ///
-    /// This will override previous calls.
-    pub fn uninit(&mut self, uninit: u32) -> &mut Self {
-        self.uninit = uninit;
+    /// This is for advanced use-cases
+    pub fn mem_size(&mut self, size: u32) -> &mut Self {
+        self.mem_size = Some(size);
         self
     }
 
-    /// File offset to the section.
+    /// Disk offset to the section.
     /// Defaults to next available, or the file alignment, aligned as needed.
     /// TODO: Absolutely must account for header size here.
     ///
@@ -997,7 +838,7 @@ impl<'data> SectionBuilder<'data> {
     /// If not it will silently be rounded up to the next alignment.
     ///
     /// This MUST not overlap with another section
-    pub fn file_offset(&mut self, offset: u32) -> &mut Self {
+    pub fn disk_offset(&mut self, offset: u32) -> &mut Self {
         self.disk_offset = Some(offset);
         self
     }
@@ -1011,8 +852,8 @@ impl<'data> SectionBuilder<'data> {
     /// alignment.
     ///
     /// TODO: *Don't* enforce alignment here
-    pub fn file_size(&mut self, offset: u32) -> &mut Self {
-        self.disk_offset = Some(offset);
+    pub fn disk_size(&mut self, size: u32) -> &mut Self {
+        self.disk_size = Some(size);
         self
     }
 
