@@ -591,7 +591,7 @@ mod tests {
         // let mut pe = PeBuilder::from_pe(&in_pe, RUSTUP_IMAGE);
         // NOTE: Rustup's value isn't correct
         dbg!(&pe);
-        // pe.code_size(in_pe.opt().code_size());
+        pe.code_size(in_pe.opt().code_size());
         pe.init_size(in_pe.opt().init_size());
         // pe.uninit_size(in_pe.opt().uninit_size());
         dbg!(&pe);
@@ -629,7 +629,8 @@ mod tests {
                 .sum::<usize>();
         let x = x - y;
         assert_eq!(&RUSTUP_IMAGE[y..][..x], &out[y..][..x]);
-        // assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
+        assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
+        assert_eq!(RUSTUP_IMAGE, &out[..]);
 
         Ok(())
     }

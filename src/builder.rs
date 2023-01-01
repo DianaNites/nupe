@@ -384,6 +384,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // Get section sizes
         for (section, _) in self.sections.iter() {
             if section.flags() & SectionAttributes::CODE != SectionAttributes::empty() {
+                // FIXME: Should this be disk_size / only init size??
+                // Rustup exe seems to use that calculation???
                 code_sum += section.mem_size();
                 code_ptr = section.mem_ptr();
             } else if section.flags() & SectionAttributes::INITIALIZED != SectionAttributes::empty()
