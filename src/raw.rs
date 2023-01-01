@@ -132,6 +132,11 @@ impl RawDos {
         }
     }
 
+    /// Empty header with pe offset immediately after it
+    pub(crate) fn sized() -> Self {
+        Self::new(size_of::<Self>() as u32)
+    }
+
     /// Get a [`RawDos`] from `data`, and a new pointer length pair for the PE
     /// portion and the DOS stub.
     ///
