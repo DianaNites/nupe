@@ -468,13 +468,23 @@ bitflags! {
         const RESERVED_4 = 0x8;
         const HIGH_ENTROPY_VA = 0x20;
         const DYNAMIC_BASE = 0x40;
+
+        /// Enforce image is signed before execution
         const FORCE_INTEGRITY = 0x80;
+
+        /// Disable executable stack
         const NX_COMPAT = 0x100;
         const NO_ISOLATION = 0x200;
+
+        /// Disables Structured Exception Handling in the Image
         const NO_SEH = 0x400;
         const NO_BIND = 0x800;
+
+        /// Windows 8 Metro App
         const APP_CONTAINER = 0x1000;
         const WDM_DRIVER = 0x2000;
+
+        /// Image supports Control Flow Guard data
         const GUARD_CF = 0x4000;
         const TERMINAL_SERVER = 0x8000;
     }
