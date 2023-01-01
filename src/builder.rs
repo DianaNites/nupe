@@ -532,7 +532,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
             let end = end.min(s.disk_size()) as usize;
             out[s.disk_offset() as usize..][..end].copy_from_slice(&bytes[..end]);
             written += s.disk_size() as usize;
-            assert_eq!(s.disk_size() as usize, bytes.len());
         }
 
         assert_eq!(min_size, written, "Min size didn't equal written");
