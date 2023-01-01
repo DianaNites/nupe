@@ -445,6 +445,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 .map_err(|_| Error::InvalidData)?,
         )?;
 
+        // FIXME: Account for padding and alignment between areas
         let min_size: usize = size_of::<RawDos>()
             + stub.len()
             + (dos.pe_offset as usize).saturating_sub(size_of::<RawDos>() + stub.len())
@@ -510,7 +511,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
         // Section Data
         for (s, bytes) in self.sections.iter() {
-            // &out[s.file_offset() as usize..][..s.file_size() as usize];
             if out.len()
                 < (s.disk_offset() as usize
                     + s.disk_size() as usize
@@ -530,6 +530,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             let end = end.min(s.disk_size()) as usize;
             out[s.disk_offset() as usize..][..end].copy_from_slice(&bytes[..end]);
             written += s.disk_size() as usize;
+            assert_eq!(s.disk_size() as usize, bytes.len());
         }
 
         assert_eq!(min_size, written, "Min size didn't equal written");
