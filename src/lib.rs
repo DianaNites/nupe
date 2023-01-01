@@ -525,8 +525,8 @@ mod tests {
                     .data({
                         &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
-                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
-                    .file_offset(1024)
+                    .mem_size(sec.virtual_size())
+                    .disk_offset(1024)
                     .attributes(
                         SectionAttributes::CODE | SectionAttributes::EXEC | SectionAttributes::READ,
                     )
@@ -538,18 +538,15 @@ mod tests {
                     .data({
                         &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
-                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
+                    .mem_size(sec.virtual_size())
                     .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
             })
             .section({
                 let sec = in_pe.section(".data").unwrap();
                 SectionBuilder::new()
                     .name(".data")
-                    .data(
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize],
-                        // FIXME: Some(sec.file_size()),
-                    )
-                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
+                    .data(&RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize])
+                    .mem_size(sec.virtual_size())
                     .attributes(
                         SectionAttributes::INITIALIZED
                             | SectionAttributes::READ
@@ -563,7 +560,7 @@ mod tests {
                     .data({
                         &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
-                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
+                    .mem_size(sec.virtual_size())
                     .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
             })
             .section({
@@ -573,7 +570,7 @@ mod tests {
                     .data({
                         &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
-                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
+                    .mem_size(sec.virtual_size())
                     .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
             })
             .section({
@@ -583,7 +580,7 @@ mod tests {
                     .data({
                         &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
-                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
+                    .mem_size(sec.virtual_size())
                     .attributes(
                         SectionAttributes::INITIALIZED
                             | SectionAttributes::READ
@@ -595,7 +592,7 @@ mod tests {
         // NOTE: Rustup's value isn't correct
         dbg!(&pe);
         // pe.code_size(in_pe.opt().code_size());
-        // pe.init_size(in_pe.opt().init_size());
+        pe.init_size(in_pe.opt().init_size());
         // pe.uninit_size(in_pe.opt().uninit_size());
         dbg!(&pe);
         // panic!();
@@ -610,18 +607,23 @@ mod tests {
         }
 
         let x = size_of::<RawDos>()
-            + 128
-            + size_of::<RawPe>()
-            + size_of::<RawPeImageStandard>()
-            + (in_pe.data_dirs_len() as usize - 16 + 4) * size_of::<RawDataDirectory>()
-            + 4
-            + 4;
-        let x = size_of::<RawDos>()
             + in_pe.dos_stub().len()
             + size_of::<RawPe>()
-            // .
-             + 8;
-        // + size_of::<RawPe32x64>();
+            + size_of::<RawPe32x64>()
+            + in_pe.data_dirs_len() as usize * size_of::<RawDataDirectory>()
+            + in_pe.sections_len() * size_of::<RawSectionHeader>();
+        // + in_pe
+        //     .sections()
+        //     .map(|s| s.file_size() as usize)
+        //     .sum::<usize>();
+        let y = size_of::<RawDos>()
+            + in_pe.dos_stub().len()
+            + size_of::<RawPe>()
+            + size_of::<RawPe32x64>()
+            + in_pe.data_dirs_len() as usize * size_of::<RawDataDirectory>()
+            + 8;
+        let x = x - y;
+        assert_eq!(&RUSTUP_IMAGE[y..][..x], &out[y..][..x]);
         assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
 
         Ok(())
