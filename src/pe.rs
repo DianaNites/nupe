@@ -35,9 +35,16 @@ impl<'data> Pe<'data> {
     ///
     /// - `data` MUST be valid for `size` bytes.
     unsafe fn from_ptr_internal(data: *const u8, size: usize, loaded: bool) -> Result<Self> {
-        let (dos, (pe_ptr, pe_size), (stub_ptr, stub_size)) = RawDos::from_ptr(data, size)?;
+        let (dos, (pe_ptr, pe_size), (stub_ptr, stub_size)) = RawDos::from_ptr(data, size)
+            .map_err(|e| match e {
+                Error::NotEnoughData => Error::MissingDOS,
+                _ => e,
+            })?;
         let (pe, (opt_ptr, opt_size), (section_ptr, section_size)) =
-            RawPe::from_ptr(pe_ptr, pe_size)?;
+            RawPe::from_ptr(pe_ptr, pe_size).map_err(|e| match e {
+                Error::NotEnoughData => Error::MissingPE,
+                _ => e,
+            })?;
         let (header, (data_ptr, data_size)) = ImageHeader::from_ptr(opt_ptr, opt_size)?;
         let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
         let sections = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
