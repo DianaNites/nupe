@@ -12,8 +12,20 @@ pub enum Error {
     MissingOpt,
     InvalidData,
 
+    /// The operation is unsupported
+    Unsupported,
+
     /// Tried to modify data that was immutable
     ImmutableData,
+
+    /// Too much data was provided and couldn't fit within the image
+    TooMuchData,
+
+    /// Missing DOS header
+    MissingDOS,
+
+    /// Missing PE header
+    MissingPE,
 }
 
 impl fmt::Display for Error {
@@ -24,7 +36,14 @@ impl fmt::Display for Error {
             Self::NotEnoughData => write!(f, "not enough data"),
             Self::MissingOpt => write!(f, "missing optional header"),
             Self::InvalidData => write!(f, "invalid data"),
+            Self::Unsupported => write!(f, "operation is unsupported"),
             Self::ImmutableData => write!(f, "immutable data"),
+            Self::TooMuchData => write!(
+                f,
+                "too much data was provided and couldn't fit within the image"
+            ),
+            Self::MissingDOS => write!(f, "missing DOS header"),
+            Self::MissingPE => write!(f, "missing PE header"),
         }
     }
 }
