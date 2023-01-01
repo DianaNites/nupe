@@ -21,11 +21,17 @@ pub enum Error {
     /// Too much data was provided and couldn't fit within the image
     TooMuchData,
 
-    /// Missing DOS header
+    /// Not enough data, missing DOS header
     MissingDOS,
 
-    /// Missing PE header
+    /// Not enough data, missing PE header
     MissingPE,
+
+    /// Not enough data, missing Image Header
+    MissingImageHeader,
+
+    /// Missing the Section Table
+    MissingSectionTable,
 }
 
 impl fmt::Display for Error {
@@ -44,6 +50,8 @@ impl fmt::Display for Error {
             ),
             Self::MissingDOS => write!(f, "missing DOS header"),
             Self::MissingPE => write!(f, "missing PE header"),
+            Self::MissingImageHeader => write!(f, "missing Image header"),
+            Self::MissingSectionTable => write!(f, "missing section table"),
         }
     }
 }

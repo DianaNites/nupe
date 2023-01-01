@@ -20,7 +20,7 @@ mod internal;
 mod pe;
 pub mod raw;
 
-use core::mem::size_of;
+use core::{mem::size_of, slice::from_raw_parts};
 
 use crate::{
     error::{Error, Result},
@@ -38,6 +38,120 @@ pub use crate::{
 pub enum ImageHeader<'data> {
     Raw32(OwnedOrRef<'data, RawPe32>),
     Raw64(OwnedOrRef<'data, RawPe32x64>),
+}
+
+impl<'data> ImageHeader<'data> {
+    /// Wrapper around [`RawPe32::new`] and [`RawPe32x64::new`]
+    ///
+    /// Always takes arguments in 64-bit, errors if out of bounds
+    ///
+    /// if `plus` is true then the PE32+ / 64-bit header is used
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        plus: bool,
+        standard: RawPeImageStandard,
+        data_ptr: u32,
+        image_ptr: u64,
+        mem_align: u32,
+        disk_align: u32,
+        os_major: u16,
+        os_minor: u16,
+        image_major: u16,
+        image_minor: u16,
+        subsystem_major: u16,
+        subsystem_minor: u16,
+        image_size: u32,
+        headers_size: u32,
+        subsystem: Subsystem,
+        dll_attributes: DllAttributes,
+        stack_reserve: u64,
+        stack_commit: u64,
+        heap_reserve: u64,
+        heap_commit: u64,
+        data_dirs: u32,
+    ) -> Result<Self> {
+        if plus {
+            Ok(ImageHeader::Raw64(OwnedOrRef::Owned(RawPe32x64::new(
+                standard,
+                image_ptr,
+                mem_align,
+                disk_align,
+                os_major,
+                os_minor,
+                image_major,
+                image_minor,
+                subsystem_major,
+                subsystem_minor,
+                image_size,
+                headers_size,
+                subsystem,
+                dll_attributes,
+                stack_reserve,
+                stack_commit,
+                heap_reserve,
+                heap_commit,
+                data_dirs,
+            ))))
+        } else {
+            Ok(ImageHeader::Raw32(OwnedOrRef::Owned(RawPe32::new(
+                standard,
+                data_ptr,
+                image_ptr.try_into().map_err(|_| Error::TooMuchData)?,
+                mem_align,
+                disk_align,
+                os_major,
+                os_minor,
+                image_major,
+                image_minor,
+                subsystem_major,
+                subsystem_minor,
+                image_size,
+                headers_size,
+                subsystem,
+                dll_attributes,
+                stack_reserve.try_into().map_err(|_| Error::TooMuchData)?,
+                stack_commit.try_into().map_err(|_| Error::TooMuchData)?,
+                heap_reserve.try_into().map_err(|_| Error::TooMuchData)?,
+                heap_commit.try_into().map_err(|_| Error::TooMuchData)?,
+                data_dirs,
+            ))))
+        }
+    }
+
+    /// Get header as a byte slice
+    pub(crate) fn as_slice(&self) -> &[u8] {
+        match self {
+            ImageHeader::Raw32(h) => {
+                //
+                let ptr = h.as_ref() as *const RawPe32 as *const u8;
+                unsafe { from_raw_parts(ptr, size_of::<RawPe32>()) }
+            }
+            ImageHeader::Raw64(h) => {
+                //
+                let ptr = h.as_ref() as *const RawPe32x64 as *const u8;
+                unsafe { from_raw_parts(ptr, size_of::<RawPe32x64>()) }
+            }
+        }
+    }
+
+    pub(crate) fn code_size(&self) -> u32 {
+        match self {
+            ImageHeader::Raw32(h) => h.standard.code_size,
+            ImageHeader::Raw64(h) => h.standard.code_size,
+        }
+    }
+    pub(crate) fn init_size(&self) -> u32 {
+        match self {
+            ImageHeader::Raw32(h) => h.standard.init_size,
+            ImageHeader::Raw64(h) => h.standard.init_size,
+        }
+    }
+    pub(crate) fn uninit_size(&self) -> u32 {
+        match self {
+            ImageHeader::Raw32(h) => h.standard.uninit_size,
+            ImageHeader::Raw64(h) => h.standard.uninit_size,
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -117,7 +231,7 @@ impl<'data> ImageHeader<'data> {
     }
 
     /// Stack (commit, reserve)
-    pub fn stack(&self) -> (u64, u64) {
+    pub(crate) fn stack(&self) -> (u64, u64) {
         match self {
             ImageHeader::Raw32(h) => (h.stack_commit.into(), h.stack_reserve.into()),
             ImageHeader::Raw64(h) => (h.stack_commit, h.stack_reserve),
@@ -125,7 +239,7 @@ impl<'data> ImageHeader<'data> {
     }
 
     /// Heap (commit, reserve)
-    pub fn heap(&self) -> (u64, u64) {
+    pub(crate) fn heap(&self) -> (u64, u64) {
         match self {
             ImageHeader::Raw32(h) => (h.heap_commit.into(), h.heap_reserve.into()),
             ImageHeader::Raw64(h) => (h.heap_commit, h.heap_reserve),
@@ -404,79 +518,87 @@ mod tests {
         }
         // #[cfg(no)]
         {
-            pe.section(
+            pe.section({
+                let sec = in_pe.section(".text").unwrap();
                 SectionBuilder::new()
                     .name(".text")
                     .data({
-                        //
-                        let sec = in_pe.section(".text").unwrap();
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
+                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
                     .file_offset(1024)
                     .attributes(
                         SectionAttributes::CODE | SectionAttributes::EXEC | SectionAttributes::READ,
-                    ),
-            )
-            .section(
+                    )
+            })
+            .section({
+                let sec = in_pe.section(".rdata").unwrap();
                 SectionBuilder::new()
                     .name(".rdata")
                     .data({
-                        //
-                        let sec = in_pe.section(".rdata").unwrap();
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
-                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
-            )
+                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
+                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
+            })
             .section({
                 let sec = in_pe.section(".data").unwrap();
                 SectionBuilder::new()
                     .name(".data")
                     .data(
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize],
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize],
                         // FIXME: Some(sec.file_size()),
                     )
+                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
                     .attributes(
                         SectionAttributes::INITIALIZED
                             | SectionAttributes::READ
                             | SectionAttributes::WRITE,
                     )
             })
-            .section(
+            .section({
+                let sec = in_pe.section(".pdata").unwrap();
                 SectionBuilder::new()
                     .name(".pdata")
                     .data({
-                        //
-                        let sec = in_pe.section(".pdata").unwrap();
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
-                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
-            )
-            .section(
+                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
+                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
+            })
+            .section({
+                let sec = in_pe.section("_RDATA").unwrap();
                 SectionBuilder::new()
                     .name("_RDATA")
                     .data({
-                        //
-                        let sec = in_pe.section("_RDATA").unwrap();
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
-                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ),
-            )
-            .section(
+                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
+                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
+            })
+            .section({
+                let sec = in_pe.section(".reloc").unwrap();
                 SectionBuilder::new()
                     .name(".reloc")
                     .data({
-                        //
-                        let sec = in_pe.section(".reloc").unwrap();
-                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.virtual_size() as usize]
+                        &RUSTUP_IMAGE[sec.file_offset() as usize..][..sec.file_size() as usize]
                     })
+                    .uninit(sec.virtual_size().saturating_sub(sec.file_size()))
                     .attributes(
                         SectionAttributes::INITIALIZED
                             | SectionAttributes::READ
                             | SectionAttributes::DISCARDABLE,
-                    ),
-            );
+                    )
+            });
         }
-        // let mut pe = PeBuilder::from_pe(&in_pe, &RUSTUP_IMAGE);
+        // let mut pe = PeBuilder::from_pe(&in_pe, RUSTUP_IMAGE);
+        // NOTE: Rustup's value isn't correct
+        dbg!(&pe);
+        // pe.code_size(in_pe.opt().code_size());
+        // pe.init_size(in_pe.opt().init_size());
+        // pe.uninit_size(in_pe.opt().uninit_size());
+        dbg!(&pe);
+        // panic!();
         let mut out: Vec<u8> = Vec::new();
         pe.write(&mut out)?;
         //
@@ -494,7 +616,12 @@ mod tests {
             + (in_pe.data_dirs_len() as usize - 16 + 4) * size_of::<RawDataDirectory>()
             + 4
             + 4;
-        let x = size_of::<RawDos>() + in_pe.dos_stub().len() + size_of::<RawPe>();
+        let x = size_of::<RawDos>()
+            + in_pe.dos_stub().len()
+            + size_of::<RawPe>()
+            // .
+             + 8;
+        // + size_of::<RawPe32x64>();
         assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
 
         Ok(())
