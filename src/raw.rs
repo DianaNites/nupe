@@ -323,18 +323,20 @@ impl RawPe {
         }
 
         let opt_size = pe.coff.img_hdr_size as usize;
+        // Check that the Image header fits
         size.checked_sub(
             size_of::<RawPe>()
                 .checked_add(opt_size)
                 .ok_or(Error::NotEnoughData)?,
         )
-        .ok_or(Error::NotEnoughData)?;
+        .ok_or(Error::MissingImageHeader)?;
         // Optional header appears directly after PE header
         let opt_ptr = data.wrapping_add(size_of::<RawPe>());
 
         let section_size = size_of::<RawSectionHeader>()
-            .checked_mul(pe.coff.sections as usize)
-            .ok_or(Error::NotEnoughData)?;
+            .checked_mul(pe.coff.sections.into())
+            .ok_or(Error::TooMuchData)?;
+        // Error out if `size` doesn't fit everything
         size.checked_sub(
             size_of::<RawPe>()
                 .checked_add(opt_size)
@@ -342,7 +344,7 @@ impl RawPe {
                 .checked_add(section_size)
                 .ok_or(Error::NotEnoughData)?,
         )
-        .ok_or(Error::NotEnoughData)?;
+        .ok_or(Error::MissingSectionTable)?;
         // Section table appears directly after PE and optional header
         let section_ptr = data.wrapping_add(
             size_of::<RawPe>()
@@ -531,10 +533,10 @@ impl RawPe32 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         standard: RawPeImageStandard,
-        data_base: u32,
-        image_base: u32,
-        section_align: u32,
-        file_align: u32,
+        data_ptr: u32,
+        image_ptr: u32,
+        mem_align: u32,
+        disk_align: u32,
         os_major: u16,
         os_minor: u16,
         image_major: u16,
@@ -553,10 +555,10 @@ impl RawPe32 {
     ) -> Self {
         Self {
             standard,
-            data_ptr: data_base,
-            image_base,
-            mem_align: section_align,
-            disk_align: file_align,
+            data_ptr,
+            image_base: image_ptr,
+            mem_align,
+            disk_align,
             os_major,
             os_minor,
             image_major,

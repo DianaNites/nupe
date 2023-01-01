@@ -52,7 +52,7 @@ pub struct PeBuilder<'data, State> {
     section_align: u64,
 
     /// Defaults to 512
-    file_align: u64,
+    disk_align: u64,
 
     /// Defaults to 0
     entry: u32,
@@ -89,6 +89,10 @@ pub struct PeBuilder<'data, State> {
 
     /// PE32 vs PE32+
     plus: bool,
+
+    code_size: Option<u32>,
+    init_size: Option<u32>,
+    uninit_size: Option<u32>,
 }
 
 impl<'data> PeBuilder<'data, states::Empty> {
@@ -102,7 +106,7 @@ impl<'data> PeBuilder<'data, states::Empty> {
             timestamp: 0,
             image_base: DEFAULT_IMAGE_BASE,
             section_align: 4096,
-            file_align: 512,
+            disk_align: 512,
             entry: 0,
             dos: None,
             attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
@@ -115,6 +119,9 @@ impl<'data> PeBuilder<'data, states::Empty> {
             subsystem_ver: (0, 0),
             linker_ver: (0, 0),
             plus: false,
+            code_size: None,
+            init_size: None,
+            uninit_size: None,
         }
     }
 
@@ -228,12 +235,12 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let header = section.to_raw_section(
             self.next_mem_ptr(),
             self.next_disk_offset(),
-            self.file_align as u32,
+            self.disk_align as u32,
         );
 
         match &mut self.sections {
             VecOrSlice::Vec(v) => v.push((
-                Section::new(OwnedOrRef::Owned(header), self.file_align as u32, None),
+                Section::new(OwnedOrRef::Owned(header), self.disk_align as u32, None),
                 // FIXME: to_vec
                 VecOrSlice::Vec(section.data.to_vec()),
                 // VecOrSlice::Slice(&section.data),
@@ -258,13 +265,40 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Append a data directory to the header.
     ///
-    /// Only use this if you know wat you're doing.
+    /// Only use this if you know what you're doing.
     /// The standard data directories are always included.
     pub fn append_data_dir(&mut self, address: u32, size: u32) -> &mut Self {
         match &mut self.data_dirs {
             VecOrSlice::Vec(v) => v.push(RawDataDirectory::new(address, size)),
             VecOrSlice::Slice(_) => todo!(),
         }
+        self
+    }
+
+    /// Manually set the CodeSize in the image
+    ///
+    /// This is very advanced and should only be used if you know what you're doing.
+    /// By default this is given a sensible value.
+    pub fn code_size(&mut self, size: u32) -> &mut Self {
+        self.code_size = Some(size);
+        self
+    }
+
+    /// Manually set the InitSize in the image
+    ///
+    /// This is very advanced and should only be used if you know what you're doing.
+    /// By default this is given a sensible value.
+    pub fn init_size(&mut self, size: u32) -> &mut Self {
+        self.init_size = Some(size);
+        self
+    }
+
+    /// Manually set the UninitSize in the image
+    ///
+    /// This is very advanced and should only be used if you know what you're doing.
+    /// By default this is given a sensible value.
+    pub fn uninit_size(&mut self, size: u32) -> &mut Self {
+        self.uninit_size = Some(size);
         self
     }
 }
@@ -296,87 +330,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
             + sections_sum
     }
 
-    /// Write the DOS header
-    ///
-    /// The PE offset is expected to point directly after the DOS header and
-    /// stub, aligned up to 8 bytes.
-    ///
-    /// TODO: May need to support more of the DOS format to be able to perfectly
-    /// represent this, because of hidden metadata between the stub and PE.
-    ///
-    /// By default there is no stub, and the header only contains the offset.
-    fn write_dos(out: &mut Vec<u8>, dos: &Option<(RawDos, VecOrSlice<u8>)>) -> Result<()> {
-        if let Some((dos, stub)) = dos {
-            // Provided header and stub, PE expected directly after this, aligned.
-            let bytes = unsafe {
-                let ptr = dos as *const RawDos as *const u8;
-                from_raw_parts(ptr, size_of::<RawDos>())
-            };
-            out.reserve(bytes.len() + stub.len() + 8);
-            out.extend_from_slice(bytes);
-            // Stub
-            out.extend_from_slice(stub);
-            // Align
-            let size = size_of::<RawDos>() + stub.len();
-            if size % 8 != 0 {
-                let align = size + (8 - (size % 8));
-                let align = align - size;
-                out.reserve(align);
-                for _ in 0..align {
-                    out.push(b'\0')
-                }
-            }
-        } else {
-            // No stub, PE expected directly after this, 64 is already 8 aligned.
-            let dos = RawDos::new(size_of::<RawDos>() as u32);
-            let bytes = unsafe {
-                let ptr = &dos as *const RawDos as *const u8;
-                from_raw_parts(ptr, size_of::<RawDos>())
-            };
-            out.extend_from_slice(bytes);
-        };
-        Ok(())
-    }
-
-    /// Write the PE header.
-    ///
-    /// If `plus` is true then expect PE32+ for the optional header.
-    ///
-    /// Returns the expected/computed size of the optional header
-    fn write_pe(
-        out: &mut Vec<u8>,
-        machine: MachineType,
-        plus: bool,
-        sections: u16,
-        timestamp: u32,
-        attributes: CoffAttributes,
-        data_dirs: usize,
-    ) -> Result<usize> {
-        out.extend_from_slice(PE_MAGIC);
-
-        let optional_size = (data_dirs * size_of::<RawDataDirectory>())
-            + if plus {
-                size_of::<RawPe32x64>()
-            } else {
-                size_of::<RawPe32>()
-            };
-
-        let coff = OwnedOrRef::Owned(RawCoff::new(
-            machine,
-            sections,
-            timestamp,
-            optional_size.try_into().map_err(|_| Error::InvalidData)?,
-            attributes,
-        ));
-
-        let bytes = unsafe {
-            let ptr = coff.as_ref() as *const RawCoff as *const u8;
-            from_raw_parts(ptr, size_of::<RawCoff>())
-        };
-        out.extend_from_slice(bytes);
-        Ok(optional_size)
-    }
-
     /// Write the optional header, including data dirs.
     fn write_opt(&mut self, out: &mut Vec<u8>, plus: bool) -> Result<()> {
         let mut code_sum = 0;
@@ -393,8 +346,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
             {
                 init_sum += section.file_size().max({
                     let size = section.virtual_size();
-                    if size % self.file_align as u32 != 0 {
-                        size + (self.file_align as u32 - (size % self.file_align as u32))
+                    if size % self.disk_align as u32 != 0 {
+                        size + (self.disk_align as u32 - (size % self.disk_align as u32))
                     } else {
                         size
                     }
@@ -412,9 +365,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
             if plus { PE32_64_MAGIC } else { PE32_MAGIC },
             self.linker_ver.0,
             self.linker_ver.1,
-            code_sum,
-            init_sum,
-            uninit_sum,
+            self.code_size.unwrap_or(code_sum),
+            self.init_size.unwrap_or(init_sum),
+            self.uninit_size.unwrap_or(uninit_sum),
             // FIXME: Entry point will be incredibly error prone.
             self.entry,
             code_base,
@@ -432,14 +385,14 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // NOTE: SizeOfImage is, apparently, just the next offset a section *would* go.
         let image_size = self.next_mem_ptr() as u64;
 
-        let headers_size = headers_size + (self.file_align - (headers_size % self.file_align));
+        let headers_size = headers_size + (self.disk_align - (headers_size % self.disk_align));
         // 568 + (512 - (568 % 512))
         if plus {
             let pe = RawPe32x64::new(
                 opt,
                 self.image_base,
                 self.section_align as u32,
-                self.file_align as u32,
+                self.disk_align as u32,
                 self.os_ver.0,
                 self.os_ver.1,
                 self.image_ver.0,
@@ -467,10 +420,10 @@ impl<'data> PeBuilder<'data, states::Machine> {
         } else {
             let pe = RawPe32::new(
                 opt,
-                self.image_base as u32,
                 data_base,
+                self.image_base as u32,
                 self.section_align as u32,
-                self.file_align as u32,
+                self.disk_align as u32,
                 self.os_ver.0,
                 self.os_ver.1,
                 self.image_ver.0,
@@ -575,11 +528,12 @@ impl<'data> PeBuilder<'data, states::Machine> {
             .map(|f| (f.0, VecOrSlice::Slice(&f.1)))
             .unwrap_or_else(|| (RawDos::sized(), VecOrSlice::Slice(&[])));
 
-        let sections_len = self
+        let sections_len: u16 = self
             .sections
             .len()
             .try_into()
             .map_err(|_| Error::TooMuchData)?;
+        let sections_size = self.sections.len() * size_of::<RawSectionHeader>();
 
         let img_hdr_size: u16 = if self.plus {
             size_of::<RawPe32x64>()
@@ -590,18 +544,101 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 .try_into()
                 .map_err(|_| Error::TooMuchData)?
         };
-        let data_len = self.data_dirs.len() * size_of::<RawDataDirectory>();
-        let data_len: u16 = data_len.try_into().map_err(|_| Error::TooMuchData)?;
+        let data_size = self.data_dirs.len() * size_of::<RawDataDirectory>();
+        let data_size: u16 = data_size.try_into().map_err(|_| Error::TooMuchData)?;
 
         let coff = OwnedOrRef::Owned(RawCoff::new(
             self.machine,
             sections_len,
             self.timestamp,
-            img_hdr_size + data_len,
+            img_hdr_size + data_size,
             self.attributes,
         ));
 
-        let min_size = size_of::<RawDos>() + stub.len() + size_of::<RawPe>();
+        let mut code_sum = 0;
+        let mut init_sum = 0;
+        let mut uninit_sum = 0;
+        let mut code_ptr = 0;
+        let mut data_ptr = 0;
+        // Get section sizes
+        for (section, _) in self.sections.iter() {
+            if section.flags() & SectionAttributes::CODE != SectionAttributes::empty() {
+                code_sum += section.virtual_size();
+                code_ptr = section.virtual_address();
+            } else if section.flags() & SectionAttributes::INITIALIZED != SectionAttributes::empty()
+            {
+                init_sum += section.virtual_size();
+                // init_sum += section.file_size().max({
+                //     let size = section.virtual_size();
+                //     if size % self.disk_align as u32 != 0 {
+                //         size + (self.disk_align as u32 - (size % self.disk_align as u32))
+                //     } else {
+                //         size
+                //     }
+                // });
+                data_ptr = section.virtual_address();
+            } else if section.flags() & SectionAttributes::UNINITIALIZED
+                != SectionAttributes::empty()
+            {
+                uninit_sum += section.virtual_size()
+            }
+        }
+
+        let image_size = self.next_mem_ptr();
+
+        // HeaderSize is the DOS stub, COFF Header, Image/Exec Header,
+        // section headers, and is aligned to `DiskAlign`.
+        // FIXME: What about pe offset? need to account for null space there?
+        let headers_size: u64 =
+            (size_of::<RawDos>() + stub.len() + size_of::<RawPe>() + sections_size) as u64;
+        let headers_size: u64 = headers_size + (self.disk_align - (headers_size % self.disk_align));
+
+        let exec = RawPeImageStandard::new(
+            if self.plus { PE32_64_MAGIC } else { PE32_MAGIC },
+            self.linker_ver.0,
+            self.linker_ver.1,
+            self.code_size.unwrap_or(code_sum),
+            self.init_size.unwrap_or(init_sum),
+            self.uninit_size.unwrap_or(uninit_sum),
+            // FIXME: Entry point will be incredibly error prone.
+            // Surely we can provide nicer here?
+            self.entry,
+            code_ptr,
+        );
+        let exec = ImageHeader::new(
+            true,
+            exec,
+            data_ptr,
+            self.image_base,
+            self.section_align as u32,
+            self.disk_align as u32,
+            self.os_ver.0,
+            self.os_ver.1,
+            self.image_ver.0,
+            self.image_ver.1,
+            self.subsystem_ver.0,
+            self.subsystem_ver.1,
+            image_size,
+            headers_size.try_into().map_err(|_| Error::TooMuchData)?,
+            self.subsystem,
+            self.dll_attributes,
+            self.stack.0,
+            self.stack.1,
+            self.heap.0,
+            self.heap.1,
+            self.data_dirs
+                .len()
+                .try_into()
+                .map_err(|_| Error::InvalidData)?,
+        )?;
+
+        let min_size: usize = size_of::<RawDos>()
+            + stub.len()
+            + (dos.pe_offset as usize).saturating_sub(size_of::<RawDos>() + stub.len())
+            + size_of::<RawPe>()
+            + <u16 as Into<usize>>::into(img_hdr_size)
+            + <u16 as Into<usize>>::into(data_size);
+        // + sections_size;
         out.reserve(min_size);
         let mut written = 0;
 
@@ -632,6 +669,20 @@ impl<'data> PeBuilder<'data, states::Machine> {
         out.extend_from_slice(PE_MAGIC);
         out.extend_from_slice(bytes);
         written += PE_MAGIC.len() + bytes.len();
+
+        // Image header
+        let bytes = exec.as_slice();
+        out.extend_from_slice(bytes);
+        written += bytes.len();
+        // Data Directories
+        let bytes = unsafe {
+            let ptr = self.data_dirs.as_ptr() as *const u8;
+            from_raw_parts(ptr, data_size.into())
+        };
+        out.extend_from_slice(bytes);
+        written += bytes.len();
+
+        assert_eq!(min_size, written, "Min size didn't equal written");
         Ok(())
     }
 
@@ -665,20 +716,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             _ => Err(Error::Unsupported),
         }?;
 
-        Self::write_dos(out, &self.dos)?;
-
-        let expected_opt_size = Self::write_pe(
-            out,
-            machine,
-            plus,
-            self.sections
-                .len()
-                .try_into()
-                .map_err(|_| Error::TooMuchData)?,
-            self.timestamp,
-            self.attributes,
-            self.data_dirs.len(),
-        )?;
+        let expected_opt_size = 0;
 
         let size = out.len();
         self.write_opt(out, plus)?;
@@ -693,7 +731,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Get the next virtual address available for a section, or section align
     /// as a default.
-    fn next_mem_ptr(&mut self) -> u32 {
+    fn next_mem_ptr(&self) -> u32 {
         // Highest VA seen, and its size
         let mut max_va = (self.section_align as u32, 0);
         for (section, _) in self.sections.iter() {
@@ -711,18 +749,21 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Get the next file offset available for a section, or file align
     /// as a default.
-    fn next_disk_offset(&mut self) -> u32 {
+    fn next_disk_offset(&self) -> u32 {
+        // FIXME: Account for header size, don't collide with headers.
         // Highest offset seen, and its size
-        let mut max_off = (self.file_align as u32, 0);
+        let mut max_off = (self.disk_align as u32, 0);
         for (section, _) in self.sections.iter() {
+            // FIXME: Am I just high or is this wrong
+            // size will be wrong????
             let off = max_off.0.max(section.file_offset());
             let size = section.file_size();
             max_off = (off, size);
         }
 
         let ret = max_off.0 + max_off.1;
-        if ret % self.file_align as u32 != 0 {
-            ret + (self.file_align as u32 - (ret % self.file_align as u32))
+        if ret % self.disk_align as u32 != 0 {
+            ret + (self.disk_align as u32 - (ret % self.disk_align as u32))
         } else {
             ret
         }
@@ -736,16 +777,16 @@ impl<'data> PeBuilder<'data, states::Machine> {
             sections: VecOrSlice::Vec(
                 pe.sections()
                     .map(|s| {
+                        // FIXME: Why Vec?
                         let v = VecOrSlice::Vec(
-                            pe_bytes[s.file_offset() as usize..][..s.virtual_size() as usize]
-                                .to_vec(),
+                            pe_bytes[s.file_offset() as usize..][..s.file_size() as usize].to_vec(),
                         );
                         (s, v)
-                        // (Section::new(header, file_align, base), v)
                     })
                     .collect(),
             ),
             data_dirs: VecOrSlice::Vec({
+                // FIXME: Why Vec?
                 let mut v: Vec<_> = pe.data_dirs().map(|d| *d.header).collect();
                 let len = v.len().max(16);
                 v.resize(len, RawDataDirectory::new(0, 0));
@@ -755,7 +796,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             timestamp: pe.timestamp(),
             image_base: pe.image_base(),
             section_align: pe.section_align().into(),
-            file_align: pe.file_align().into(),
+            disk_align: pe.file_align().into(),
             entry: pe.entry(),
             dos: Some((*pe.dos(), VecOrSlice::Vec(pe.dos_stub().into()))),
             attributes: pe.attributes(),
@@ -768,6 +809,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
             subsystem_ver: pe.subsystem_version(),
             linker_ver: pe.linker_version(),
             plus: matches!(pe.opt(), ImageHeader::Raw64(_)),
+            code_size: Some(pe.opt().code_size()),
+            init_size: Some(pe.opt().init_size()),
+            uninit_size: Some(pe.opt().uninit_size()),
         };
         #[cfg(no)]
         for (i, s) in pe.sections().enumerate() {
@@ -824,7 +868,7 @@ impl<'data, State> fmt::Debug for PeBuilder<'data, State> {
             .field("timestamp", &self.timestamp)
             .field("image_base", &self.image_base)
             .field("section_align", &self.section_align)
-            .field("file_align", &self.file_align)
+            .field("file_align", &self.disk_align)
             .field("entry", &self.entry)
             .field(
                 "dos",
@@ -866,11 +910,12 @@ impl<'data> SectionBuilder<'data> {
     /// It is important to make sure these uphold the PE invariants.
     // #[cfg(no)]
     fn to_raw_section(&self, mem_ptr: u32, disk_offset: u32, disk_align: u32) -> RawSectionHeader {
-        let len = self.mem_size.unwrap_or_default();
+        let mem_size = self.mem_size.unwrap_or_default();
+        let len = mem_size + self.uninit;
         let va = mem_ptr;
         let disk_offset = self.disk_offset.unwrap_or(disk_offset);
 
-        let disk_size = self.disk_size.unwrap_or(len);
+        let disk_size = self.disk_size.unwrap_or(mem_size);
         // FIXME: Account for header size!
         let disk_size = if disk_size % disk_align == 0 {
             disk_size + (disk_align - (disk_size % disk_align))
@@ -923,7 +968,7 @@ impl<'data> SectionBuilder<'data> {
     ///
     /// The length of `data` is used as `DiskSize` and `MemSize`.
     ///
-    /// Note that `DiskSize` will be aligned to `DiskAlign`.
+    /// Note that `DiskSize` will be aligned to `DiskAlign`, but
     /// `MemSize` is not aligned.
     pub fn data(&mut self, data: &'data [u8]) -> &mut Self {
         // TODO: From/Into impl
