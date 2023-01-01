@@ -9,8 +9,8 @@ use crate::{
         RawCoff, RawDos, RawPe, RawPe32, RawPe32x64, RawPeImageStandard, RawSectionHeader,
         PE32_64_MAGIC, PE32_MAGIC, PE_MAGIC,
     },
-    CoffAttributes, DataDirIdent, DllAttributes, MachineType, OwnedOrRef, Pe, RawDataDirectory,
-    Section, SectionAttributes, Subsystem, VecOrSlice,
+    CoffAttributes, DataDirIdent, DllAttributes, ImageHeader, MachineType, OwnedOrRef, Pe,
+    RawDataDirectory, Section, SectionAttributes, Subsystem, VecOrSlice,
 };
 
 /// Default image base to use
@@ -27,6 +27,8 @@ mod states {
 }
 
 /// Builder for a [`crate::Pe`] file
+// TODO: Limit by internal trait
+// TODO: Methods available on as many states as possible
 pub struct PeBuilder<'data, State> {
     /// Type state.
     state: PhantomData<State>,
@@ -84,6 +86,9 @@ pub struct PeBuilder<'data, State> {
 
     /// Subsystem version
     linker_ver: (u8, u8),
+
+    /// PE32 vs PE32+
+    plus: bool,
 }
 
 impl<'data> PeBuilder<'data, states::Empty> {
@@ -109,12 +114,21 @@ impl<'data> PeBuilder<'data, states::Empty> {
             image_ver: (0, 0),
             subsystem_ver: (0, 0),
             linker_ver: (0, 0),
+            plus: false,
         }
     }
 
     /// Machine Type. This is required.
-    pub fn machine(&mut self, machine: MachineType) -> &mut PeBuilder<'data, states::Machine> {
+    ///
+    /// `plus` determines whether the image is a PE32 or a PE32+ image,
+    /// or in other words whether it uses 32-bit or 64-bit pointers.
+    pub fn machine(
+        &mut self,
+        machine: MachineType,
+        plus: bool,
+    ) -> &mut PeBuilder<'data, states::Machine> {
         self.machine = machine;
+        self.plus = plus;
         unsafe { &mut *(self as *mut Self as *mut PeBuilder<'data, states::Machine>) }
     }
 }
@@ -546,8 +560,83 @@ impl<'data> PeBuilder<'data, states::Machine> {
         Ok(())
     }
 
-    /// Truncates `out` and writes [`crate::Pe`] to it
+    /// Write the Image, appending to `out`
+    // TODO: It should be perfectly possible to calculate the exact size of
+    // the buffer needed, so allowing two different functions,
+    // with `MaybeUninit`.
+    // Caller can allocate exact buffer, `write` won't need to
+    // allocate itself anymore.
     pub fn write(&mut self, out: &mut Vec<u8>) -> Result<()> {
+        // Provided stub or default empty stub
+        // TODO: Add default "standard" stub?
+        let (dos, stub) = self
+            .dos
+            .as_ref()
+            .map(|f| (f.0, VecOrSlice::Slice(&f.1)))
+            .unwrap_or_else(|| (RawDos::sized(), VecOrSlice::Slice(&[])));
+
+        let sections_len = self
+            .sections
+            .len()
+            .try_into()
+            .map_err(|_| Error::TooMuchData)?;
+
+        let img_hdr_size: u16 = if self.plus {
+            size_of::<RawPe32x64>()
+                .try_into()
+                .map_err(|_| Error::TooMuchData)?
+        } else {
+            size_of::<RawPe32>()
+                .try_into()
+                .map_err(|_| Error::TooMuchData)?
+        };
+        let data_len = self.data_dirs.len() * size_of::<RawDataDirectory>();
+        let data_len: u16 = data_len.try_into().map_err(|_| Error::TooMuchData)?;
+
+        let coff = OwnedOrRef::Owned(RawCoff::new(
+            self.machine,
+            sections_len,
+            self.timestamp,
+            img_hdr_size + data_len,
+            self.attributes,
+        ));
+
+        let min_size = size_of::<RawDos>() + stub.len() + size_of::<RawPe>();
+        out.reserve(min_size);
+        let mut written = 0;
+
+        // Write the PE DOS stub
+        let bytes = unsafe {
+            let ptr = &dos as *const RawDos as *const u8;
+            from_raw_parts(ptr, size_of::<RawDos>())
+        };
+        out.extend_from_slice(bytes);
+        out.extend_from_slice(&stub);
+        // Align to PE offset
+        written += bytes.len() + stub.len();
+        if written != dos.pe_offset as usize {
+            let diff = (dos.pe_offset as usize)
+                .checked_sub(written)
+                .ok_or(Error::InvalidData)?;
+            for _ in 0..diff {
+                out.push(b'\0')
+            }
+            written += diff;
+        }
+
+        // PE Header
+        let bytes = unsafe {
+            let ptr = coff.as_ref() as *const RawCoff as *const u8;
+            from_raw_parts(ptr, size_of::<RawCoff>())
+        };
+        out.extend_from_slice(PE_MAGIC);
+        out.extend_from_slice(bytes);
+        written += PE_MAGIC.len() + bytes.len();
+        Ok(())
+    }
+
+    /// Truncates `out` and writes [`crate::Pe`] to it
+    pub fn _write(&mut self, out: &mut Vec<u8>) -> Result<()> {
         /// The way we create and write a PE file is primarily virtually.
         /// This means we pretend we've written a file and fill things in based
         /// on that.
@@ -573,7 +662,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let plus = match machine {
             MachineType::AMD64 => Ok(true),
             MachineType::I386 => Ok(false),
-            _ => Err(Error::InvalidData),
+            _ => Err(Error::Unsupported),
         }?;
 
         Self::write_dos(out, &self.dos)?;
@@ -585,7 +674,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             self.sections
                 .len()
                 .try_into()
-                .map_err(|_| Error::InvalidData)?,
+                .map_err(|_| Error::TooMuchData)?,
             self.timestamp,
             self.attributes,
             self.data_dirs.len(),
@@ -678,6 +767,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             image_ver: pe.image_version(),
             subsystem_ver: pe.subsystem_version(),
             linker_ver: pe.linker_version(),
+            plus: matches!(pe.opt(), ImageHeader::Raw64(_)),
         };
         #[cfg(no)]
         for (i, s) in pe.sections().enumerate() {
