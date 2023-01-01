@@ -351,11 +351,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             .try_into()
             .map_err(|_| Error::TooMuchData)?;
         let sections_size = self.sections.len() * size_of::<RawSectionHeader>();
-        let section_data_size: u32 = self
-            .sections
-            .iter()
-            .map(|(s, _)| s.file_offset() + s.file_size())
-            .sum();
+        let section_data_size: u32 = self.sections.iter().map(|(s, _)| s.file_size()).sum();
         let section_data_size: usize = section_data_size
             .try_into()
             .map_err(|_| Error::TooMuchData)?;
@@ -455,8 +451,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
             + size_of::<RawPe>()
             + <u16 as Into<usize>>::into(img_hdr_size)
             + <u16 as Into<usize>>::into(data_size)
-            + sections_size;
-        // + section_data_size;
+            + sections_size
+            + section_data_size;
         out.reserve(min_size);
         let mut written = 0;
 
@@ -509,10 +505,32 @@ impl<'data> PeBuilder<'data, states::Machine> {
             out.extend_from_slice(bytes);
             written += bytes.len();
         }
-
-        // Section Data
         // FIXME: Have to be able to write to arbitrary offsets, actually.
         // Need a Seek, Read, Write, and Cursor impl?
+
+        // Section Data
+        for (s, bytes) in self.sections.iter() {
+            // &out[s.file_offset() as usize..][..s.file_size() as usize];
+            if out.len()
+                < (s.file_offset() as usize
+                    + s.file_size() as usize
+                    + (s.file_size().abs_diff(s.virtual_size()) as usize))
+            {
+                let start = out.len();
+                let end = s.file_offset() as usize + s.file_size() as usize;
+                let diff = end - start;
+                for _ in 0..(diff / 128) {
+                    out.extend_from_slice(&[0; 128]);
+                }
+                for _ in 0..(diff % 128) {
+                    out.push(b'\0');
+                }
+            }
+            let end = s.virtual_size();
+            let end = end.min(s.file_size()) as usize;
+            out[s.file_offset() as usize..][..end].copy_from_slice(&bytes[..end]);
+            written += s.file_size() as usize;
+        }
 
         assert_eq!(min_size, written, "Min size didn't equal written");
         Ok(())
@@ -542,35 +560,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
         struct _DummyHoverWriteDocs;
         out.clear();
 
-        self.write_sections(out)?;
-
-        Ok(())
-    }
-
-    /// Write section table and data
-    fn write_sections(&mut self, out: &mut Vec<u8>) -> Result<()> {
-        // Section data
-        for (s, bytes) in self.sections.iter() {
-            // &out[s.file_offset() as usize..][..s.file_size() as usize];
-            if out.len()
-                < (s.file_offset() as usize
-                    + s.file_size() as usize
-                    + (s.file_size().abs_diff(s.virtual_size()) as usize))
-            {
-                let start = out.len();
-                let end = s.file_offset() as usize + s.file_size() as usize;
-                let diff = end - start;
-                for _ in 0..(diff / 128) {
-                    out.extend_from_slice(&[0; 128])
-                }
-                for _ in 0..(diff % 128) {
-                    out.push(b'\0')
-                }
-            }
-            let end = s.virtual_size();
-            let end = end.min(s.file_size()) as usize;
-            out[s.file_offset() as usize..][..end].copy_from_slice(&bytes[..end]);
-        }
         Ok(())
     }
 
