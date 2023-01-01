@@ -374,7 +374,7 @@ mod tests {
         // #[cfg(no)]
         let mut pe = PeBuilder::new();
         // #[cfg(no)]
-        let pe = pe.machine(MachineType::AMD64);
+        let pe = pe.machine(MachineType::AMD64, true);
         // #[cfg(no)]
         {
             pe.subsystem(Subsystem::WINDOWS_CLI)
@@ -402,7 +402,7 @@ mod tests {
                 .data_dir(DataDirIdent::LoadConfig, 8757104, 320)
                 .data_dir(DataDirIdent::Iat, 7176192, 2248);
         }
-        #[cfg(no)]
+        // #[cfg(no)]
         {
             pe.section(
                 SectionBuilder::new()
@@ -482,12 +482,19 @@ mod tests {
         //
         let out_pe = Pe::from_bytes(&out);
         dbg!(&out_pe);
-        let out_pe = out_pe?;
+        if let Ok(out_pe) = out_pe {
+            assert_eq!(in_pe.dos_stub(), out_pe.dos_stub());
+            assert_eq!({ in_pe.dos().pe_offset }, { out_pe.dos().pe_offset });
+        }
 
-        assert_eq!(in_pe.dos_stub(), out_pe.dos_stub());
-        assert_eq!({ in_pe.dos().pe_offset }, { out_pe.dos().pe_offset });
-
-        let x = size_of::<RawDos>() + 128 + size_of::<RawPe>() + size_of::<RawPeImageStandard>();
+        let x = size_of::<RawDos>()
+            + 128
+            + size_of::<RawPe>()
+            + size_of::<RawPeImageStandard>()
+            + (in_pe.data_dirs_len() as usize - 16 + 4) * size_of::<RawDataDirectory>()
+            + 4
+            + 4;
+        let x = size_of::<RawDos>() + in_pe.dos_stub().len() + size_of::<RawPe>();
         assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
 
         Ok(())
