@@ -404,8 +404,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
         // HeaderSize is the DOS stub, COFF Header, Image/Exec Header,
         // section headers, and is aligned to `DiskAlign`.
         // FIXME: What about pe offset? need to account for null space there?
-        let headers_size: u64 =
-            (size_of::<RawDos>() + stub.len() + size_of::<RawPe>() + sections_size) as u64;
+        let headers_size: u64 = (size_of::<RawDos>()
+            + stub.len()
+            + size_of::<RawPe>()
+            + ((img_hdr_size + data_size) as usize)
+            + sections_size) as u64;
         let headers_size: u64 = headers_size + (self.disk_align - (headers_size % self.disk_align));
 
         let exec = RawPeImageStandard::new(
