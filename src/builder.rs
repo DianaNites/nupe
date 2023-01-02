@@ -409,6 +409,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             + size_of::<RawPe>()
             + ((img_hdr_size + data_size) as usize)
             + sections_size) as u64;
+        // FIXME: Check alignment first?
         let headers_size: u64 = headers_size + (self.disk_align - (headers_size % self.disk_align));
 
         let exec = RawPeImageStandard::new(
