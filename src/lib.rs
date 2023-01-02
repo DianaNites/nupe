@@ -230,19 +230,19 @@ impl<'data> ImageHeader<'data> {
         }
     }
 
-    /// Stack (commit, reserve)
+    /// Stack (reserve, commit)
     pub(crate) fn stack(&self) -> (u64, u64) {
         match self {
-            ImageHeader::Raw32(h) => (h.stack_commit.into(), h.stack_reserve.into()),
-            ImageHeader::Raw64(h) => (h.stack_commit, h.stack_reserve),
+            ImageHeader::Raw32(h) => (h.stack_reserve.into(), h.stack_commit.into()),
+            ImageHeader::Raw64(h) => (h.stack_reserve, h.stack_commit),
         }
     }
 
-    /// Heap (commit, reserve)
+    /// Heap (reserve, commit)
     pub(crate) fn heap(&self) -> (u64, u64) {
         match self {
-            ImageHeader::Raw32(h) => (h.heap_commit.into(), h.heap_reserve.into()),
-            ImageHeader::Raw64(h) => (h.heap_commit, h.heap_reserve),
+            ImageHeader::Raw32(h) => (h.heap_reserve.into(), h.heap_commit.into()),
+            ImageHeader::Raw64(h) => (h.heap_reserve, h.heap_commit),
         }
     }
 
@@ -661,8 +661,8 @@ mod tests {
                 | DllAttributes::NX_COMPAT
                 | DllAttributes::TERMINAL_SERVER
         );
-        assert_eq!(pe.stack(), (4096, 1048576));
-        assert_eq!(pe.heap(), (4096, 1048576));
+        assert_eq!(pe.stack(), (1048576, 4096));
+        assert_eq!(pe.heap(), (1048576, 4096));
         assert_eq!(pe.data_dirs_len(), 16);
 
         assert_eq!(pe.data_dirs().count(), 16);

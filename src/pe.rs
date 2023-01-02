@@ -223,12 +223,12 @@ impl<'data> Pe<'data> {
         self.opt.linker_version()
     }
 
-    /// Stack (commit, reserve)
+    /// Stack (reserve, commit)
     pub fn stack(&self) -> (u64, u64) {
         self.opt.stack()
     }
 
-    /// Heap (commit, reserve)
+    /// Heap (reserve, commit)
     pub fn heap(&self) -> (u64, u64) {
         self.opt.heap()
     }
