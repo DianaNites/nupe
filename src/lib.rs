@@ -588,14 +588,10 @@ mod tests {
                     )
             });
         }
-        // let mut pe = PeBuilder::from_pe(&in_pe, RUSTUP_IMAGE);
         // NOTE: Rustup's value isn't correct
-        dbg!(&pe);
         pe.code_size(in_pe.opt().code_size());
         pe.init_size(in_pe.opt().init_size());
         // pe.uninit_size(in_pe.opt().uninit_size());
-        dbg!(&pe);
-        // panic!();
         let mut out: Vec<u8> = Vec::new();
         pe.write(&mut out)?;
         //
