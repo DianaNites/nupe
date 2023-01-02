@@ -631,7 +631,7 @@ mod tests {
         let mut pe = PeBuilder::from_pe(&in_pe, RUSTUP_IMAGE);
         out.clear();
         pe.write(&mut out)?;
-        let out_pe = Pe::from_bytes(&out);
+        // let out_pe = Pe::from_bytes(&out);
         // dbg!(&out_pe, out.len(), RUSTUP_IMAGE.len());
         // panic!();
         let x = size_of::<RawDos>()
