@@ -628,6 +628,38 @@ mod tests {
         assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
         assert_eq!(RUSTUP_IMAGE, &out[..]);
 
+        let mut pe = PeBuilder::from_pe(&in_pe, RUSTUP_IMAGE);
+        out.clear();
+        pe.write(&mut out)?;
+        let out_pe = Pe::from_bytes(&out);
+        // dbg!(&out_pe, out.len(), RUSTUP_IMAGE.len());
+        // panic!();
+        let x = size_of::<RawDos>()
+            + in_pe.dos_stub().len()
+            + size_of::<RawPe>()
+            + size_of::<RawPe32x64>()
+            + in_pe.data_dirs_len() as usize * size_of::<RawDataDirectory>()
+            + in_pe.sections_len() * size_of::<RawSectionHeader>()
+            + in_pe
+                .sections()
+                .map(|s| s.disk_size() as usize)
+                .sum::<usize>();
+        let y = size_of::<RawDos>()
+            + in_pe.dos_stub().len()
+            + size_of::<RawPe>()
+            + size_of::<RawPe32x64>();
+        // + in_pe.data_dirs_len() as usize * size_of::<RawDataDirectory>()
+        // + in_pe.sections_len() * size_of::<RawSectionHeader>()
+        // + in_pe
+        //     .sections()
+        //     .take(0)
+        //     .map(|s| s.disk_size() as usize)
+        //     .sum::<usize>();
+        let x = x - y;
+        assert_eq!(&RUSTUP_IMAGE[y..][..x], &out[y..][..x]);
+        assert_eq!(&RUSTUP_IMAGE[..x], &out[..x]);
+        assert_eq!(RUSTUP_IMAGE, &out[..]);
+
         Ok(())
     }
 
