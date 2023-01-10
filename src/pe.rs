@@ -249,6 +249,16 @@ impl<'data> Pe<'data> {
     pub fn section_align(&self) -> u32 {
         self.opt().section_align()
     }
+
+    /// Image size
+    pub fn image_size(&self) -> u32 {
+        self.opt().image_size()
+    }
+
+    /// Headers size
+    pub fn headers_size(&self) -> u32 {
+        self.opt().headers_size()
+    }
 }
 
 /// Public advanced API
