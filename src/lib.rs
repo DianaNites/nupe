@@ -475,17 +475,15 @@ mod tests {
 
     static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
 
-    /// Test ability to write a copy of rustup-init.exe, from our own parsed
+    /// Test ability to write a copy of rustup-init.exe,
+    /// semi-manually using known values
+    /// from our own parsed
     /// data structures.
     #[test]
-    fn write_rustup() -> Result<()> {
+    fn write_rustup_manual() -> Result<()> {
         let in_pe = Pe::from_bytes(RUSTUP_IMAGE)?;
-        dbg!(&in_pe);
-        // #[cfg(no)]
         let mut pe = PeBuilder::new();
-        // #[cfg(no)]
         let pe = pe.machine(MachineType::AMD64, true);
-        // #[cfg(no)]
         {
             pe.subsystem(Subsystem::WINDOWS_CLI)
                 .dos(*in_pe.dos(), VecOrSlice::Slice(in_pe.dos_stub()))
@@ -512,7 +510,6 @@ mod tests {
                 .data_dir(DataDirIdent::LoadConfig, 8757104, 320)
                 .data_dir(DataDirIdent::Iat, 7176192, 2248);
         }
-        // #[cfg(no)]
         {
             pe.section({
                 let sec = in_pe.section(".text").unwrap();

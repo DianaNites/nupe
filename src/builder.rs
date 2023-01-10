@@ -322,32 +322,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
 }
 
 impl<'data> PeBuilder<'data, states::Machine> {
-    /// Calculate the size on disk this file would take
-    ///
-    /// Ignores file alignment
-    #[cfg(no)]
-    fn calculate_size(&self) -> usize {
-        const DOS_STUB: usize = 0;
-        let opt_size = match self.machine {
-            MachineType::AMD64 => size_of::<RawPe32x64>(),
-            MachineType::I386 => size_of::<RawPe32>(),
-            _ => unimplemented!(),
-        };
-        #[allow(clippy::erasing_op)]
-        let data_dirs = size_of::<RawDataDirectory>() * 0;
-        #[allow(clippy::erasing_op)]
-        let sections = size_of::<RawSectionHeader>() * 0;
-        let sections_sum: u32 = self.sections.iter().map(|s| s.header.raw_size).sum();
-        let sections_sum = sections_sum as usize;
-        size_of::<RawDos>()
-            + DOS_STUB
-            + size_of::<RawPe>()
-            + opt_size
-            + data_dirs
-            + sections
-            + sections_sum
-    }
-
     /// Write the Image, appending to `out`
     // TODO: It should be perfectly possible to calculate the exact size of
     // the buffer needed, so allowing two different functions,
@@ -429,6 +403,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             + sections_size) as u64;
         // FIXME: Check alignment first?
         let headers_size: u64 = headers_size + (self.disk_align - (headers_size % self.disk_align));
+        let headers_size: u32 = headers_size.try_into().map_err(|_| Error::TooMuchData)?;
 
         let exec = RawPeImageStandard::new(
             if self.plus { PE32_64_MAGIC } else { PE32_MAGIC },
@@ -456,7 +431,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             self.subsystem_ver.0,
             self.subsystem_ver.1,
             image_size,
-            headers_size.try_into().map_err(|_| Error::TooMuchData)?,
+            headers_size,
             self.subsystem,
             self.dll_attributes,
             self.stack.0,
@@ -557,33 +532,6 @@ impl<'data> PeBuilder<'data, states::Machine> {
         }
 
         assert_eq!(min_size, written, "Min size didn't equal written");
-        Ok(())
-    }
-
-    /// Truncates `out` and writes [`crate::Pe`] to it
-    pub fn _write(&mut self, out: &mut Vec<u8>) -> Result<()> {
-        /// The way we create and write a PE file is primarily virtually.
-        /// This means we pretend we've written a file and fill things in based
-        /// on that.
-        ///
-        /// This should be exactly the same as just writing the file (correctly)
-        /// and then reading it.
-        ///
-        /// The first and most basic things needed are the sections and data
-        /// directories.
-        ///
-        /// Most other structures cant be created without
-        /// information from or about these.
-        ///
-        /// The first structure we can create is [`RawDos`], and this is then
-        /// written, followed by the PE COFF magic and COFF header.
-        ///
-        /// Next is the optional header,
-        /// which needs to go through all sections to sum up their sizes before
-        /// being written.
-        struct _DummyHoverWriteDocs;
-        out.clear();
-
         Ok(())
     }
 
