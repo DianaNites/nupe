@@ -267,6 +267,22 @@ impl<'data> ImageHeader<'data> {
             ImageHeader::Raw64(h) => h.mem_align,
         }
     }
+
+    /// Image size
+    fn image_size(&self) -> u32 {
+        match self {
+            ImageHeader::Raw32(h) => h.image_size,
+            ImageHeader::Raw64(h) => h.image_size,
+        }
+    }
+
+    /// Headers size
+    fn headers_size(&self) -> u32 {
+        match self {
+            ImageHeader::Raw32(h) => h.headers_size,
+            ImageHeader::Raw64(h) => h.headers_size,
+        }
+    }
 }
 
 #[doc(hidden)]
@@ -457,33 +473,7 @@ mod tests {
 
     use super::{builder::*, *};
 
-    // EFI Stub kernel
-    static _TEST_IMAGE: &[u8] =
-        include_bytes!("../../uefi-stub/target/x86_64-unknown-uefi/debug/uefi-stub.efi");
-    // static TEST_IMAGE: &[u8] = include_bytes!("/boot/vmlinuz-linux");
-    static TEST_IMAGE: &[u8] = include_bytes!("/boot/EFI/Linux/linux.efi");
     static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
-
-    #[test]
-    fn dev() -> Result<()> {
-        // let mut pe = PeHeader::from_bytes(TEST_IMAGE);
-        let pe = unsafe { Pe::from_ptr(TEST_IMAGE.as_ptr(), TEST_IMAGE.len()) };
-        dbg!(&pe);
-        let pe = pe?;
-        for section in pe.sections() {
-            dbg!(section.name());
-        }
-        let cmdline = pe.section(".cmdline").unwrap();
-        dbg!(&cmdline);
-        let cmdline = core::str::from_utf8(
-            &TEST_IMAGE[cmdline.disk_offset() as usize..][..cmdline.disk_size() as usize],
-        );
-        dbg!(&cmdline);
-
-        panic!();
-
-        // Ok(())
-    }
 
     /// Test ability to write a copy of rustup-init.exe, from our own parsed
     /// data structures.
@@ -669,7 +659,7 @@ mod tests {
         Ok(())
     }
 
-    /// Test ability to read rustup-init.exe
+    /// Test ability to correctly read rustup-init.exe
     #[test]
     fn read_rustup() -> Result<()> {
         let pe = Pe::from_bytes(RUSTUP_IMAGE)?;
@@ -683,11 +673,11 @@ mod tests {
             CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE
         );
         assert_eq!(pe.image_base(), 5368709120);
-        // assert_eq!(pe.section_align(), 4096);
-        // assert_eq!(pe.file_align(), 512);
+        assert_eq!(pe.section_align(), 4096);
+        assert_eq!(pe.file_align(), 512);
         assert_eq!(pe.os_version(), (6, 0));
-        // assert_eq!(pe.image_size(), 10096640);
-        // assert_eq!(pe.headers_size(), 1024);
+        assert_eq!(pe.image_size(), 10096640);
+        assert_eq!(pe.headers_size(), 1024);
         assert_eq!(
             pe.dll_attributes(),
             DllAttributes::HIGH_ENTROPY_VA
