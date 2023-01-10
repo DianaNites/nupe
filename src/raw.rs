@@ -18,7 +18,11 @@ use core::{fmt, mem::size_of};
 
 use crate::{
     error::{Error, Result},
-    CoffAttributes, DllAttributes, MachineType, SectionAttributes, Subsystem,
+    CoffAttributes,
+    DllAttributes,
+    MachineType,
+    SectionAttributes,
+    Subsystem,
 };
 
 /// DOS Magic signature

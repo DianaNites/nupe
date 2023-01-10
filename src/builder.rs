@@ -6,11 +6,29 @@ use crate::{
     error::{Error, Result},
     internal::debug::{DosHelper, RawDataDirectoryHelper},
     raw::{
-        RawCoff, RawDos, RawPe, RawPe32, RawPe32x64, RawPeImageStandard, RawSectionHeader,
-        PE32_64_MAGIC, PE32_MAGIC, PE_MAGIC,
+        RawCoff,
+        RawDos,
+        RawPe,
+        RawPe32,
+        RawPe32x64,
+        RawPeImageStandard,
+        RawSectionHeader,
+        PE32_64_MAGIC,
+        PE32_MAGIC,
+        PE_MAGIC,
     },
-    CoffAttributes, DataDirIdent, DllAttributes, ImageHeader, MachineType, OwnedOrRef, Pe,
-    RawDataDirectory, Section, SectionAttributes, Subsystem, VecOrSlice,
+    CoffAttributes,
+    DataDirIdent,
+    DllAttributes,
+    ImageHeader,
+    MachineType,
+    OwnedOrRef,
+    Pe,
+    RawDataDirectory,
+    Section,
+    SectionAttributes,
+    Subsystem,
+    VecOrSlice,
 };
 
 /// Default image base to use
@@ -277,8 +295,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Manually set the CodeSize in the image
     ///
-    /// This is very advanced and should only be used if you know what you're doing.
-    /// By default this is given a sensible value.
+    /// This is very advanced and should only be used if you know what you're
+    /// doing. By default this is given a sensible value.
     pub fn code_size(&mut self, size: u32) -> &mut Self {
         self.code_size = Some(size);
         self
@@ -286,8 +304,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Manually set the InitSize in the image
     ///
-    /// This is very advanced and should only be used if you know what you're doing.
-    /// By default this is given a sensible value.
+    /// This is very advanced and should only be used if you know what you're
+    /// doing. By default this is given a sensible value.
     pub fn init_size(&mut self, size: u32) -> &mut Self {
         self.init_size = Some(size);
         self
@@ -295,8 +313,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
 
     /// Manually set the UninitSize in the image
     ///
-    /// This is very advanced and should only be used if you know what you're doing.
-    /// By default this is given a sensible value.
+    /// This is very advanced and should only be used if you know what you're
+    /// doing. By default this is given a sensible value.
     pub fn uninit_size(&mut self, size: u32) -> &mut Self {
         self.uninit_size = Some(size);
         self

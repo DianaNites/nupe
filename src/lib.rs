@@ -28,8 +28,14 @@ use crate::{
 };
 pub use crate::{
     internal::{
-        CoffAttributes, DataDirIdent, DllAttributes, MachineType, OwnedOrRef, SectionAttributes,
-        Subsystem, VecOrSlice,
+        CoffAttributes,
+        DataDirIdent,
+        DllAttributes,
+        MachineType,
+        OwnedOrRef,
+        SectionAttributes,
+        Subsystem,
+        VecOrSlice,
     },
     pe::*,
 };
