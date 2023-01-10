@@ -329,14 +329,3 @@ impl<'data> fmt::Debug for Pe<'data> {
             .finish()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    #[allow(unused_imports)]
-    use super::*;
-
-    #[test]
-    fn test_name() {
-        //
-    }
-}
