@@ -328,7 +328,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     // with `MaybeUninit`.
     // Caller can allocate exact buffer, `write` won't need to
     // allocate itself anymore.
-    pub fn write(&mut self, out: &mut Vec<u8>) -> Result<()> {
+    pub fn write(&self, out: &mut Vec<u8>) -> Result<()> {
         // Provided stub or default empty stub
         // TODO: Add default "standard" stub?
         let (dos, stub) = self
@@ -577,6 +577,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
 }
 
 impl<'data> PeBuilder<'data, states::Machine> {
+    /// Create a [`PeBuilder`] from an existing [`Pe`],
+    /// with `pe_bytes` being the data from the PE
     pub fn from_pe(pe: &'data Pe, pe_bytes: &'data [u8]) -> Self {
         let this = Self {
             state: PhantomData,
