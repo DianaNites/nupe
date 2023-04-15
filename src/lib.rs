@@ -133,7 +133,7 @@ impl<'data> ExecHeader<'data> {
     }
 
     /// Get header as a byte slice
-    pub(crate) fn as_slice(&self) -> &[u8] {
+    pub(crate) const fn as_slice(&self) -> &[u8] {
         match self {
             ExecHeader::Raw32(h) => {
                 //
@@ -148,22 +148,30 @@ impl<'data> ExecHeader<'data> {
         }
     }
 
-    pub(crate) fn code_size(&self) -> u32 {
+    pub(crate) const fn code_size(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => h.standard.code_size,
-            ExecHeader::Raw64(h) => h.standard.code_size,
+            ExecHeader::Raw32(h) => h.as_ref().standard.code_size,
+            ExecHeader::Raw64(h) => h.as_ref().standard.code_size,
         }
     }
-    pub(crate) fn init_size(&self) -> u32 {
+    pub(crate) const fn init_size(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => h.standard.init_size,
-            ExecHeader::Raw64(h) => h.standard.init_size,
+            ExecHeader::Raw32(h) => h.as_ref().standard.init_size,
+            ExecHeader::Raw64(h) => h.as_ref().standard.init_size,
         }
     }
-    pub(crate) fn uninit_size(&self) -> u32 {
+    pub(crate) const fn uninit_size(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => h.standard.uninit_size,
-            ExecHeader::Raw64(h) => h.standard.uninit_size,
+            ExecHeader::Raw32(h) => h.as_ref().standard.uninit_size,
+            ExecHeader::Raw64(h) => h.as_ref().standard.uninit_size,
+        }
+    }
+
+    /// Convenience function to get the common [`RawExec`]
+    pub const fn raw_exec(&self) -> &RawExec {
+        match self {
+            ExecHeader::Raw32(h) => &h.as_ref().standard,
+            ExecHeader::Raw64(h) => &h.as_ref().standard,
         }
     }
 
