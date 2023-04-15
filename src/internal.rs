@@ -156,9 +156,7 @@ impl<'data, T> DerefMut for VecOrSlice<'data, T> {
     }
 }
 
-/// Machine type, or architecture, of the PE file.
-///
-/// This is what architectures the file will run on.
+/// Machine type, or target architecture, of the PE file.
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct MachineType(u16);
@@ -175,6 +173,8 @@ impl MachineType {
 
     /// EFI Byte Code
     pub const EBC: Self = Self(0xEBC);
+
+    // TODO: Fill out rest of machine types
 }
 
 impl fmt::Debug for MachineType {
@@ -436,6 +436,9 @@ impl fmt::Display for DataDirIdent {
 }
 
 bitflags! {
+    /// COFF attributes
+    ///
+    /// See [`RawCoff::file_attributes`]
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[repr(transparent)]
     pub struct CoffAttributes: u16 {

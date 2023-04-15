@@ -11,8 +11,8 @@
 //! - Rich Header?
 //! - PE Header [RawPe]
 //!     - COFF Header [RawCoff]
-//! - Optional Header [RawPeImageStandard]
-//! - [RawPe32] or [RawPe32x64]
+//! - Optional Header [RawExec]
+//! - [RawExec32] or [RawExec64]
 //! - Variable number of [RawDataDirectory]
 //! - Variable number of [RawSectionHeader]
 use core::{fmt, mem::size_of};
@@ -143,13 +143,12 @@ impl RawDos {
     }
 
     /// Empty header, with NO DOS stub, with pe offset immediately after it
-    pub(crate) fn sized() -> Self {
+    pub fn sized() -> Self {
         // `RawDos` is 64 bytes and thus 8 byte aligned.
         Self::new(size_of::<Self>() as u32)
     }
 
-    /// Get a [`RawDos`] from `data`, and a new pointer length pair for the PE
-    /// portion and the DOS stub.
+    /// Get a [`RawDos`] from `data`
     ///
     /// This function validates that `size` is enough to contain the header,
     /// and that the DOS magic is correct.
@@ -159,11 +158,7 @@ impl RawDos {
     /// - `data` MUST be valid for `size` bytes.
     /// - You must ensure the returned reference does not outlive `data`, and is
     ///   not mutated for the duration of lifetime `'data`.
-    #[allow(clippy::type_complexity)]
-    pub unsafe fn from_ptr<'data>(
-        data: *const u8,
-        size: usize,
-    ) -> Result<(&'data Self, (*const u8, usize), (*const u8, usize))> {
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
@@ -176,27 +171,15 @@ impl RawDos {
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
         }
-        // PE headers start at this offset
-        let pe_ptr = data.wrapping_add(dos.pe_offset as usize);
-        let pe_size = size
-            .checked_sub(dos.pe_offset as usize)
-            .ok_or(Error::NotEnoughData)?;
-        // Dos Stub
-        let stub_ptr = data.wrapping_add(size_of::<RawDos>());
-        let stub_size = size
-            .checked_sub(pe_size)
-            .ok_or(Error::NotEnoughData)?
-            .checked_sub(size_of::<RawDos>())
-            .ok_or(Error::NotEnoughData)?;
 
-        Ok((dos, (pe_ptr, pe_size), (stub_ptr, stub_size)))
+        Ok(dos)
     }
 
     /// Get a [`RawDos`] from `bytes`, and the remaining PE portion of `bytes`.
     ///
     /// Checks for the DOS magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
-        let dos = unsafe { RawDos::from_ptr(bytes.as_ptr(), bytes.len())?.0 };
+        let dos = unsafe { RawDos::from_ptr(bytes.as_ptr(), bytes.len())? };
         Ok((
             dos,
             bytes
@@ -263,9 +246,13 @@ impl fmt::Debug for RawDos {
     }
 }
 
+/// Raw COFF header
+///
+/// This is common to both executable PE images, and object files.
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawCoff {
+    /// Target machine type
     pub machine: MachineType,
 
     /// Number of sections
@@ -273,17 +260,27 @@ pub struct RawCoff {
 
     /// Timestamp
     pub time: u32,
+
+    /// File offset to COFF symbol table
+    ///
+    /// According to MS, should be zero for images, as COFF debugging info
+    /// is deprecated.
     pub sym_offset: u32,
+
+    /// Number of entries in COFF symbol table
+    ///
+    /// According to MS, should be zero for images, as COFF debugging info
+    /// is deprecated.
     pub sym_len: u32,
 
-    /// Claimed size in bytes of the Image Header
+    /// Claimed size in bytes of the exec Header.
+    ///
+    /// Required for executable PE images
     ///
     /// Should be zero for object files, but is not required to be.
     ///
-    /// Cannot be trusted.
-    ///
     /// Otherwise known as the "optional" header
-    pub img_hdr_size: u16,
+    pub exec_header_size: u16,
 
     /// Object attributes
     pub file_attributes: CoffAttributes,
@@ -306,9 +303,34 @@ impl RawCoff {
             time,
             sym_offset: 0,
             sym_len: 0,
-            img_hdr_size: optional_size,
+            exec_header_size: optional_size,
             file_attributes: attributes,
         }
+    }
+
+    /// Get a [`RawCoff`] from a pointer to a COFF header
+    ///
+    /// This function validates that `size` is enough to contain this header
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    /// - You must ensure the returned reference does not outlive `data`, and is
+    ///   not mutated for the duration of lifetime `'data`.
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        if data.is_null() {
+            return Err(Error::InvalidData);
+        }
+
+        // Ensure that size is enough
+        size.checked_sub(size_of::<RawCoff>())
+            .ok_or(Error::NotEnoughData)?;
+
+        // Safety: Have just verified theres enough `size`
+        // and `RawCoff` is POD.
+        let pe = unsafe { &*(data as *const RawCoff) };
+
+        Ok(pe)
     }
 }
 
@@ -321,6 +343,37 @@ pub struct RawPe {
 
     /// COFF file header
     pub coff: RawCoff,
+}
+
+impl RawPe {
+    /// Get a [`RawPe`] from a pointer to a PE Signature and COFF header
+    ///
+    /// This function validates that `size` is enough to contain this PE
+    /// header, and that the PE signature is correct.
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    /// - You must ensure the returned reference does not outlive `data`, and is
+    ///   not mutated for the duration of lifetime `'data`.
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        if data.is_null() {
+            return Err(Error::InvalidData);
+        }
+
+        // Ensure that size is enough
+        size.checked_sub(size_of::<RawPe>())
+            .ok_or(Error::NotEnoughData)?;
+
+        // Safety: Have just verified theres enough `size`
+        // and `RawPe` is POD.
+        let pe = unsafe { &*(data as *const RawPe) };
+        if pe.sig != PE_MAGIC {
+            return Err(Error::InvalidPeMagic);
+        }
+
+        Ok(pe)
+    }
 }
 
 impl fmt::Debug for RawPe {
@@ -342,95 +395,14 @@ impl fmt::Debug for RawPe {
     }
 }
 
-impl RawPe {
-    /// Get a [`RawPe`] from a pointer to a PE Signature and COFF header
-    ///
-    /// Returns [`RawPe`], opt data, and section data
-    ///
-    /// # Safety
-    ///
-    /// - `data` MUST be valid for `size` bytes.
-    /// - You must ensure the returned reference does not outlive `data`, and is
-    ///   not mutated for the duration of lifetime `'data`.
-    #[allow(clippy::type_complexity)]
-    pub unsafe fn from_ptr<'data>(
-        data: *const u8,
-        size: usize,
-    ) -> Result<(
-        &'data Self,
-        (*const u8, usize),
-        (*const RawSectionHeader, usize),
-    )> {
-        if data.is_null() {
-            return Err(Error::InvalidData);
-        }
-
-        // Ensure that size is enough
-        size.checked_sub(size_of::<RawPe>())
-            .ok_or(Error::NotEnoughData)?;
-
-        let pe = unsafe { &*(data as *const RawPe) };
-        if pe.sig != PE_MAGIC {
-            return Err(Error::InvalidPeMagic);
-        }
-
-        let opt_size = pe.coff.img_hdr_size as usize;
-        // Check that the Image header fits
-        size.checked_sub(
-            size_of::<RawPe>()
-                .checked_add(opt_size)
-                .ok_or(Error::NotEnoughData)?,
-        )
-        .ok_or(Error::MissingImageHeader)?;
-        // Optional header appears directly after PE header
-        let opt_ptr = data.wrapping_add(size_of::<RawPe>());
-
-        let section_size = size_of::<RawSectionHeader>()
-            .checked_mul(pe.coff.sections.into())
-            .ok_or(Error::TooMuchData)?;
-        // Error out if `size` doesn't fit everything
-        size.checked_sub(
-            size_of::<RawPe>()
-                .checked_add(opt_size)
-                .ok_or(Error::NotEnoughData)?
-                .checked_add(section_size)
-                .ok_or(Error::NotEnoughData)?,
-        )
-        .ok_or(Error::MissingSectionTable)?;
-        // Section table appears directly after PE and optional header
-        let section_ptr = data.wrapping_add(
-            size_of::<RawPe>()
-                .checked_add(opt_size)
-                .ok_or(Error::NotEnoughData)?,
-        ) as *const RawSectionHeader;
-
-        Ok((
-            pe,
-            (opt_ptr, opt_size),
-            (section_ptr, pe.coff.sections as usize),
-        ))
-    }
-
-    /// Get a [`RawPe`] from `bytes`, the optional header, and section
-    /// table.
-    ///
-    /// Checks for the PE magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8], &[RawSectionHeader])> {
-        unsafe {
-            let (pe, (opt_ptr, opt_size), (section_ptr, section_len)) =
-                RawPe::from_ptr(bytes.as_ptr(), bytes.len())?;
-            Ok((
-                pe,
-                core::slice::from_raw_parts(opt_ptr, opt_size),
-                core::slice::from_raw_parts(section_ptr, section_len),
-            ))
-        }
-    }
-}
-
+/// Common subset of the PE Executable header,
+/// otherwise known as the "optional" header.
+///
+/// Parts of this structure differ depending on whether the input is
+/// 32 or 64 bit.
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
-pub struct RawPeImageStandard {
+pub struct RawExec {
     /// Magic identifying PE32 vs PE32+
     pub magic: u16,
 
@@ -456,7 +428,32 @@ pub struct RawPeImageStandard {
     pub code_ptr: u32,
 }
 
-impl fmt::Debug for RawPeImageStandard {
+impl RawExec {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        magic: u16,
+        linker_major: u8,
+        linker_minor: u8,
+        code_size: u32,
+        init_size: u32,
+        uninit_size: u32,
+        entry_offset: u32,
+        code_base: u32,
+    ) -> Self {
+        Self {
+            magic,
+            linker_major,
+            linker_minor,
+            code_size,
+            init_size,
+            uninit_size,
+            entry_ptr: entry_offset,
+            code_ptr: code_base,
+        }
+    }
+}
+
+impl fmt::Debug for RawExec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         struct Helper2<const B: u16>;
         impl fmt::Debug for Helper2<PE32_64_MAGIC> {
@@ -496,51 +493,12 @@ impl fmt::Debug for RawPeImageStandard {
     }
 }
 
-impl RawPeImageStandard {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        magic: u16,
-        linker_major: u8,
-        linker_minor: u8,
-        code_size: u32,
-        init_size: u32,
-        uninit_size: u32,
-        entry_offset: u32,
-        code_base: u32,
-    ) -> Self {
-        Self {
-            magic,
-            linker_major,
-            linker_minor,
-            code_size,
-            init_size,
-            uninit_size,
-            entry_ptr: entry_offset,
-            code_ptr: code_base,
-        }
-    }
-
-    /// Get a [`RawPeImageStandard`] from `bytes`. Checks for the magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        let opt = unsafe {
-            &*(bytes
-                .get(..size_of::<RawPeImageStandard>())
-                .ok_or(Error::NotEnoughData)?
-                .as_ptr() as *const RawPeImageStandard)
-        };
-        if !(opt.magic == PE32_64_MAGIC || opt.magic != PE32_MAGIC) {
-            return Err(Error::InvalidPeMagic);
-        }
-        Ok(opt)
-    }
-}
-
-/// 32-bit optional header
+/// 32-bit Executable header
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
-pub struct RawPe32 {
+pub struct RawExec32 {
     /// Standard/common subset
-    pub standard: RawPeImageStandard,
+    pub standard: RawExec,
 
     /// Offset to beginning-of-data section, relative to image base.
     pub data_ptr: u32,
@@ -621,10 +579,10 @@ pub struct RawPe32 {
     pub data_dirs: u32,
 }
 
-impl RawPe32 {
+impl RawExec32 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        standard: RawPeImageStandard,
+        standard: RawExec,
         data_ptr: u32,
         image_ptr: u32,
         mem_align: u32,
@@ -672,7 +630,7 @@ impl RawPe32 {
         }
     }
 
-    /// Get a [`RawPe32`] from `data`. Checks for the magic.
+    /// Get a [`RawExec32`] from `data`. Checks for the magic.
     ///
     /// # Safety
     ///
@@ -681,28 +639,32 @@ impl RawPe32 {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
-        if size < size_of::<RawPe32>() {
-            return Err(Error::NotEnoughData);
-        }
-        let opt = unsafe { &*(data as *const RawPe32) };
+
+        // Ensure that size is enough
+        size.checked_sub(size_of::<RawExec32>())
+            .ok_or(Error::NotEnoughData)?;
+
+        // Safety: Have just verified theres enough `size`
+        // and `RawExec32` is POD.
+        let opt = unsafe { &*(data as *const RawExec32) };
         if opt.standard.magic != PE32_MAGIC {
             return Err(Error::InvalidPeMagic);
         }
         Ok(opt)
     }
 
-    /// Get a [`RawPe32`] from `bytes`. Checks for the magic.
+    /// Get a [`RawExec32`] from `bytes`. Checks for the magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        unsafe { RawPe32::from_ptr(bytes.as_ptr(), bytes.len()) }
+        unsafe { RawExec32::from_ptr(bytes.as_ptr(), bytes.len()) }
     }
 }
 
-/// 64-bit optional header
+/// 64-bit Executable header
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
-pub struct RawPe32x64 {
+pub struct RawExec64 {
     /// Standard/common subset
-    pub standard: RawPeImageStandard,
+    pub standard: RawExec,
 
     /// Preferred base address of the image when loaded in memory.
     pub image_base: u64,
@@ -780,10 +742,10 @@ pub struct RawPe32x64 {
     pub data_dirs: u32,
 }
 
-impl RawPe32x64 {
+impl RawExec64 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        standard: RawPeImageStandard,
+        standard: RawExec,
         image_base: u64,
         section_align: u32,
         file_align: u32,
@@ -829,7 +791,7 @@ impl RawPe32x64 {
         }
     }
 
-    /// Get a [`RawPe32x64`] from `data`. Checks for the magic.
+    /// Get a [`RawExec64`] from `data`. Checks for the magic.
     ///
     /// # Safety
     ///
@@ -838,63 +800,142 @@ impl RawPe32x64 {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
-        if size < size_of::<RawPe32x64>() {
+        if size < size_of::<RawExec64>() {
             return Err(Error::NotEnoughData);
         }
-        let opt = unsafe { &*(data as *const RawPe32x64) };
+
+        // Safety: Have just verified theres enough `size`
+        // and `RawExec32` is POD.
+        let opt = unsafe { &*(data as *const RawExec64) };
         if opt.standard.magic != PE32_64_MAGIC {
             return Err(Error::InvalidPeMagic);
         }
         Ok(opt)
     }
 
-    /// Get a [`RawPe32x64`] from `bytes`. Checks for the magic.
+    /// Get a [`RawExec64`] from `bytes`. Checks for the magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        unsafe { RawPe32x64::from_ptr(bytes.as_ptr(), bytes.len()) }
+        unsafe { RawExec64::from_ptr(bytes.as_ptr(), bytes.len()) }
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+/// A "data directory", an (address, size) pair used by the windows loader
+///
+/// There are 16 standard entries, though there can be any number, including
+/// less.
+///
+/// Note that windows is naughty here, and some data directories don't
+/// store the same type of data as all the others.
+/// The certificate directory, specifically.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
 pub struct RawDataDirectory {
+    /// Virtual address to the data
+    ///
+    /// Sometimes this is not actually a virtual address.
     pub address: u32,
+
+    /// Size of the data in bytes
     pub size: u32,
 }
 
 impl RawDataDirectory {
-    pub fn new(address: u32, size: u32) -> Self {
+    pub const fn new(address: u32, size: u32) -> Self {
         Self { address, size }
     }
 }
 
+/// Section Header
+///
+/// The section table starts after the COFF and exec headers, and is
+/// [`size_of::<RawSectionHeader>`] * [`RawCoff::sections`] bytes.
+///
+/// Sections are conventionally numbered starting from 1
+///
+/// In an image file, the virtual addresses assigned by the linker "must"
+/// be assigned in ascending and adjacent order, and they "must" be a multiple
+/// of [`RawExec{32|64}::mem_align`][`RawExec64::mem_align`].
+///
+/// An ideal file upholds this. An in the wild file may not, and yet still run.
+/// It must thus also be parsed.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C, packed)]
 pub struct RawSectionHeader {
-    /// Name of the section
+    /// Name of the section, as a null-padded UTF-8 string
+    ///
+    /// If the name is exactly 8 characters, there is no nul byte.
+    ///
+    /// For exec/image files, section names are limited to 8 bytes.
+    ///
+    /// For object files, names longer than 8 characters cause this field
+    /// to contain a reference to the string table,
+    /// represented by a slash `/` and an ASCII digit offset into the string
+    /// table.
+    ///
+    /// Names are truncated in object files upon being emitted to exec files
     pub name: [u8; 8],
 
     /// Size of the section in memory
+    ///
+    /// If this is greater than `disk_size`, the section is zero-padded in
+    /// memory.
+    ///
+    /// This is only valid for exec files and should be set to zero for object
+    /// files
     pub mem_size: u32,
 
-    /// Offset of the section in memory
+    /// For exec files, offset of the section in memory, relative to
+    /// [`RawExec{32|64}::image_base`][`RawExec64::image_base`].
+    ///
+    /// For object files, this should be set to zero.
+    /// If not, it is an arbitrary value subtracted from all offsets during
+    /// relocations.
     pub mem_ptr: u32,
 
-    /// Size of the section on disk
+    /// Size of the initialized data of the section on disk
+    ///
+    /// For exec files, this "must" be a multiple of
+    /// [`RawExec{32|64}::disk_align`][`RawExec64::disk_align`].
+    ///
+    /// If less than [`mem_size`][`RawSectionHeader::mem_size`],
+    /// the section is zero-padded on disk.
+    ///
+    /// If a section contains only uninitialized data, this should be zero.
+    ///
+    /// Because this is rounded to `disk_align` but `mem_size` is not,
+    /// this may be larger than `mem_size`.
     pub disk_size: u32,
 
-    /// Offset of the section on disk
+    /// Offset to the section on disk
+    ///
+    /// For exec files this "must" be a multiple of
+    /// [`RawExec{32|64}::disk_align`][`RawExec64::disk_align`].
+    ///
+    /// For object files, this should be aligned to 4 bytes.
+    ///
+    /// When a section contains only uninitialized data, this should be zero.
     pub disk_offset: u32,
 
-    /// Offset of the sections relocations on disk
+    /// Offset of the relocation entries for the section on disk
+    ///
+    /// Should be set to zero for exec files or if there are no relocations
     pub reloc_offset: u32,
 
-    /// Offset of the sections line numbers on disk
+    /// Offset of the line numbers for the section on disk
+    ///
+    /// Should be set to zero if there are no line numbers.
+    ///
+    /// Should be set to zero in exec files
     pub line_offset: u32,
 
     /// Number of relocation entries at `reloc_offset`
+    ///
+    /// This should be zero for exec files.
     pub reloc_len: u16,
 
     /// Number of lines at `line_offset`
+    ///
+    /// This should be zero for exec files.
     pub lines_len: u16,
 
     /// Section flags
@@ -957,8 +998,8 @@ mod tests {
 
     assert_eq_size!(RawCoff, [u8; 20]);
     assert_eq_size!(RawDos, [u8; 64]);
-    assert_eq_size!(RawPeImageStandard, [u8; 24]);
-    assert_eq_size!(RawPe32x64, [u8; 112]);
+    assert_eq_size!(RawExec, [u8; 24]);
+    assert_eq_size!(RawExec64, [u8; 112]);
     assert_eq_size!(RawDataDirectory, [u8; 8]);
     assert_eq_size!(RawSectionHeader, [u8; 40]);
     const_assert_eq!(align_of::<RawCoff>(), 1);

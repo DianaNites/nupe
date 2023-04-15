@@ -1,5 +1,5 @@
 //! PE type
-use core::{fmt, marker::PhantomData};
+use core::{fmt, marker::PhantomData, mem::size_of};
 
 use crate::{
     error::{Error, Result},
@@ -41,18 +41,108 @@ impl<'data> Pe<'data> {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    unsafe fn from_ptr_internal(data: *const u8, size: usize, loaded: bool) -> Result<Self> {
-        let (dos, (pe_ptr, pe_size), (stub_ptr, stub_size)) = RawDos::from_ptr(data, size)
-            .map_err(|e| match e {
-                Error::NotEnoughData => Error::MissingDOS,
-                _ => e,
-            })?;
-        let (pe, (opt_ptr, opt_size), (section_ptr, section_size)) =
-            RawPe::from_ptr(pe_ptr, pe_size).map_err(|e| match e {
-                Error::NotEnoughData => Error::MissingPE,
-                _ => e,
-            })?;
-        let (header, (data_ptr, data_size)) = ImageHeader::from_ptr(opt_ptr, opt_size)?;
+    unsafe fn from_ptr_internal(data: *const u8, input_size: usize, loaded: bool) -> Result<Self> {
+        let dos = RawDos::from_ptr(data, input_size).map_err(|e| match e {
+            Error::NotEnoughData => Error::MissingDOS,
+            _ => e,
+        })?;
+
+        // Pointer to the PE signature, and the size of the remainder of the input after
+        // the DOS stub.
+        let (pe_ptr, pe_size) = {
+            // Offset in the file to the PE signature
+            let off: usize = dos.pe_offset.try_into().map_err(|_| Error::InvalidData)?;
+
+            // Ensure the PE offset is within `size`
+            input_size.checked_sub(off).ok_or(Error::NotEnoughData)?;
+
+            // Offset to the PE signature
+            //
+            // Safety:
+            // - `data` is guaranteed to be valid for this size by the caller and the above
+            //   check.
+            // - `data` is guaranteed to be in-bounds by the caller
+            // - Caller guarantees `data + size` does not overflow `isize`
+            let pe_ptr = data.add(off);
+
+            // Size of the entire input minus the offset to the PE section,
+            // the missing space being the preceding DOS stub.
+            //
+            // This is strictly less than `size`
+            let pe_size = input_size - off;
+
+            (pe_ptr, pe_size)
+        };
+
+        // Pointer to the DOS stub code, and size of the code before the PE header
+        let (stub_ptr, stub_size) = {
+            // Offset to the DOS stub code
+            //
+            // Safety:
+            // - `data` is guaranteed to be valid by `RawDos::from_ptr` not having returned
+            //   an error.
+            // - `data` is guaranteed to be in-bounds by the caller
+            let stub_ptr = data.add(size_of::<RawDos>());
+
+            // Size of the DOS stub code is the size of the input,
+            // minus the size of the PE and DOS header
+            let stub_size = input_size - pe_size - size_of::<RawDos>();
+
+            (stub_ptr, stub_size)
+        };
+
+        // PE signature and COFF header
+        let pe = RawPe::from_ptr(pe_ptr, pe_size).map_err(|e| match e {
+            Error::NotEnoughData => Error::MissingPE,
+            _ => e,
+        })?;
+
+        // Pointer to the exec header, and its size.
+        let (exec_ptr, exec_size) = {
+            // Size of the exec header
+            let exec_size: usize = pe.coff.exec_header_size.into();
+
+            let off = size_of::<RawPe>()
+                .checked_add(exec_size)
+                .ok_or(Error::NotEnoughData)?;
+
+            // Ensure that `exec_size` is within `pe_size`
+            pe_size.checked_sub(off).ok_or(Error::MissingExecHeader)?;
+
+            // Exec header appears directly after PE sig and COFF header
+            //
+            // Safety:
+            // - `pe_ptr` and this operation is guaranteed to be valid by earlier code.
+            let exec_ptr = pe_ptr.add(size_of::<RawPe>());
+
+            (exec_ptr, exec_size)
+        };
+
+        // Pointer to section table, and its size in elements.
+        let (section_ptr, section_size) = {
+            // Size of the section table in bytes
+            let section_size = size_of::<RawSectionHeader>()
+                .checked_mul(pe.coff.sections.into())
+                .ok_or(Error::TooMuchData)?;
+
+            let off = size_of::<RawPe>()
+                .checked_add(section_size)
+                .ok_or(Error::NotEnoughData)?;
+
+            // Ensure `section_size` is within `pe_size`
+            pe_size.checked_sub(off).ok_or(Error::MissingSectionTable)?;
+
+            // Section table appears directly after the exec header
+            //
+            // Safety:
+            // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
+            let section_ptr = exec_ptr.add(exec_size) as *const RawSectionHeader;
+
+            (section_ptr, pe.coff.sections.into())
+        };
+
+        let (header, (data_ptr, data_size)) = ImageHeader::from_ptr(exec_ptr, exec_size)?;
+        //
         let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
         let sections = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
         let stub = unsafe { core::slice::from_raw_parts(stub_ptr, stub_size) };
@@ -61,7 +151,11 @@ impl<'data> Pe<'data> {
                 return Err(Error::InvalidData);
             }
         }
-        let base = if loaded { Some((data, size)) } else { None };
+        let base = if loaded {
+            Some((data, input_size))
+        } else {
+            None
+        };
 
         Ok(Self {
             dos: OwnedOrRef::Ref(dos),

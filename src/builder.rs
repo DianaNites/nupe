@@ -8,10 +8,10 @@ use crate::{
     raw::{
         RawCoff,
         RawDos,
+        RawExec,
+        RawExec32,
+        RawExec64,
         RawPe,
-        RawPe32,
-        RawPe32x64,
-        RawPeImageStandard,
         RawSectionHeader,
         PE32_64_MAGIC,
         PE32_MAGIC,
@@ -349,11 +349,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
             .map_err(|_| Error::TooMuchData)?;
 
         let img_hdr_size: u16 = if self.plus {
-            size_of::<RawPe32x64>()
+            size_of::<RawExec64>()
                 .try_into()
                 .map_err(|_| Error::TooMuchData)?
         } else {
-            size_of::<RawPe32>()
+            size_of::<RawExec32>()
                 .try_into()
                 .map_err(|_| Error::TooMuchData)?
         };
@@ -405,7 +405,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let headers_size: u64 = headers_size + (self.disk_align - (headers_size % self.disk_align));
         let headers_size: u32 = headers_size.try_into().map_err(|_| Error::TooMuchData)?;
 
-        let exec = RawPeImageStandard::new(
+        let exec = RawExec::new(
             if self.plus { PE32_64_MAGIC } else { PE32_MAGIC },
             self.linker_ver.0,
             self.linker_ver.1,
