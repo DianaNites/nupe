@@ -51,7 +51,7 @@ impl<'data> Pe<'data> {
         // the DOS stub.
         let (pe_ptr, pe_size) = {
             // Offset in the file to the PE signature
-            let off: usize = dos.pe_offset.try_into().map_err(|_| Error::InvalidData)?;
+            let off: usize = dos.pe_offset.try_into().map_err(|_| Error::TooMuchData)?;
 
             // Ensure the PE offset is within `size`
             input_size.checked_sub(off).ok_or(Error::NotEnoughData)?;
@@ -141,16 +141,45 @@ impl<'data> Pe<'data> {
             (section_ptr, pe.coff.sections.into())
         };
 
-        let (header, (data_ptr, data_size)) = ExecHeader::from_ptr(exec_ptr, exec_size)?;
+        // let (header, (data_ptr, data_size)) = ExecHeader::from_ptr(exec_ptr,
+        // exec_size)?;
+        let header = ExecHeader::from_ptr(exec_ptr, exec_size)?;
+
+        // Pointer to data directory, and its size in elements.
+        let (data_ptr, data_size) = {
+            let elems = header
+                .data_dirs()
+                .try_into()
+                .map_err(|_| Error::TooMuchData)?;
+
+            // Size in bytes of the data directories
+            let data_size = size_of::<RawDataDirectory>()
+                .checked_mul(elems)
+                .ok_or(Error::NotEnoughData)?;
+
+            // Ensure the data directories all fit within `exec_size`
+            exec_size
+                .checked_sub(
+                    header
+                        .size_of()
+                        .checked_add(data_size)
+                        .ok_or(Error::NotEnoughData)?,
+                )
+                .ok_or(Error::NotEnoughData)?;
+
+            // Data dirs appear directly after the exec header
+            //
+            // Safety:
+            // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
+            let data_ptr = exec_ptr.add(header.size_of()) as *const RawDataDirectory;
+
+            (data_ptr, elems)
+        };
 
         let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
         let sections = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
         let stub = unsafe { core::slice::from_raw_parts(stub_ptr, stub_size) };
-        for s in sections {
-            if !s.name.is_ascii() {
-                return Err(Error::InvalidData);
-            }
-        }
+
         let base = if loaded {
             Some((data, input_size))
         } else {

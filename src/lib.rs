@@ -25,7 +25,7 @@ mod internal;
 mod pe;
 pub mod raw;
 
-use core::{mem::size_of, slice::from_raw_parts};
+use core::{mem::size_of, ptr::addr_of, slice::from_raw_parts};
 
 use crate::{
     error::{Error, Result},
@@ -45,6 +45,9 @@ pub use crate::{
     pe::*,
 };
 
+/// Executable header, otherwise known as the "optional" header
+///
+/// Provides an abstraction over the meaningless 32 and 64 bit difference
 #[derive(Debug, Clone, Copy)]
 pub enum ExecHeader<'data> {
     Raw32(OwnedOrRef<'data, RawExec32>),
@@ -163,15 +166,29 @@ impl<'data> ExecHeader<'data> {
             ExecHeader::Raw64(h) => h.standard.uninit_size,
         }
     }
+
+    /// Convenience function to get the correct size in bytes of the exec header
+    pub const fn size_of(&self) -> usize {
+        match self {
+            ExecHeader::Raw32(_) => size_of::<RawExec32>(),
+            ExecHeader::Raw64(_) => size_of::<RawExec64>(),
+        }
+    }
 }
 
 #[doc(hidden)]
 impl<'data> ExecHeader<'data> {
     /// How many data directories
-    fn data_dirs(&self) -> u32 {
+    const fn data_dirs(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => h.data_dirs,
-            ExecHeader::Raw64(h) => h.data_dirs,
+            ExecHeader::Raw32(h) => match h {
+                OwnedOrRef::Owned(h) => h.data_dirs,
+                OwnedOrRef::Ref(h) => h.data_dirs,
+            },
+            ExecHeader::Raw64(h) => match h {
+                OwnedOrRef::Owned(h) => h.data_dirs,
+                OwnedOrRef::Ref(h) => h.data_dirs,
+            },
         }
     }
 
@@ -292,43 +309,35 @@ impl<'data> ExecHeader<'data> {
 
 #[doc(hidden)]
 impl<'data> ExecHeader<'data> {
-    /// Get a [`ImageHeader`] from `data`. Checks for the magic.
+    /// Get a [`ExecHeader`] from a pointer to an exec header.
     ///
-    /// Returns [`ImageHeader`] and data dirs
+    /// This function validates that `size` is enough to contain this header,
+    /// and that the magic is correct.
     ///
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    unsafe fn from_ptr(
-        data: *const u8,
-        size: usize,
-    ) -> Result<(Self, (*const RawDataDirectory, usize))> {
+    /// - You must ensure the returned reference does not outlive `data`, and is
+    ///   not mutated for the duration of lifetime `'data`.
+    unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
+        // Ensure that `size` is enough for the common header
         size.checked_sub(size_of::<RawExec>())
             .ok_or(Error::NotEnoughData)?;
-        let opt = unsafe { &*(data as *const RawExec) };
-        if opt.magic == PE32_64_MAGIC {
+
+        // Safety: Have just verified theres enough `size`, so read the magic.
+        let magic = addr_of!((*(data as *const RawExec)).magic).read_unaligned();
+
+        if magic == PE32_64_MAGIC {
             let opt = RawExec64::from_ptr(data, size)?;
-            let _data_size = size_of::<RawDataDirectory>()
-                .checked_mul(opt.data_dirs as usize)
-                .ok_or(Error::NotEnoughData)?;
-            let data_ptr = data.wrapping_add(size_of::<RawExec64>()) as *const RawDataDirectory;
-            Ok((
-                ExecHeader::Raw64(OwnedOrRef::Ref(opt)),
-                (data_ptr, opt.data_dirs as usize),
-            ))
-        } else if opt.magic == PE32_MAGIC {
+
+            Ok(ExecHeader::Raw64(OwnedOrRef::Ref(opt)))
+        } else if magic == PE32_MAGIC {
             let opt = RawExec32::from_ptr(data, size)?;
-            let _data_size = size_of::<RawDataDirectory>()
-                .checked_mul(opt.data_dirs as usize)
-                .ok_or(Error::NotEnoughData)?;
-            let data_ptr = data.wrapping_add(size_of::<RawExec32>()) as *const RawDataDirectory;
-            Ok((
-                ExecHeader::Raw32(OwnedOrRef::Ref(opt)),
-                (data_ptr, opt.data_dirs as usize),
-            ))
+
+            Ok(ExecHeader::Raw32(OwnedOrRef::Ref(opt)))
         } else {
             Err(Error::InvalidPeMagic)
         }
