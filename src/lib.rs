@@ -1,17 +1,22 @@
-//! PE image handling
+//! `no_std` COFF/PE image handling library
+//!
+//! # Examples
+//!
+//! // TODO: Examples
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
-// #![allow(
-//     unused_variables,
-//     unused_imports,
-//     unused_mut,
-//     unused_assignments,
-//     dead_code,
-//     clippy::let_unit_value,
-//     clippy::diverging_sub_expression,
-//     clippy::new_without_default,
-//     clippy::too_many_arguments,
-//     unreachable_code
-// )]
+#![allow(
+    unused_variables,
+    unused_imports,
+    unused_mut,
+    unused_assignments,
+    dead_code,
+    clippy::let_unit_value,
+    clippy::diverging_sub_expression,
+    clippy::new_without_default,
+    clippy::too_many_arguments,
+    clippy::missing_safety_doc,
+    unreachable_code
+)]
 extern crate alloc;
 
 pub mod builder;
@@ -42,12 +47,12 @@ pub use crate::{
 
 #[derive(Debug, Clone, Copy)]
 pub enum ImageHeader<'data> {
-    Raw32(OwnedOrRef<'data, RawPe32>),
-    Raw64(OwnedOrRef<'data, RawPe32x64>),
+    Raw32(OwnedOrRef<'data, RawExec32>),
+    Raw64(OwnedOrRef<'data, RawExec64>),
 }
 
 impl<'data> ImageHeader<'data> {
-    /// Wrapper around [`RawPe32::new`] and [`RawPe32x64::new`]
+    /// Wrapper around [`RawExec32::new`] and [`RawExec64::new`]
     ///
     /// Always takes arguments in 64-bit, errors if out of bounds
     ///
@@ -55,7 +60,7 @@ impl<'data> ImageHeader<'data> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         plus: bool,
-        standard: RawPeImageStandard,
+        standard: RawExec,
         data_ptr: u32,
         image_ptr: u64,
         mem_align: u32,
@@ -77,7 +82,7 @@ impl<'data> ImageHeader<'data> {
         data_dirs: u32,
     ) -> Result<Self> {
         if plus {
-            Ok(ImageHeader::Raw64(OwnedOrRef::Owned(RawPe32x64::new(
+            Ok(ImageHeader::Raw64(OwnedOrRef::Owned(RawExec64::new(
                 standard,
                 image_ptr,
                 mem_align,
@@ -99,7 +104,7 @@ impl<'data> ImageHeader<'data> {
                 data_dirs,
             ))))
         } else {
-            Ok(ImageHeader::Raw32(OwnedOrRef::Owned(RawPe32::new(
+            Ok(ImageHeader::Raw32(OwnedOrRef::Owned(RawExec32::new(
                 standard,
                 data_ptr,
                 image_ptr.try_into().map_err(|_| Error::TooMuchData)?,
@@ -129,13 +134,13 @@ impl<'data> ImageHeader<'data> {
         match self {
             ImageHeader::Raw32(h) => {
                 //
-                let ptr = h.as_ref() as *const RawPe32 as *const u8;
-                unsafe { from_raw_parts(ptr, size_of::<RawPe32>()) }
+                let ptr = h.as_ref() as *const RawExec32 as *const u8;
+                unsafe { from_raw_parts(ptr, size_of::<RawExec32>()) }
             }
             ImageHeader::Raw64(h) => {
                 //
-                let ptr = h.as_ref() as *const RawPe32x64 as *const u8;
-                unsafe { from_raw_parts(ptr, size_of::<RawPe32x64>()) }
+                let ptr = h.as_ref() as *const RawExec64 as *const u8;
+                unsafe { from_raw_parts(ptr, size_of::<RawExec64>()) }
             }
         }
     }
@@ -301,25 +306,25 @@ impl<'data> ImageHeader<'data> {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
-        size.checked_sub(size_of::<RawPeImageStandard>())
+        size.checked_sub(size_of::<RawExec>())
             .ok_or(Error::NotEnoughData)?;
-        let opt = unsafe { &*(data as *const RawPeImageStandard) };
+        let opt = unsafe { &*(data as *const RawExec) };
         if opt.magic == PE32_64_MAGIC {
-            let opt = RawPe32x64::from_ptr(data, size)?;
+            let opt = RawExec64::from_ptr(data, size)?;
             let _data_size = size_of::<RawDataDirectory>()
                 .checked_mul(opt.data_dirs as usize)
                 .ok_or(Error::NotEnoughData)?;
-            let data_ptr = data.wrapping_add(size_of::<RawPe32x64>()) as *const RawDataDirectory;
+            let data_ptr = data.wrapping_add(size_of::<RawExec64>()) as *const RawDataDirectory;
             Ok((
                 ImageHeader::Raw64(OwnedOrRef::Ref(opt)),
                 (data_ptr, opt.data_dirs as usize),
             ))
         } else if opt.magic == PE32_MAGIC {
-            let opt = RawPe32::from_ptr(data, size)?;
+            let opt = RawExec32::from_ptr(data, size)?;
             let _data_size = size_of::<RawDataDirectory>()
                 .checked_mul(opt.data_dirs as usize)
                 .ok_or(Error::NotEnoughData)?;
-            let data_ptr = data.wrapping_add(size_of::<RawPe32>()) as *const RawDataDirectory;
+            let data_ptr = data.wrapping_add(size_of::<RawExec32>()) as *const RawDataDirectory;
             Ok((
                 ImageHeader::Raw32(OwnedOrRef::Ref(opt)),
                 (data_ptr, opt.data_dirs as usize),
@@ -375,7 +380,7 @@ impl<'data> Section<'data> {
     /// # WARNING
     ///
     /// Be sure this is what you want. This field is a trap.
-    /// You may instead want [`Section::virtual_size`]
+    /// You may instead want `Section::virtual_size`
     ///
     /// The file_size field is rounded up to a multiple of the file alignment,
     /// but virtual_size is not. That means file_size includes extra padding not
@@ -610,7 +615,7 @@ mod tests {
         let x = size_of::<RawDos>()
             + in_pe.dos_stub().len()
             + size_of::<RawPe>()
-            + size_of::<RawPe32x64>()
+            + size_of::<RawExec64>()
             + in_pe.data_dirs_len() as usize * size_of::<RawDataDirectory>()
             + in_pe.sections_len() * size_of::<RawSectionHeader>()
             + in_pe
@@ -620,7 +625,7 @@ mod tests {
         let y = size_of::<RawDos>()
             + in_pe.dos_stub().len()
             + size_of::<RawPe>()
-            + size_of::<RawPe32x64>()
+            + size_of::<RawExec64>()
             + in_pe.data_dirs_len() as usize * size_of::<RawDataDirectory>()
             + in_pe.sections_len() * size_of::<RawSectionHeader>()
             + in_pe
@@ -674,7 +679,7 @@ mod tests {
         assert_eq!({ pe.coff().time }, 1657657359);
         assert_eq!({ pe.coff().sym_offset }, 0);
         assert_eq!({ pe.coff().sym_len }, 0);
-        assert_eq!({ pe.coff().img_hdr_size }, 240);
+        assert_eq!({ pe.coff().exec_header_size }, 240);
         assert_eq!(
             { pe.coff().file_attributes },
             CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE

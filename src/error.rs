@@ -7,6 +7,8 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     InvalidDosMagic,
+
+    ///
     InvalidPeMagic,
     NotEnoughData,
     MissingOpt,
@@ -27,8 +29,8 @@ pub enum Error {
     /// Not enough data, missing PE header
     MissingPE,
 
-    /// Not enough data, missing Image Header
-    MissingImageHeader,
+    /// Not enough data, missing Exec Header
+    MissingExecHeader,
 
     /// Missing the Section Table
     MissingSectionTable,
@@ -50,7 +52,7 @@ impl fmt::Display for Error {
             ),
             Self::MissingDOS => write!(f, "missing DOS header"),
             Self::MissingPE => write!(f, "missing PE header"),
-            Self::MissingImageHeader => write!(f, "missing Image header"),
+            Self::MissingExecHeader => write!(f, "missing exec header"),
             Self::MissingSectionTable => write!(f, "missing section table"),
         }
     }
