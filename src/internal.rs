@@ -78,10 +78,10 @@ pub enum OwnedOrRef<'data, T> {
     Ref(&'data T),
 }
 
-impl<'data, T> Deref for OwnedOrRef<'data, T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
+impl<'data, T> OwnedOrRef<'data, T> {
+    /// Constant method to get a reference to `T`
+    #[inline]
+    pub const fn as_ref(&self) -> &T {
         match self {
             OwnedOrRef::Owned(s) => s,
             OwnedOrRef::Ref(r) => r,
@@ -89,12 +89,19 @@ impl<'data, T> Deref for OwnedOrRef<'data, T> {
     }
 }
 
+impl<'data, T> Deref for OwnedOrRef<'data, T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        OwnedOrRef::as_ref(self)
+    }
+}
+
 impl<'data, T> AsRef<T> for OwnedOrRef<'data, T> {
+    #[inline]
     fn as_ref(&self) -> &T {
-        match self {
-            OwnedOrRef::Owned(s) => s,
-            OwnedOrRef::Ref(r) => r,
-        }
+        OwnedOrRef::as_ref(self)
     }
 }
 
