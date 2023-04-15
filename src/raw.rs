@@ -6,11 +6,12 @@
 //! PE Files are laid out as so
 //!
 //! - [RawDos]
-//! - DOS Stub
+//! - DOS Stub, DOS executable code that conventionally says the program can't
+//!   be run in DOS.
 //! - Rich Header?
 //! - PE Header [RawPe]
 //!     - COFF Header [RawCoff]
-//! - Optional Header [RawPeOptStandard]
+//! - Optional Header [RawPeImageStandard]
 //! - [RawPe32] or [RawPe32x64]
 //! - Variable number of [RawDataDirectory]
 //! - Variable number of [RawSectionHeader]
@@ -46,11 +47,14 @@ pub const PE32_MAGIC: u16 = 0x10B;
 /// PE32+ Magic signature
 pub const PE32_64_MAGIC: u16 = 0x20B;
 
-/// Raw DOS header
+/// Legacy MS-DOS header for executable PE images
+///
+/// The only thing really relevant for loading a PE image is
+/// [`RawDos::pe_offset`]
 #[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawDos {
-    /// [DOS_MAGIC]
+    /// Constant of value [DOS_MAGIC] identifying the PE executable
     pub magic: [u8; 2],
 
     /// Number of bytes in the last [DOS_PAGE]
@@ -104,7 +108,9 @@ pub struct RawDos {
     /// Reserved in PE
     pub _reserved2: [u8; 20],
 
-    /// Absolute offset to the PE header
+    /// Absolute offset in the file to the PE header
+    ///
+    /// "Should" be aligned to 8 bytes due to existing practice
     pub pe_offset: u32,
 }
 
@@ -136,19 +142,23 @@ impl RawDos {
         }
     }
 
-    /// Empty header with pe offset immediately after it
+    /// Empty header, with NO DOS stub, with pe offset immediately after it
     pub(crate) fn sized() -> Self {
+        // `RawDos` is 64 bytes and thus 8 byte aligned.
         Self::new(size_of::<Self>() as u32)
     }
 
     /// Get a [`RawDos`] from `data`, and a new pointer length pair for the PE
     /// portion and the DOS stub.
     ///
-    /// Checks for the DOS magic.
+    /// This function validates that `size` is enough to contain the header,
+    /// and that the DOS magic is correct.
     ///
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
+    /// - You must ensure the returned reference does not outlive `data`, and is
+    ///   not mutated for the duration of lifetime `'data`.
     #[allow(clippy::type_complexity)]
     pub unsafe fn from_ptr<'data>(
         data: *const u8,
@@ -157,8 +167,11 @@ impl RawDos {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
+
+        // Ensure that size is enough
         size.checked_sub(size_of::<RawDos>())
             .ok_or(Error::NotEnoughData)?;
+
         let dos = unsafe { &*(data as *const RawDos) };
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
@@ -263,9 +276,16 @@ pub struct RawCoff {
     pub sym_offset: u32,
     pub sym_len: u32,
 
-    /// Size in bytes of the Image Header
+    /// Claimed size in bytes of the Image Header
+    ///
+    /// Should be zero for object files, but is not required to be.
+    ///
+    /// Cannot be trusted.
+    ///
+    /// Otherwise known as the "optional" header
     pub img_hdr_size: u16,
 
+    /// Object attributes
     pub file_attributes: CoffAttributes,
 }
 
@@ -292,21 +312,46 @@ impl RawCoff {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+/// Microsoft PE Signature and COFF header, assumed to be an executable image.
+#[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPe {
+    /// Constant of value [PE_MAGIC] identifying the PE executable
     pub sig: [u8; 4],
+
+    /// COFF file header
     pub coff: RawCoff,
 }
 
+impl fmt::Debug for RawPe {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut s = f.debug_struct("RawPe");
+        if self.sig == PE_MAGIC {
+            struct Helper;
+            impl fmt::Debug for Helper {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    write!(f, r#"b"PE\0\0""#)
+                }
+            }
+            s.field("sig", &Helper);
+        } else {
+            s.field("sig", &self.sig);
+        }
+
+        s.field("coff", &self.coff).finish()
+    }
+}
+
 impl RawPe {
-    /// Get a [`RawPe`] from `data`. Checks for the PE magic.
+    /// Get a [`RawPe`] from a pointer to a PE Signature and COFF header
     ///
     /// Returns [`RawPe`], opt data, and section data
     ///
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
+    /// - You must ensure the returned reference does not outlive `data`, and is
+    ///   not mutated for the duration of lifetime `'data`.
     #[allow(clippy::type_complexity)]
     pub unsafe fn from_ptr<'data>(
         data: *const u8,
@@ -319,8 +364,11 @@ impl RawPe {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
+
+        // Ensure that size is enough
         size.checked_sub(size_of::<RawPe>())
             .ok_or(Error::NotEnoughData)?;
+
         let pe = unsafe { &*(data as *const RawPe) };
         if pe.sig != PE_MAGIC {
             return Err(Error::InvalidPeMagic);
@@ -380,7 +428,7 @@ impl RawPe {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawPeImageStandard {
     /// Magic identifying PE32 vs PE32+
@@ -408,6 +456,46 @@ pub struct RawPeImageStandard {
     pub code_ptr: u32,
 }
 
+impl fmt::Debug for RawPeImageStandard {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        struct Helper2<const B: u16>;
+        impl fmt::Debug for Helper2<PE32_64_MAGIC> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "PE32_64_MAGIC")
+            }
+        }
+        impl fmt::Debug for Helper2<PE32_MAGIC> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "PE32_MAGIC")
+            }
+        }
+
+        let mut s = f.debug_struct("RawPeImageStandard");
+        if self.magic == PE32_64_MAGIC {
+            s.field("magic", &Helper2::<PE32_64_MAGIC>);
+        } else if self.magic == PE32_MAGIC {
+            s.field("magic", &Helper2::<PE32_MAGIC>);
+        } else {
+            struct Helper(u16);
+            impl fmt::Debug for Helper {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    write!(f, "(Unknown) {}", &self.0)
+                }
+            }
+            s.field("magic", &Helper(self.magic));
+        }
+
+        s.field("linker_major", &{ self.linker_major })
+            .field("linker_minor", &{ self.linker_minor })
+            .field("code_size", &{ self.code_size })
+            .field("init_size", &{ self.init_size })
+            .field("uninit_size", &{ self.uninit_size })
+            .field("entry_ptr", &{ self.entry_ptr })
+            .field("code_ptr", &{ self.code_ptr })
+            .finish()
+    }
+}
+
 impl RawPeImageStandard {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -432,7 +520,7 @@ impl RawPeImageStandard {
         }
     }
 
-    /// Get a [`RawPeOptStandard`] from `bytes`. Checks for the magic.
+    /// Get a [`RawPeImageStandard`] from `bytes`. Checks for the magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
         let opt = unsafe {
             &*(bytes
