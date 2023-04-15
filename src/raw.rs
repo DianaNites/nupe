@@ -51,7 +51,7 @@ pub const PE32_64_MAGIC: u16 = 0x20B;
 ///
 /// The only thing really relevant for loading a PE image is
 /// [`RawDos::pe_offset`]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
 pub struct RawDos {
     /// Constant of value [DOS_MAGIC] identifying the PE executable
@@ -111,6 +111,11 @@ pub struct RawDos {
     /// Absolute offset in the file to the PE header
     ///
     /// "Should" be aligned to 8 bytes due to existing practice
+    ///
+    /// Note that this value is untrusted user input, and can be anything.
+    /// It could even point inside the DOS header.
+    ///
+    /// This must be handled appropriately.
     pub pe_offset: u32,
 }
 
@@ -118,40 +123,48 @@ impl RawDos {
     /// Create a new, empty, [`RawDos`].
     ///
     /// Sets the magic and pe_offset only.
-    pub fn new(pe_offset: u32) -> Self {
+    pub const fn new() -> Self {
         Self {
             magic: DOS_MAGIC,
-            pe_offset,
-            last_bytes: Default::default(),
-            pages: Default::default(),
-            relocations: Default::default(),
-            header_size: Default::default(),
-            min_alloc: Default::default(),
-            max_alloc: Default::default(),
-            initial_ss: Default::default(),
-            initial_sp: Default::default(),
-            checksum: Default::default(),
-            initial_ip: Default::default(),
-            initial_cs: Default::default(),
-            relocation_offset: Default::default(),
-            overlay_num: Default::default(),
-            _reserved: Default::default(),
-            oem_id: Default::default(),
-            oem_info: Default::default(),
-            _reserved2: Default::default(),
+            pe_offset: 0,
+            last_bytes: 0,
+            pages: 0,
+            relocations: 0,
+            header_size: 0,
+            min_alloc: 0,
+            max_alloc: 0,
+            initial_ss: 0,
+            initial_sp: 0,
+            checksum: 0,
+            initial_ip: 0,
+            initial_cs: 0,
+            relocation_offset: 0,
+            overlay_num: 0,
+            _reserved: [0; 4],
+            oem_id: 0,
+            oem_info: 0,
+            _reserved2: [0; 20],
         }
     }
 
     /// Empty header, with NO DOS stub, with pe offset immediately after it
-    pub fn sized() -> Self {
-        // `RawDos` is 64 bytes and thus 8 byte aligned.
-        Self::new(size_of::<Self>() as u32)
+    pub const fn sized() -> Self {
+        Self {
+            // `RawDos` is 64 bytes and thus 8 byte aligned.
+            pe_offset: size_of::<Self>() as u32,
+            ..Self::new()
+        }
     }
 
-    /// Get a [`RawDos`] from `data`
+    /// Get a [`RawDos`] from a pointer to a DOS header
     ///
     /// This function validates that `size` is enough to contain the header,
     /// and that the DOS magic is correct.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawDos`]
+    /// - [`Error::InvalidDosMagic`] If the DOS magic value is incorrect
     ///
     /// # Safety
     ///
@@ -159,9 +172,7 @@ impl RawDos {
     /// - You must ensure the returned reference does not outlive `data`, and is
     ///   not mutated for the duration of lifetime `'data`.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
-        if data.is_null() {
-            return Err(Error::InvalidData);
-        }
+        debug_assert!(!data.is_null(), "`data` was null in RawDos::from_ptr");
 
         // Ensure that size is enough
         size.checked_sub(size_of::<RawDos>())
@@ -175,6 +186,22 @@ impl RawDos {
         Ok(dos)
     }
 
+    /// Get a mutable [`RawDos`] from a mutable pointer to a DOS header
+    ///
+    /// See [`RawDos::from_ptr`] for error information and other details.
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    /// - You MUST ensure NO OTHER references exist when you call this.
+    /// - No instance of `&Self` can exist at the moment of this call.
+    /// - You must ensure the returned reference does not outlive `data`
+    // TODO: internal method that keeps pointers until this edge
+    #[cfg(no)]
+    pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
+        Ok(Self::from_ptr(data.cast_const(), size)?)
+    }
+
     /// Get a [`RawDos`] from `bytes`, and the remaining PE portion of `bytes`.
     ///
     /// Checks for the DOS magic.
@@ -186,6 +213,13 @@ impl RawDos {
                 .get(dos.pe_offset as usize..)
                 .ok_or(Error::NotEnoughData)?,
         ))
+    }
+}
+
+impl Default for RawDos {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -351,15 +385,18 @@ impl RawPe {
     /// This function validates that `size` is enough to contain this PE
     /// header, and that the PE signature is correct.
     ///
+    /// # Errors
+    ///
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawPe`]
+    /// - [`Error::InvalidPeMagic`] If the PE magic value is incorrect
+    ///
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
     /// - You must ensure the returned reference does not outlive `data`, and is
     ///   not mutated for the duration of lifetime `'data`.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
-        if data.is_null() {
-            return Err(Error::InvalidData);
-        }
+        debug_assert!(!data.is_null(), "`data` was null in RawPe::from_ptr");
 
         // Ensure that size is enough
         size.checked_sub(size_of::<RawPe>())
@@ -667,6 +704,10 @@ pub struct RawExec64 {
     pub standard: RawExec,
 
     /// Preferred base address of the image when loaded in memory.
+    ///
+    /// Windows default for DLLs is `0x10000000`
+    ///
+    /// Windows default for EXEs is `0x00400000`
     pub image_base: u64,
 
     /// Alignment, in bytes, of the section in memory.
@@ -704,12 +745,14 @@ pub struct RawExec64 {
     /// Reserved, 0.
     pub _reserved_win32: u32,
 
-    /// Size in bytes of the image as loaded in memory, aligned to
-    /// section_align.
+    /// Size in bytes of the entire image as loaded in memory
+    ///
+    /// "must" be aligned to [`mem_align`][`RawExec64::mem_align`].
     pub image_size: u32,
 
-    /// Combined size of the DOS stub, PE header, and section headers, aligned
-    /// to file_align.
+    /// Combined size of the DOS stub, PE header, and section headers
+    ///
+    /// "must" be aligned to [`disk_align`][`RawExec64::disk_align`].
     pub headers_size: u32,
 
     /// A checksum
