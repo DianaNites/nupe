@@ -162,6 +162,14 @@ impl<'data, T> DerefMut for VecOrSlice<'data, T> {
 pub struct MachineType(u16);
 
 impl MachineType {
+    /// Integer value for this machine type
+    #[inline]
+    pub const fn value(self) -> u16 {
+        self.0
+    }
+}
+
+impl MachineType {
     /// Unknown/Any/All machine type
     pub const UNKNOWN: Self = Self(0);
 
@@ -208,6 +216,14 @@ impl fmt::Display for MachineType {
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct Subsystem(u16);
+
+impl Subsystem {
+    /// Integer value for this machine type
+    #[inline]
+    pub const fn value(self) -> u16 {
+        self.0
+    }
+}
 
 impl Subsystem {
     /// Unknown subsystem
