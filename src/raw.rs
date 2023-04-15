@@ -800,12 +800,13 @@ impl RawExec64 {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
-        if size < size_of::<RawExec64>() {
-            return Err(Error::NotEnoughData);
-        }
+
+        // Ensure that size is enough
+        size.checked_sub(size_of::<RawExec64>())
+            .ok_or(Error::NotEnoughData)?;
 
         // Safety: Have just verified theres enough `size`
-        // and `RawExec32` is POD.
+        // and `RawExec64` is POD.
         let opt = unsafe { &*(data as *const RawExec64) };
         if opt.standard.magic != PE32_64_MAGIC {
             return Err(Error::InvalidPeMagic);
@@ -943,11 +944,11 @@ pub struct RawSectionHeader {
 }
 
 impl RawSectionHeader {
-    /// Name of the section asa UTF-8 string, or an error if it was invalid.
+    /// Name of the section as a UTF-8 string, or an error if it was invalid.
     pub fn name(&self) -> Result<&str> {
         core::str::from_utf8(&self.name)
             .map(|s| s.trim_end_matches('\0'))
-            .map_err(|_| Error::InvalidData)
+            .map_err(|_| Error::InvalidUtf8)
     }
 
     /// A zeroed [`RawSectionHeader`]
