@@ -10,7 +10,10 @@ pub enum Error {
 
     ///
     InvalidPeMagic,
+
+    /// Expected more data than received
     NotEnoughData,
+
     MissingOpt,
     InvalidData,
 
@@ -44,16 +47,13 @@ impl fmt::Display for Error {
         match self {
             Self::InvalidDosMagic => write!(f, "invalid DOS magic"),
             Self::InvalidPeMagic => write!(f, "invalid PE magic"),
-            Self::NotEnoughData => write!(f, "not enough data"),
+            Self::NotEnoughData => write!(f, "not enough data, expected more than received"),
             Self::MissingOpt => write!(f, "missing optional header"),
             Self::InvalidData => write!(f, "invalid data"),
             Self::InvalidUtf8 => write!(f, "invalid UTF-8 was encountered"),
             Self::Unsupported => write!(f, "operation is unsupported"),
-            Self::ImmutableData => write!(f, "immutable data"),
-            Self::TooMuchData => write!(
-                f,
-                "too much data was provided and couldn't fit within the image"
-            ),
+            Self::ImmutableData => write!(f, "tried to modify data that was immutable"),
+            Self::TooMuchData => write!(f, "too much data was provided"),
             Self::MissingDOS => write!(f, "missing DOS header"),
             Self::MissingPE => write!(f, "missing PE header"),
             Self::MissingExecHeader => write!(f, "missing exec header"),
