@@ -18,3 +18,6 @@ export MIRIFLAGS := "\
 # Run clippy on all targets
 @clippy:
     cargo clippy --all-targets
+
+@doc *args='':
+    cargo +nightly doc --no-deps {{args}}
