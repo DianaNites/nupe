@@ -1,10 +1,10 @@
 //! Gdb debugging helper
-#![allow(unused_imports, dead_code, unreachable_code)]
+#![allow(unused_imports, dead_code, unreachable_code, unused_variables)]
 use nupe::Pe;
 
 static RUSTUP_IMAGE: &[u8] = include_bytes!("../../tests/data/rustup-init.exe");
 
 fn main() {
     let pe = Pe::from_bytes(RUSTUP_IMAGE).unwrap();
-    dbg!(pe);
+    // dbg!(pe);
 }
