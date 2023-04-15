@@ -15,7 +15,7 @@ use crate::{
     },
     raw::*,
     DataDir,
-    ImageHeader,
+    ExecHeader,
     Section,
 };
 
@@ -25,7 +25,7 @@ pub struct Pe<'data> {
     dos: OwnedOrRef<'data, RawDos>,
     dos_stub: VecOrSlice<'data, u8>,
     coff: OwnedOrRef<'data, RawCoff>,
-    opt: ImageHeader<'data>,
+    opt: ExecHeader<'data>,
     data_dirs: VecOrSlice<'data, RawDataDirectory>,
     sections: VecOrSlice<'data, RawSectionHeader>,
     base: Option<(*const u8, usize)>,
@@ -141,8 +141,8 @@ impl<'data> Pe<'data> {
             (section_ptr, pe.coff.sections.into())
         };
 
-        let (header, (data_ptr, data_size)) = ImageHeader::from_ptr(exec_ptr, exec_size)?;
-        //
+        let (header, (data_ptr, data_size)) = ExecHeader::from_ptr(exec_ptr, exec_size)?;
+
         let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
         let sections = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
         let stub = unsafe { core::slice::from_raw_parts(stub_ptr, stub_size) };
@@ -367,7 +367,7 @@ impl<'data> Pe<'data> {
     /// Raw Optional header for this PE file
     ///
     /// This is only for advanced users.
-    pub fn opt(&self) -> &'data ImageHeader {
+    pub fn opt(&self) -> &'data ExecHeader {
         &self.opt
     }
 

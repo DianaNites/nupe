@@ -20,7 +20,7 @@ use crate::{
     CoffAttributes,
     DataDirIdent,
     DllAttributes,
-    ImageHeader,
+    ExecHeader,
     MachineType,
     OwnedOrRef,
     Pe,
@@ -417,7 +417,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             self.entry,
             code_ptr,
         );
-        let exec = ImageHeader::new(
+        let exec = ExecHeader::new(
             true,
             exec,
             data_ptr,
@@ -616,7 +616,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             image_ver: pe.image_version(),
             subsystem_ver: pe.subsystem_version(),
             linker_ver: pe.linker_version(),
-            plus: matches!(pe.opt(), ImageHeader::Raw64(_)),
+            plus: matches!(pe.opt(), ExecHeader::Raw64(_)),
             code_size: Some(pe.opt().code_size()),
             init_size: Some(pe.opt().init_size()),
             uninit_size: Some(pe.opt().uninit_size()),
