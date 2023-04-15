@@ -14,6 +14,9 @@ pub enum Error {
     MissingOpt,
     InvalidData,
 
+    /// Invalid UTF-8 was encountered
+    InvalidUtf8,
+
     /// The operation is unsupported
     Unsupported,
 
@@ -44,6 +47,7 @@ impl fmt::Display for Error {
             Self::NotEnoughData => write!(f, "not enough data"),
             Self::MissingOpt => write!(f, "missing optional header"),
             Self::InvalidData => write!(f, "invalid data"),
+            Self::InvalidUtf8 => write!(f, "invalid UTF-8 was encountered"),
             Self::Unsupported => write!(f, "operation is unsupported"),
             Self::ImmutableData => write!(f, "immutable data"),
             Self::TooMuchData => write!(
