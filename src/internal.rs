@@ -436,6 +436,7 @@ impl fmt::Display for DataDirIdent {
 }
 
 bitflags! {
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[repr(transparent)]
     pub struct CoffAttributes: u16 {
         const RELOC_STRIPPED = 0x1;
@@ -459,6 +460,7 @@ bitflags! {
 
 bitflags! {
     /// DLL Characteristics
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[repr(transparent)]
     pub struct DllAttributes: u16 {
         const EMPTY = 0x0;
@@ -492,6 +494,7 @@ bitflags! {
 
 bitflags! {
     /// COFF Section flags
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[repr(transparent)]
     pub struct SectionAttributes: u32 {
         const EMPTY = 0x0;
