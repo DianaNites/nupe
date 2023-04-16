@@ -29,7 +29,7 @@ use core::{mem::size_of, ptr::addr_of, slice::from_raw_parts};
 
 use crate::{
     error::{Error, Result},
-    raw::*,
+    raw::{dos::RawDos, exec::*, *},
 };
 pub use crate::{
     internal::{

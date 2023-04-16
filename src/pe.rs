@@ -13,7 +13,7 @@ use crate::{
         Subsystem,
         VecOrSlice,
     },
-    raw::*,
+    raw::{coff::RawCoff, dos::RawDos, exec::*, *},
     DataDir,
     ExecHeader,
     Section,
