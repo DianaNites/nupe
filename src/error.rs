@@ -11,6 +11,9 @@ pub enum Error {
     /// Invalid Rich Header magic
     InvalidRichMagic,
 
+    /// Invalid Rich Header Array Header magic
+    InvalidRichArrayMagic,
+
     ///
     InvalidPeMagic,
 
@@ -50,6 +53,7 @@ impl fmt::Display for Error {
         match self {
             Self::InvalidDosMagic => write!(f, "invalid DOS magic"),
             Self::InvalidRichMagic => write!(f, "invalid rich header magic"),
+            Self::InvalidRichArrayMagic => write!(f, "invalid rich header array header magic"),
             Self::InvalidPeMagic => write!(f, "invalid PE magic"),
             Self::NotEnoughData => write!(f, "not enough data, expected more than received"),
             Self::MissingOpt => write!(f, "missing optional header"),
