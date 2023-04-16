@@ -11,11 +11,13 @@
 //!
 //! The rich header consists of XORed data of variable size,
 //! followed by [`RICH_MAGIC`], followed by the 32-bit XOR key.
+//! [`RawRich`]
 //!
 //! The start of the data is indicated by [`ARRAY_MAGIC`]
-//! and 3 [`u32`] zeros.
+//! and 3 [`u32`] zeros. [`RawRichArray`]
 //!
-//! This location will be the first entry in the Rich Header array
+//! This location will be the first entry in the Rich Header array,
+//! [`RawRichEntry`]
 
 use core::{fmt, mem::size_of, slice::from_raw_parts};
 
@@ -434,7 +436,7 @@ impl RawRichEntry {
 
 /// Internal base API
 impl RawRichEntry {
-    /// See [`RawRichArray::from_ptr`]
+    /// See [`RawRichEntry::from_ptr`]
     ///
     /// `key` is the XOR key or [`None`]
     unsafe fn from_ptr_internal(
