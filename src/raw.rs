@@ -43,10 +43,6 @@ pub mod dos;
 pub mod exec;
 pub mod rich;
 
-pub use coff::*;
-pub use dos::*;
-pub use exec::*;
-
 /// PE COFF Magic signature
 pub const PE_MAGIC: &[u8] = b"PE\0\0";
 
