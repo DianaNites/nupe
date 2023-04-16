@@ -334,6 +334,7 @@ pub struct RawCoff {
     pub file_attributes: CoffFlags,
 }
 
+/// Public deserialization API
 impl RawCoff {
     /// Create a new COFF header
     ///
@@ -360,25 +361,45 @@ impl RawCoff {
     ///
     /// This function validates that `size` is enough to contain this header
     ///
+    /// # Errors
+    ///
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawCoff`]
+    ///
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
     /// - You must ensure the returned reference does not outlive `data`, and is
     ///   not mutated for the duration of lifetime `'data`.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
-        if data.is_null() {
-            return Err(Error::InvalidData);
-        }
+        Ok(&*(Self::from_ptr_internal(data, size)?))
+    }
+
+    /// Get a mutable [`RawCoff`] from a pointer to a COFF header
+    ///
+    /// See [`RawCoff::from_ptr`] for error information and other details.
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    /// - You MUST ensure NO OTHER references exist when you call this.
+    /// - No instance of `&Self` can exist at the moment of this call.
+    /// - You must ensure the returned reference does not outlive `data`
+    pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
+        Ok(&mut *(Self::from_ptr_internal(data.cast_const(), size)?).cast_mut())
+    }
+}
+
+/// Internal base API
+impl RawCoff {
+    /// See [`RawCoff::from_ptr`]
+    fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
+        debug_assert!(!data.is_null(), "`data` was null in RawCoff::from_ptr");
 
         // Ensure that size is enough
         size.checked_sub(size_of::<RawCoff>())
             .ok_or(Error::NotEnoughData)?;
 
-        // Safety: Have just verified theres enough `size`
-        // and `RawCoff` is POD.
-        let pe = unsafe { &*(data as *const RawCoff) };
-
-        Ok(pe)
+        Ok(data.cast())
     }
 }
 
