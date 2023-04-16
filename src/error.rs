@@ -8,6 +8,9 @@ pub type Result<T> = core::result::Result<T, Error>;
 pub enum Error {
     InvalidDosMagic,
 
+    /// Invalid Rich Header magic
+    InvalidRichMagic,
+
     ///
     InvalidPeMagic,
 
@@ -46,6 +49,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidDosMagic => write!(f, "invalid DOS magic"),
+            Self::InvalidRichMagic => write!(f, "invalid rich header magic"),
             Self::InvalidPeMagic => write!(f, "invalid PE magic"),
             Self::NotEnoughData => write!(f, "not enough data, expected more than received"),
             Self::MissingOpt => write!(f, "missing optional header"),
