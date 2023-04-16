@@ -459,27 +459,63 @@ impl fmt::Display for DataDirIdent {
 }
 
 bitflags! {
-    /// COFF attributes
-    ///
-    /// See [`RawCoff::file_attributes`]
+    /// [`RawCoff`] attributes
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[repr(transparent)]
     pub struct CoffAttributes: u16 {
+        /// Indicates file has no base relocations and must be loaded at
+        /// its preferred address
         const RELOC_STRIPPED = 0x1;
+
+        /// Indicates this is a valid executable image
         const IMAGE = 0x2;
+
+        /// Deprecated and should not be set
         const COFF_LINE_STRIPPED = 0x4;
+
+        /// Deprecated and should not be set
         const COFF_SYM_STRIPPED = 0x8;
+
+        /// Deprecated and should not be set
         const AGGRESSIVE_WS_TRIM = 0x10;
+
+        /// Indicates application can handle addresses larger than 2 GiB
         const LARGE_ADDRESS_AWARE = 0x20;
+
+        /// Reserved
         const RESERVED = 0x40;
+
+        /// Deprecated and should not be set
         const BYTES_REVERSED_LO = 0x80;
+
+        /// Machine is based on a 32-bit-word architecture.
         const BIT32 = 0x100;
+
+        /// Indicates debug information was stripped
         const DEBUG_STRIPPED = 0x200;
+
+        /// If the image is on removable media, fully load and copy it to swap
+        ///
+        /// ??? why microsoft?
         const REMOVABLE_SWAP = 0x400;
+
+        /// If the image is on the network media, fully load and copy it to swap
+        ///
+        /// ??? why microsoft?
         const NET_SWAP = 0x800;
+
+        /// The image is a system file
         const SYSTEM = 0x1000;
+
+        /// The image is a DLL
         const DLL = 0x2000;
+
+        /// Indicates image should only be run on a uniprocessor machine
+        ///
+        /// ??? why microsoft?
         const UP_SYSTEM = 0x4000;
+
+        /// Deprecated and should not be set
         const BYTES_REVERSED_HI = 0x8000;
     }
 }
@@ -489,31 +525,89 @@ bitflags! {
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[repr(transparent)]
     pub struct DllAttributes: u16 {
-        const EMPTY = 0x0;
+        /// Reserved and must be zero.
         const RESERVED_1 = 0x1;
+
+        /// Reserved and must be zero.
         const RESERVED_2 = 0x2;
+
+        /// Reserved and must be zero.
         const RESERVED_3 = 0x4;
+
+        /// Reserved and must be zero.
         const RESERVED_4 = 0x8;
+
+        /// Indicates image can handle a high-entropy 64-bit address space
         const HIGH_ENTROPY_VA = 0x20;
+
+        /// Indicates image can be relocated at runtime
         const DYNAMIC_BASE = 0x40;
 
-        /// Enforce image is signed before execution
+        /// Enforce code integrity checks
         const FORCE_INTEGRITY = 0x80;
 
         /// Disable executable stack
+        ///
+        /// Indicates image is Data Execution Prevention / NX compatible /
+        /// No eXecute compatible
+        ///
+        /// Specifically, compatible with code not being run from memory
+        /// pages without the execute permission.
+        ///
+        /// See <https://learn.microsoft.com/en-us/windows/win32/Memory/data-execution-prevention>
         const NX_COMPAT = 0x100;
+
+        /// Indicates image is Isolation aware, but should not be isolated.
+        ///
+        /// Setting this tells the Windows loader not to use application manifests
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/allowisolation?view=msvc-170>
         const NO_ISOLATION = 0x200;
 
-        /// Disables Structured Exception Handling in the Image
+        /// Indicates Structured Exception Handling is not used and no SE handler may be called
         const NO_SEH = 0x400;
+
+        /// Indicates not to bind the image
+        ///
+        /// This may be desired because binding invalidates digital signatures
+        ///
+        /// Binding pre-resolves addresses to entry points in the images import table.
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/allowbind-prevent-dll-binding?view=msvc-170>
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/bind?view=msvc-170>
         const NO_BIND = 0x800;
 
-        /// Windows 8 Metro App
+        /// Indicates image must execute in the AppContainer isolation environment
+        ///
+        /// Usually this will be UWP or Microsoft Store apps.
+        ///
+        /// See <https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-isolation>
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/appcontainer-windows-store-app?view=msvc-170>
         const APP_CONTAINER = 0x1000;
+
+        /// Indicates a Windows Driver Model / WDM Driver
         const WDM_DRIVER = 0x2000;
 
-        /// Image supports Control Flow Guard data
+        /// Indicates image supports Control Flow Guard data
         const GUARD_CF = 0x4000;
+
+        /// Indicates image is terminal server aware
+        ///
+        /// This means that the image:
+        ///
+        /// - Does not rely on per-user `.ini` files
+        /// - Does not write to `HKEY_CURRENT_USER` during setup
+        /// - Does not run as a system service
+        /// - Does not expect exclusive access to system directories
+        ///   or store per-user temporary o configuration data in them
+        /// - Does not write to `HKEY_LOCAL_MACHINE` for user specific data
+        /// - Generally follows the Remote Desktop Services compatibility guidelines
+        ///
+        /// See <https://learn.microsoft.com/en-us/windows/win32/termserv/application-compatibility-layer>
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/tsaware-create-terminal-server-aware-application?view=msvc-170>
         const TERMINAL_SERVER = 0x8000;
     }
 }
