@@ -8,7 +8,10 @@
 //! - [RawDos]
 //! - DOS Stub, DOS executable code that conventionally says the program can't
 //!   be run in DOS.
-//! - Rich Header?
+//! - Rich Header
+//!   - Optional and undocumented structure specific to the Microsoft Visual
+//!     Studio compiler
+//!   - It can only be found by searching backwards for the signature `Rich`
 //! - PE signature and [RawCoff] Header, together in [RawPe]
 //! - Executable image Header [RawExec]
 //!   - This is required for executable images, but can still exist on objects.
@@ -38,6 +41,8 @@ use crate::{
     SectionFlags,
     Subsystem,
 };
+
+pub mod rich;
 
 /// DOS Magic signature
 pub const DOS_MAGIC: [u8; 2] = *b"MZ";
