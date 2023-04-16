@@ -1,7 +1,7 @@
 //! Raw PE data structures
 //!
 //! These are all the raw, C compatible and packed,
-//! representations of various data structures.
+//! representations of various PE and COFF data structures.
 //!
 //! PE Files are laid out as so
 //!
@@ -9,12 +9,25 @@
 //! - DOS Stub, DOS executable code that conventionally says the program can't
 //!   be run in DOS.
 //! - Rich Header?
-//! - PE Header [RawPe]
-//!     - COFF Header [RawCoff]
-//! - Optional Header [RawExec]
+//! - PE signature and [RawCoff] Header, together in [RawPe]
+//! - Executable image Header [RawExec]
+//!   - This is required for executable images, but can still exist on objects.
 //! - [RawExec32] or [RawExec64]
+//!   - Which one is used depends on whether the file is 32 or 64 bit
+//!     [`RawExec::magic`]
 //! - Variable number of [RawDataDirectory]
 //! - Variable number of [RawSectionHeader]
+//! - For executables, these tables, identified by [`RawDataDirectory`] entries,
+//!   must be placed at the end of the file in this order if they exist.
+//!   - Certificate Table
+//!   - Debug Table
+//!
+//! # References
+//!
+//! The primary documentation reference for this was the [PE Format][pe_ref]
+//! from Microsoft
+//!
+//! [pe_ref]: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
 use core::{fmt, mem::size_of};
 
 use crate::{
@@ -51,6 +64,8 @@ pub const PE32_64_MAGIC: u16 = 0x20B;
 ///
 /// The only thing really relevant for loading a PE image is
 /// [`RawDos::pe_offset`]
+///
+/// Most of this headers fields are irrelevant.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
 pub struct RawDos {
@@ -110,7 +125,7 @@ pub struct RawDos {
 
     /// Absolute offset in the file to the PE header
     ///
-    /// "Should" be aligned to 8 bytes due to existing practice
+    /// "must" be aligned to 8 bytes
     ///
     /// Note that this value is untrusted user input, and can be anything.
     /// It could even point inside the DOS header.
@@ -119,10 +134,11 @@ pub struct RawDos {
     pub pe_offset: u32,
 }
 
+/// Public deserialization API
 impl RawDos {
     /// Create a new, empty, [`RawDos`].
     ///
-    /// Sets the magic and pe_offset only.
+    /// Sets the DOS magic, with all other fields zeroed.
     pub const fn new() -> Self {
         Self {
             magic: DOS_MAGIC,
@@ -148,9 +164,10 @@ impl RawDos {
     }
 
     /// Empty header, with NO DOS stub, with pe offset immediately after it
+    ///
+    /// `pe_offset` will be 8 byte aligned because [`RawDos`] is 64 bytes.
     pub const fn sized() -> Self {
         Self {
-            // `RawDos` is 64 bytes and thus 8 byte aligned.
             pe_offset: size_of::<Self>() as u32,
             ..Self::new()
         }
@@ -212,6 +229,7 @@ impl RawDos {
     }
 }
 
+/// Same as [`RawDos::new`]
 impl Default for RawDos {
     #[inline]
     fn default() -> Self {
@@ -278,7 +296,7 @@ impl fmt::Debug for RawDos {
 
 /// Raw COFF header
 ///
-/// This is common to both executable PE images, and object files.
+/// This is common to both executable PE images and object files.
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct RawCoff {
