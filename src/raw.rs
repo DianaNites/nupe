@@ -172,18 +172,7 @@ impl RawDos {
     /// - You must ensure the returned reference does not outlive `data`, and is
     ///   not mutated for the duration of lifetime `'data`.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
-        debug_assert!(!data.is_null(), "`data` was null in RawDos::from_ptr");
-
-        // Ensure that size is enough
-        size.checked_sub(size_of::<RawDos>())
-            .ok_or(Error::NotEnoughData)?;
-
-        let dos = unsafe { &*(data as *const RawDos) };
-        if dos.magic != DOS_MAGIC {
-            return Err(Error::InvalidDosMagic);
-        }
-
-        Ok(dos)
+        Ok(&*(Self::from_ptr_internal(data, size)?))
     }
 
     /// Get a mutable [`RawDos`] from a mutable pointer to a DOS header
@@ -196,23 +185,30 @@ impl RawDos {
     /// - You MUST ensure NO OTHER references exist when you call this.
     /// - No instance of `&Self` can exist at the moment of this call.
     /// - You must ensure the returned reference does not outlive `data`
-    // TODO: internal method that keeps pointers until this edge
-    #[cfg(no)]
     pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
-        Ok(Self::from_ptr(data.cast_const(), size)?)
+        Ok(&mut *(Self::from_ptr_internal(data.cast_const(), size)?).cast_mut())
     }
+}
 
-    /// Get a [`RawDos`] from `bytes`, and the remaining PE portion of `bytes`.
-    ///
-    /// Checks for the DOS magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<(&Self, &[u8])> {
-        let dos = unsafe { RawDos::from_ptr(bytes.as_ptr(), bytes.len())? };
-        Ok((
-            dos,
-            bytes
-                .get(dos.pe_offset as usize..)
-                .ok_or(Error::NotEnoughData)?,
-        ))
+/// Internal base API
+impl RawDos {
+    /// See [`RawDos::from_ptr`]
+    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
+        debug_assert!(!data.is_null(), "`data` was null in RawDos::from_ptr");
+
+        // Ensure that size is enough
+        size.checked_sub(size_of::<RawDos>())
+            .ok_or(Error::NotEnoughData)?;
+
+        // Safety:
+        // - We just checked `data` would fit a `RawDos`
+        // - Caller guarantees `data` is valid
+        let dos = &*(data as *const RawDos);
+        if dos.magic != DOS_MAGIC {
+            return Err(Error::InvalidDosMagic);
+        }
+
+        Ok(data.cast())
     }
 }
 
