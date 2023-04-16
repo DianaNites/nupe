@@ -14,17 +14,44 @@ to improve clarity and overall coherence, and in this case the naming
 used in the [PE Reference][pe_ref] should be documented as an alias
 and use `doc(alias)`
 
+### Raw Layer
+
+Types in the `Raw` layer should be prefixed `Raw`, e.g. `RawDOS`
+for the raw DOS header.
+
 ## Unsafe
 
 Unsafe operations should have a `// Safety` comment explaining why they're safe
 
 ### Example
 
+This is an example structure, and not a hard rule.
+
+None of the explanations are required.
+
 ```rust
-// Safety:
+// Safety: Short Explanation
+// Long Explanation
 // - Condition 1
+//   - Sub-condition
+//   - Specific Explanation
+//   - Specific Explanation that is pretending to be very, very, very,
+//     very long
 // - Condition 2
 // - Condition 3
 ```
 
+## Documentation
+
+Documentation should be provided for all public items and fields,
+as well as private ones where possible.
+
+Documentation describing things from the [PE Reference][pe_ref]
+should link their source, if any.
+
+Documentation describing things from the [PE Reference][pe_ref]
+should document the name used in reference, if different from the Rust name,
+see [Naming][naming].
+
 [pe_ref]: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#the-attribute-certificate-table-image-only
+[naming]: #naming
