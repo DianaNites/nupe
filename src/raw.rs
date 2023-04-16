@@ -54,9 +54,6 @@ pub const DOS_PAGE: usize = 512;
 /// Size of a DOS paragraph
 pub const DOS_PARAGRAPH: usize = 16;
 
-/// File cannot possibly be valid if not at least this size.
-pub const MIN_SIZE: usize = size_of::<RawCoff>() + size_of::<RawDos>();
-
 /// PE COFF Magic signature
 pub const PE_MAGIC: &[u8] = b"PE\0\0";
 
