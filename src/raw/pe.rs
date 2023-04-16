@@ -20,7 +20,16 @@ pub struct RawPe {
     pub coff: RawCoff,
 }
 
+/// Public deserialization API
 impl RawPe {
+    /// Create a new PE signature and COFF header pair
+    pub fn new(coff: RawCoff) -> Self {
+        Self {
+            sig: PE_MAGIC,
+            coff,
+        }
+    }
+
     /// Get a [`RawPe`] from a pointer to a PE Signature and COFF header
     ///
     /// This function validates that `size` is enough to contain this PE
@@ -37,6 +46,28 @@ impl RawPe {
     /// - You must ensure the returned reference does not outlive `data`, and is
     ///   not mutated for the duration of lifetime `'data`.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        Ok(&*(Self::from_ptr_internal(data, size)?))
+    }
+
+    /// Get a mutable [`RawPe`] from a pointer to the PE signature
+    ///
+    /// See [`RawPe::from_ptr`] for error information and other details.
+    ///
+    /// # Safety
+    ///
+    /// - `data` MUST be valid for `size` bytes.
+    /// - You MUST ensure NO OTHER references exist when you call this.
+    /// - No instance of `&Self` can exist at the moment of this call.
+    /// - You must ensure the returned reference does not outlive `data`
+    pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
+        Ok(&mut *(Self::from_ptr_internal(data.cast_const(), size)?).cast_mut())
+    }
+}
+
+/// Internal base API
+impl RawPe {
+    /// See [`RawPE::from_ptr`]
+    pub unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
         debug_assert!(!data.is_null(), "`data` was null in RawPe::from_ptr");
 
         // Ensure that size is enough
@@ -50,7 +81,7 @@ impl RawPe {
             return Err(Error::InvalidPeMagic);
         }
 
-        Ok(pe)
+        Ok(data.cast())
     }
 }
 
