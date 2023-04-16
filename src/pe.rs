@@ -176,27 +176,7 @@ pub struct Pe<'data> {
 
 /// Internal base API
 impl<'data> Pe<'data> {
-    /// Create a [`Pe`] from a pointer to a PE
-    ///
-    /// This validates that:
-    ///
-    /// - All header data is within bounds of `input_size`
-    ///   - Other data, such as sections and data directories, remains untrusted
-    ///     and is validated on access
-    /// - All magic values and signatures are correct
-    ///
-    /// # Errors
-    ///
-    /// - [`Error::MissingDOS`] If the DOS header could not be read
-    /// - [`Error::MissingPE`] If the PE signature and COFF header could not be
-    ///   read
-    /// - [`Error::InvalidDosMagic`] If the DOS header magic value was incorrect
-    /// - See [`RawDos::from_ptr`]
-    /// - [`Error::TooMuchData`] If the DOS `pe_offset` does not fit in `usize`.
-    ///
-    /// # Safety
-    ///
-    /// - `data` MUST be valid for `size` bytes.
+    /// See [`Pe::from_ptr`] for safety and error details
     unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> {
         let dos = RawDos::from_ptr(data, input_size).map_err(|e| match e {
             Error::NotEnoughData => Error::MissingDOS,
@@ -319,7 +299,7 @@ impl<'data> Pe<'data> {
     ///
     /// - All header data is within bounds of `input_size`
     ///   - Other data, such as sections and data directories, remains untrusted
-    ///     and is validated on access
+    ///     and must be validated later
     /// - All magic values and signatures are correct
     ///
     /// # Errors
@@ -365,14 +345,14 @@ impl<'data> Pe<'data> {
 impl<'data> Pe<'data> {
     /// Get a [`Section`] by `name`. Ignores nul.
     ///
-    /// Note that PE section names can only be 8 bytes, total.
+    /// Section names are limited to 8 bytes max.
     pub fn section(&self, name: &str) -> Option<Section> {
         if name.len() > 8 {
             return None;
         }
         self.sections
             .iter()
-            .find(|s| s.name().unwrap() == name)
+            .find(|s| s.name().unwrap_or_default() == name)
             .map(|s| Section::new(OwnedOrRef::Ref(s), self.file_align(), None))
     }
 
