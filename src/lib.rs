@@ -33,12 +33,12 @@ use crate::{
 };
 pub use crate::{
     internal::{
-        CoffAttributes,
+        CoffFlags,
         DataDirIdent,
-        DllAttributes,
+        ExecFlags,
         MachineType,
         OwnedOrRef,
-        SectionAttributes,
+        SectionFlags,
         Subsystem,
         VecOrSlice,
     },
@@ -77,7 +77,7 @@ impl<'data> ExecHeader<'data> {
         image_size: u32,
         headers_size: u32,
         subsystem: Subsystem,
-        dll_attributes: DllAttributes,
+        dll_attributes: ExecFlags,
         stack_reserve: u64,
         stack_commit: u64,
         heap_reserve: u64,
@@ -259,7 +259,7 @@ impl<'data> ExecHeader<'data> {
     }
 
     /// DLL Attributes
-    fn dll_attributes(&self) -> DllAttributes {
+    fn dll_attributes(&self) -> ExecFlags {
         match self {
             ExecHeader::Raw32(h) => h.dll_attributes,
             ExecHeader::Raw64(h) => h.dll_attributes,
@@ -419,7 +419,7 @@ impl<'data> Section<'data> {
     }
 
     /// Section flags/attributes/characteristics
-    pub fn flags(&self) -> SectionAttributes {
+    pub fn flags(&self) -> SectionFlags {
         self.header.attributes
     }
 
@@ -526,10 +526,10 @@ mod tests {
                 .entry(in_pe.entry())
                 .timestamp(in_pe.timestamp())
                 .dll_attributes(
-                    DllAttributes::DYNAMIC_BASE
-                        | DllAttributes::HIGH_ENTROPY_VA
-                        | DllAttributes::NX_COMPAT
-                        | DllAttributes::TERMINAL_SERVER,
+                    ExecFlags::DYNAMIC_BASE
+                        | ExecFlags::HIGH_ENTROPY_VA
+                        | ExecFlags::NX_COMPAT
+                        | ExecFlags::TERMINAL_SERVER,
                 )
                 .image_base(in_pe.image_base())
                 .os_version(in_pe.os_version())
@@ -554,9 +554,7 @@ mod tests {
                     })
                     .mem_size(sec.mem_size())
                     .disk_offset(1024)
-                    .attributes(
-                        SectionAttributes::CODE | SectionAttributes::EXEC | SectionAttributes::READ,
-                    )
+                    .attributes(SectionFlags::CODE | SectionFlags::EXEC | SectionFlags::READ)
             })
             .section({
                 let sec = in_pe.section(".rdata").unwrap();
@@ -566,7 +564,7 @@ mod tests {
                         &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
                     .mem_size(sec.mem_size())
-                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ)
             })
             .section({
                 let sec = in_pe.section(".data").unwrap();
@@ -575,9 +573,7 @@ mod tests {
                     .data(&RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize])
                     .mem_size(sec.mem_size())
                     .attributes(
-                        SectionAttributes::INITIALIZED
-                            | SectionAttributes::READ
-                            | SectionAttributes::WRITE,
+                        SectionFlags::INITIALIZED | SectionFlags::READ | SectionFlags::WRITE,
                     )
             })
             .section({
@@ -588,7 +584,7 @@ mod tests {
                         &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
                     .mem_size(sec.mem_size())
-                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ)
             })
             .section({
                 let sec = in_pe.section("_RDATA").unwrap();
@@ -598,7 +594,7 @@ mod tests {
                         &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
                     .mem_size(sec.mem_size())
-                    .attributes(SectionAttributes::INITIALIZED | SectionAttributes::READ)
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ)
             })
             .section({
                 let sec = in_pe.section(".reloc").unwrap();
@@ -609,9 +605,7 @@ mod tests {
                     })
                     .mem_size(sec.mem_size())
                     .attributes(
-                        SectionAttributes::INITIALIZED
-                            | SectionAttributes::READ
-                            | SectionAttributes::DISCARDABLE,
+                        SectionFlags::INITIALIZED | SectionFlags::READ | SectionFlags::DISCARDABLE,
                     )
             });
         }
@@ -669,7 +663,7 @@ mod tests {
         assert_eq!(pe.subsystem(), Subsystem::WINDOWS_CLI);
         assert_eq!(
             pe.attributes(),
-            CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE
+            CoffFlags::IMAGE | CoffFlags::LARGE_ADDRESS_AWARE
         );
         assert_eq!(pe.image_base(), 5368709120);
         assert_eq!(pe.section_align(), 4096);
@@ -679,10 +673,10 @@ mod tests {
         assert_eq!(pe.headers_size(), 1024);
         assert_eq!(
             pe.dll_attributes(),
-            DllAttributes::HIGH_ENTROPY_VA
-                | DllAttributes::DYNAMIC_BASE
-                | DllAttributes::NX_COMPAT
-                | DllAttributes::TERMINAL_SERVER
+            ExecFlags::HIGH_ENTROPY_VA
+                | ExecFlags::DYNAMIC_BASE
+                | ExecFlags::NX_COMPAT
+                | ExecFlags::TERMINAL_SERVER
         );
         assert_eq!(pe.stack(), (1048576, 4096));
         assert_eq!(pe.heap(), (1048576, 4096));
@@ -699,7 +693,7 @@ mod tests {
         assert_eq!({ pe.coff().exec_header_size }, 240);
         assert_eq!(
             { pe.coff().file_attributes },
-            CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE
+            CoffFlags::IMAGE | CoffFlags::LARGE_ADDRESS_AWARE
         );
         let opt = match pe.opt() {
             ExecHeader::Raw64(o) => *o,
@@ -728,10 +722,10 @@ mod tests {
         assert_eq!({ opt.subsystem }, Subsystem::WINDOWS_CLI);
         assert_eq!(
             { opt.dll_attributes },
-            DllAttributes::HIGH_ENTROPY_VA
-                | DllAttributes::DYNAMIC_BASE
-                | DllAttributes::NX_COMPAT
-                | DllAttributes::TERMINAL_SERVER
+            ExecFlags::HIGH_ENTROPY_VA
+                | ExecFlags::DYNAMIC_BASE
+                | ExecFlags::NX_COMPAT
+                | ExecFlags::TERMINAL_SERVER
         );
         assert_eq!({ opt.stack_reserve }, 1048576);
         assert_eq!({ opt.stack_commit }, 4096);

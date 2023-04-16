@@ -17,16 +17,16 @@ use crate::{
         PE32_MAGIC,
         PE_MAGIC,
     },
-    CoffAttributes,
+    CoffFlags,
     DataDirIdent,
-    DllAttributes,
+    ExecFlags,
     ExecHeader,
     MachineType,
     OwnedOrRef,
     Pe,
     RawDataDirectory,
     Section,
-    SectionAttributes,
+    SectionFlags,
     Subsystem,
     VecOrSlice,
 };
@@ -79,10 +79,10 @@ pub struct PeBuilder<'data, State> {
     dos: Option<(RawDos, VecOrSlice<'data, u8>)>,
 
     /// COFF Attributes
-    attributes: CoffAttributes,
+    attributes: CoffFlags,
 
     /// DLL Attributes
-    dll_attributes: DllAttributes,
+    dll_attributes: ExecFlags,
 
     /// Subsystem
     subsystem: Subsystem,
@@ -127,9 +127,9 @@ impl<'data> PeBuilder<'data, states::Empty> {
             disk_align: 512,
             entry: 0,
             dos: None,
-            attributes: CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE,
+            attributes: CoffFlags::IMAGE | CoffFlags::LARGE_ADDRESS_AWARE,
             subsystem: Subsystem::UNKNOWN,
-            dll_attributes: DllAttributes::empty(),
+            dll_attributes: ExecFlags::empty(),
             stack: (0, 0),
             heap: (0, 0),
             os_ver: (0, 0),
@@ -214,7 +214,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     /// If unset, this defaults to `IMAGE | LARGE_ADDRESS_AWARE`.
     ///
     /// This completely overwrites the attributes.
-    pub fn attributes(&mut self, attr: CoffAttributes) -> &mut Self {
+    pub fn attributes(&mut self, attr: CoffFlags) -> &mut Self {
         self.attributes = attr;
         self
     }
@@ -243,7 +243,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     }
 
     /// DLL Attributes for the [`crate::Pe`] image.
-    pub fn dll_attributes(&mut self, attr: DllAttributes) -> &mut Self {
+    pub fn dll_attributes(&mut self, attr: ExecFlags) -> &mut Self {
         self.dll_attributes = attr;
         self
     }
@@ -375,18 +375,15 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let mut data_ptr = 0;
         // Get section sizes
         for (section, _) in self.sections.iter() {
-            if section.flags() & SectionAttributes::CODE != SectionAttributes::empty() {
+            if section.flags() & SectionFlags::CODE != SectionFlags::empty() {
                 // FIXME: Should this be disk_size / only init size??
                 // Rustup exe seems to use that calculation???
                 code_sum += section.mem_size();
                 code_ptr = section.mem_ptr();
-            } else if section.flags() & SectionAttributes::INITIALIZED != SectionAttributes::empty()
-            {
+            } else if section.flags() & SectionFlags::INITIALIZED != SectionFlags::empty() {
                 init_sum += section.mem_size();
                 data_ptr = section.mem_ptr();
-            } else if section.flags() & SectionAttributes::UNINITIALIZED
-                != SectionAttributes::empty()
-            {
+            } else if section.flags() & SectionFlags::UNINITIALIZED != SectionFlags::empty() {
                 uninit_sum += section.mem_size()
             }
         }
@@ -699,7 +696,7 @@ impl<'data, State> fmt::Debug for PeBuilder<'data, State> {
 pub struct SectionBuilder<'data> {
     name: [u8; 8],
     data: VecOrSlice<'data, u8>,
-    attr: SectionAttributes,
+    attr: SectionFlags,
     disk_offset: Option<u32>,
     disk_size: Option<u32>,
     mem_size: Option<u32>,
@@ -749,7 +746,7 @@ impl<'data> SectionBuilder<'data> {
         Self {
             name: [b'\0'; 8],
             data: VecOrSlice::Slice(&[]),
-            attr: SectionAttributes::empty(),
+            attr: SectionFlags::empty(),
             disk_offset: None,
             disk_size: None,
             mem_size: None,
@@ -821,7 +818,7 @@ impl<'data> SectionBuilder<'data> {
     }
 
     /// Flags/Attributes for the section
-    pub fn attributes(&mut self, attr: SectionAttributes) -> &mut Self {
+    pub fn attributes(&mut self, attr: SectionFlags) -> &mut Self {
         self.attr = attr;
         self
     }

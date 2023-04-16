@@ -5,9 +5,9 @@ use crate::{
     error::{Error, Result},
     internal::{
         debug::{DosHelper, RawDataDirectoryHelper},
-        CoffAttributes,
+        CoffFlags,
         DataDirIdent,
-        DllAttributes,
+        ExecFlags,
         MachineType,
         OwnedOrRef,
         Subsystem,
@@ -414,7 +414,7 @@ impl<'data> Pe<'data> {
     }
 
     /// COFF Attributes
-    pub fn attributes(&self) -> CoffAttributes {
+    pub fn attributes(&self) -> CoffFlags {
         self.coff.file_attributes
     }
 
@@ -430,7 +430,7 @@ impl<'data> Pe<'data> {
     }
 
     /// DLL Attributes
-    pub fn dll_attributes(&self) -> DllAttributes {
+    pub fn dll_attributes(&self) -> ExecFlags {
         self.exec.dll_attributes()
     }
 
@@ -590,8 +590,8 @@ mod tests {
     fn evil_dos() -> Result<()> {
         let machine = MachineType::AMD64;
         let subsystem = Subsystem::WINDOWS_CLI;
-        let flags = CoffAttributes::IMAGE | CoffAttributes::LARGE_ADDRESS_AWARE;
-        let dll_flags = DllAttributes::HIGH_ENTROPY_VA | DllAttributes::NX_COMPAT;
+        let flags = CoffFlags::IMAGE | CoffFlags::LARGE_ADDRESS_AWARE;
+        let dll_flags = ExecFlags::HIGH_ENTROPY_VA | ExecFlags::NX_COMPAT;
         let pe_offset: u32 = 2;
         let image_base: u64 = 0x00400000;
 
