@@ -466,7 +466,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
             let ptr = coff.as_ref() as *const RawCoff as *const u8;
             from_raw_parts(ptr, size_of::<RawCoff>())
         };
-        out.extend_from_slice(PE_MAGIC);
+        out.extend_from_slice(&PE_MAGIC);
         out.extend_from_slice(bytes);
         written += PE_MAGIC.len() + bytes.len();
 

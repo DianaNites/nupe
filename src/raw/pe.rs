@@ -7,7 +7,7 @@ use crate::{
 };
 
 /// PE COFF Magic signature
-pub const PE_MAGIC: &[u8] = b"PE\0\0";
+pub const PE_MAGIC: [u8; 4] = *b"PE\0\0";
 
 /// Microsoft PE Signature and COFF header, assumed to be an executable image.
 #[derive(Clone, Copy)]
