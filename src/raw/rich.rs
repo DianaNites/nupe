@@ -36,7 +36,7 @@ pub const ARRAY_MAGIC: [u8; 4] = *b"DanS";
 /// The actual rich header *precedes* this structure in memory.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
-struct RawRich {
+pub struct RawRich {
     /// Constant of value [`RICH_MAGIC`] identifying the PE executable
     pub magic: [u8; 4],
 
@@ -182,7 +182,7 @@ impl fmt::Debug for RawRich {
 /// Rich Header Array header
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
-struct RawRichArray {
+pub struct RawRichArray {
     /// Constant of value [`ARRAY_MAGIC`] identifying the PE executable
     pub magic: [u8; 4],
 
@@ -408,7 +408,7 @@ impl fmt::Debug for RawRichArray {
 /// An entry in the Rich Header array
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
-struct RawRichEntry {
+pub struct RawRichEntry {
     /// Build ID
     pub build_id: u16,
 
