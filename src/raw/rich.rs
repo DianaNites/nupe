@@ -235,6 +235,8 @@ impl RawRichArray {
     ///
     /// `key` should be [`RawRich::key`]
     ///
+    /// # Safety
+    ///
     /// See [`RawRichArray::from_ptr`] for error and safety details
     pub unsafe fn from_ptr_xor<'data>(
         data: *const u8,

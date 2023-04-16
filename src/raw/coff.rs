@@ -3,15 +3,12 @@
 //! The Microsoft COFF header is shared between object files and executables
 //!
 //! In the context of PE executables, most COFF features are unused.
-use core::{fmt, mem::size_of};
+use core::mem::size_of;
 
 use crate::{
     error::{Error, Result},
     CoffFlags,
-    ExecFlags,
     MachineType,
-    SectionFlags,
-    Subsystem,
 };
 
 /// Raw COFF header

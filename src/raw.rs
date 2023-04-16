@@ -35,11 +35,7 @@ use core::{fmt, mem::size_of};
 
 use crate::{
     error::{Error, Result},
-    CoffFlags,
-    ExecFlags,
-    MachineType,
     SectionFlags,
-    Subsystem,
 };
 
 pub mod coff;
@@ -295,7 +291,7 @@ mod tests {
 
     use coff::RawCoff;
     use dos::RawDos;
-    use exec::{RawExec, RawExec32, RawExec64};
+    use exec::{RawExec, RawExec64};
     use static_assertions::{assert_eq_size, const_assert_eq};
 
     use super::*;
