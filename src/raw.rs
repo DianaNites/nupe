@@ -42,6 +42,7 @@ use crate::{
     Subsystem,
 };
 
+pub mod dos;
 pub mod rich;
 
 /// DOS Magic signature
