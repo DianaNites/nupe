@@ -459,10 +459,17 @@ impl fmt::Display for DataDirIdent {
 }
 
 bitflags! {
-    /// [`RawCoff`] attributes
+    /// COFF Header flags
+    ///
+    /// Otherwise known as "characteristics"
+    ///
+    /// See [`RawCoff`][`crate::raw::RawCoff`]
+    ///
+    /// See <https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#characteristics>
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[repr(transparent)]
-    pub struct CoffAttributes: u16 {
+    #[doc(alias = "characteristics")]
+    pub struct CoffFlags: u16 {
         /// Indicates file has no base relocations and must be loaded at
         /// its preferred address
         const RELOC_STRIPPED = 0x1;
@@ -521,20 +528,27 @@ bitflags! {
 }
 
 bitflags! {
-    /// DLL Characteristics
+    /// Exec header flags
+    ///
+    /// See [`RawExec{64|32}`][`crate::raw::RawExec64`]
+    ///
+    /// Otherwise known as "DLL Characteristics"
+    ///
+    /// See <https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#dll-characteristics>
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[repr(transparent)]
-    pub struct DllAttributes: u16 {
-        /// Reserved and must be zero.
+    #[doc(alias = "DllCharacteristics")]
+    pub struct ExecFlags: u16 {
+        /// Reserved and must not be set
         const RESERVED_1 = 0x1;
 
-        /// Reserved and must be zero.
+        /// Reserved and must not be set
         const RESERVED_2 = 0x2;
 
-        /// Reserved and must be zero.
+        /// Reserved and must not be set
         const RESERVED_3 = 0x4;
 
-        /// Reserved and must be zero.
+        /// Reserved and must not be set
         const RESERVED_4 = 0x8;
 
         /// Indicates image can handle a high-entropy 64-bit address space
@@ -613,20 +627,31 @@ bitflags! {
 }
 
 bitflags! {
-    /// COFF Section flags
+    /// Section header flags
+    ///
+    /// See [`RawSectionHeader`][`crate::raw::RawSectionHeader`]
+    ///
+    /// See <https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#section-flags>
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[repr(transparent)]
-    pub struct SectionAttributes: u32 {
-        const EMPTY = 0x0;
+    #[doc(alias = "characteristics")]
+    pub struct SectionFlags: u32 {
+        /// Reserved and must not be set
+        const RESERVED_0 = 0x0;
+
+        /// Reserved and must not be set
         const RESERVED_1 = 0x1;
+
+        /// Reserved and must not be set
         const RESERVED_2 = 0x2;
+
+        /// Reserved and must not be set
         const RESERVED_3 = 0x4;
 
-        /// Obsolete [`SectionFlags::ALIGN_1`]
-        ///
-        /// Only valid on object files
+        /// Obsolete and replaced by [`SectionFlags::ALIGN_1`]
         const NO_PAD = 0x8;
 
+        /// Reserved and must not be set
         const RESERVED_4 = 0x10;
 
         /// Section contains executable code
@@ -638,6 +663,7 @@ bitflags! {
         /// Section contains uninitialized data
         const UNINITIALIZED = 0x80;
 
+        /// Reserved and must not be set
         const RESERVED_OTHER = 0x100;
 
         /// Section contains comments or other info
@@ -645,6 +671,7 @@ bitflags! {
         /// Only valid on object files
         const INFO = 0x200;
 
+        /// Reserved and must not be set
         const RESERVED_6 = 0x400;
 
         /// Section will not become part of the image
@@ -660,29 +687,92 @@ bitflags! {
         /// Section contains data referenced through the global pointer
         const GLOBAL_REL = 0x8000;
 
+        /// Reserved and must not be set
         const RESERVED_MEM_PURGE = 0x20000;
+
+        /// Reserved and must not be set
         const RESERVED_MEM_16BIT = 0x20000;
+
+        /// Reserved and must not be set
         const RESERVED_MEM_LOCKED = 0x40000;
+
+        /// Reserved and must not be set
         const RESERVED_MEM_PRELOAD = 0x80000;
+
+        /// Align data on 1-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_1 = 0x100000;
+
+        /// Align data on 2-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_2 = 0x200000;
+
+        /// Align data on 4-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_4 = 0x300000;
+
+        /// Align data on 8-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_8 = 0x400000;
+
+        /// Align data on 16-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_16 = 0x500000;
+
+        /// Align data on 32-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_32 = 0x600000;
+
+        /// Align data on 64-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_64 = 0x700000;
+
+        /// Align data on 128-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_128 = 0x800000;
+
+        /// Align data on 256-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_256 = 0x900000;
+
+        /// Align data on 512-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_512 = 0xA00000;
+
+        /// Align data on 1024-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_1024 = 0xB00000;
+
+        /// Align data on 2048-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_2048 = 0xC00000;
+
+        /// Align data on 4096-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_4096 = 0xD00000;
+
+        /// Align data on 8192-byte boundary.
+        ///
+        /// Only valid on object files
         const ALIGN_8192 = 0xE00000;
 
         /// Section contains extended relocations
         const EXTENDED_RELOC = 0x1000000;
 
-        /// Section can be discarded
+        /// Section can be discarded as needed
         const DISCARDABLE = 0x2000000;
 
         /// Section cannot be cached
@@ -691,7 +781,7 @@ bitflags! {
         /// Section cannot be paged
         const NO_PAGE = 0x8000000;
 
-        /// Section can be shared
+        /// Section can be shared in memory
         const SHARED = 0x10000000;
 
         /// Section can be executed
@@ -700,7 +790,7 @@ bitflags! {
         /// Section can be read
         const READ = 0x40000000;
 
-        /// Section can be written
+        /// Section can be written to
         const WRITE = 0x80000000;
     }
 }

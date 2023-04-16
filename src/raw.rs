@@ -32,10 +32,10 @@ use core::{fmt, mem::size_of};
 
 use crate::{
     error::{Error, Result},
-    CoffAttributes,
-    DllAttributes,
+    CoffFlags,
+    ExecFlags,
     MachineType,
-    SectionAttributes,
+    SectionFlags,
     Subsystem,
 };
 
@@ -331,7 +331,7 @@ pub struct RawCoff {
     pub exec_header_size: u16,
 
     /// Object attributes
-    pub file_attributes: CoffAttributes,
+    pub file_attributes: CoffFlags,
 }
 
 impl RawCoff {
@@ -343,7 +343,7 @@ impl RawCoff {
         sections: u16,
         time: u32,
         optional_size: u16,
-        attributes: CoffAttributes,
+        attributes: CoffFlags,
     ) -> Self {
         Self {
             machine,
@@ -607,7 +607,7 @@ pub struct RawExec32 {
     pub subsystem: Subsystem,
 
     /// Flags for windows
-    pub dll_attributes: DllAttributes,
+    pub dll_attributes: ExecFlags,
 
     /// Size of the stack to reserve.
     pub stack_reserve: u32,
@@ -647,7 +647,7 @@ impl RawExec32 {
         image_size: u32,
         headers_size: u32,
         subsystem: Subsystem,
-        dll_characteristics: DllAttributes,
+        dll_characteristics: ExecFlags,
         stack_reserve: u32,
         stack_commit: u32,
         heap_reserve: u32,
@@ -776,7 +776,7 @@ pub struct RawExec64 {
     pub subsystem: Subsystem,
 
     /// Flags for windows
-    pub dll_attributes: DllAttributes,
+    pub dll_attributes: ExecFlags,
 
     /// Size of the stack to reserve.
     pub stack_reserve: u64,
@@ -815,7 +815,7 @@ impl RawExec64 {
         image_size: u32,
         headers_size: u32,
         subsystem: Subsystem,
-        dll_characteristics: DllAttributes,
+        dll_characteristics: ExecFlags,
         stack_reserve: u64,
         stack_commit: u64,
         heap_reserve: u64,
@@ -997,7 +997,7 @@ pub struct RawSectionHeader {
     pub lines_len: u16,
 
     /// Section flags
-    pub attributes: SectionAttributes,
+    pub attributes: SectionFlags,
 }
 
 impl RawSectionHeader {
@@ -1020,7 +1020,7 @@ impl RawSectionHeader {
             line_offset: Default::default(),
             reloc_len: Default::default(),
             lines_len: Default::default(),
-            attributes: SectionAttributes::empty(),
+            attributes: SectionFlags::empty(),
         }
     }
 }
