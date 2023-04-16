@@ -9,14 +9,7 @@
 //! of the actual PE headers.
 use core::{fmt, mem::size_of};
 
-use crate::{
-    error::{Error, Result},
-    CoffFlags,
-    ExecFlags,
-    MachineType,
-    SectionFlags,
-    Subsystem,
-};
+use crate::error::{Error, Result};
 
 /// DOS Magic signature
 pub const DOS_MAGIC: [u8; 2] = *b"MZ";

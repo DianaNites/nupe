@@ -13,10 +13,7 @@ use core::{fmt, mem::size_of};
 
 use crate::{
     error::{Error, Result},
-    CoffFlags,
     ExecFlags,
-    MachineType,
-    SectionFlags,
     Subsystem,
 };
 
