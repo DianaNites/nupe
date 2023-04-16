@@ -99,8 +99,8 @@ impl RawRich {
     /// - `size` must be only until [`RawDos::pe_offset`], not the entire PE
     ///   image.
     ///
-    /// [`RawDos`]: crate::raw::RawDos
-    /// [`RawDos::pe_offset`]: crate::raw::RawDos::pe_offset
+    /// [`RawDos`]: crate::raw::dos::RawDos
+    /// [`RawDos::pe_offset`]: crate::raw::dos::RawDos::pe_offset
     pub unsafe fn find_rich<'data>(
         data: *const u8,
         size: usize,
