@@ -494,6 +494,7 @@ mod tests {
     use anyhow::Result;
 
     use super::{builder::*, *};
+    use crate::raw::pe::*;
 
     static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
 

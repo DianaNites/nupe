@@ -5,7 +5,7 @@ use core::{fmt, marker::PhantomData, mem::size_of, slice::from_raw_parts};
 use crate::{
     error::{Error, Result},
     internal::debug::{DosHelper, RawDataDirectoryHelper},
-    raw::{coff::RawCoff, dos::RawDos, exec::*, RawPe, RawSectionHeader, PE_MAGIC},
+    raw::{coff::RawCoff, dos::RawDos, exec::*, pe::*, RawSectionHeader},
     CoffFlags,
     DataDirIdent,
     ExecFlags,

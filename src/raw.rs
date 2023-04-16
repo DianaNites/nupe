@@ -44,8 +44,6 @@ pub mod exec;
 pub mod pe;
 pub mod rich;
 
-pub use pe::*;
-
 /// A "data directory", an (address, size) pair used by the windows loader
 ///
 /// There are 16 standard entries, though there can be any number, including
