@@ -160,20 +160,20 @@ impl RawRich {
         // Safety: Caller
         let b = BStr::new(from_raw_parts(data, size));
 
-        let o = b.rfind(RICH_MAGIC);
-        let o = match o {
+        let offset = b.rfind(RICH_MAGIC);
+        let offset = match offset {
             Some(o) => o,
             None => return Ok(None),
         };
 
         // Safety:
         // - `o` is guaranteed to be within bounds by `rfind`
-        let ptr = data.add(o);
+        let ptr = data.add(offset);
 
         // Safety:
         // - `ptr` is guaranteed to be valid for `size - o`
-        match Self::from_ptr_internal(ptr, size - o) {
-            Ok(p) => Ok(Some((p, o))),
+        match Self::from_ptr_internal(ptr, size - offset) {
+            Ok(p) => Ok(Some((p, offset))),
             Err(e @ Error::NotEnoughData) => Err(e),
 
             // `rfind` guarantees the magic, at least, is valid
@@ -274,11 +274,15 @@ impl RawRichArray {
     /// Find the Rich Header Array given a pointer to the first byte after the
     /// DOS Header [`RawDOS`].
     ///
-    /// `Size` must be only the length until [`RawDos::pe_offset`]
+    /// `size` must be *at least* [`RawDos::pe_offset`] to be able to find the
+    /// Rich Header in a PE file.
+    ///
+    /// Higher values may lead to slower performance,
+    /// and incorrect results in the case of PE files or untrusted user input.
     ///
     /// `key` should be [`RawRich::key`]
     ///
-    /// Returns a pointer to [`RawRichArray`], and it's offset from `data`.
+    /// Returns a reference to [`RawRichArray`], and it's offset from `data`.
     ///
     /// # Returns
     ///
@@ -293,12 +297,19 @@ impl RawRichArray {
     ///
     /// # Safety
     ///
-    /// - `data` must be valid for `size` bytes
-    /// - `size` must be only until [`RawDos::pe_offset`], not the entire PE
-    ///   image.
+    /// ## Pre-conditions
     ///
-    /// [`RawDos`]: crate::raw::RawDos
-    /// [`RawDos::pe_offset`]: crate::raw::RawDos::pe_offset
+    /// - `data` must be valid for `size` bytes
+    ///
+    /// ## Post-conditions
+    ///
+    /// - The returned offset is less than `size`
+    ///   - e.g. `data.add(offset)` is always safe if `data.add(size)` is.
+    /// - `data.add(offset)` is valid for at least
+    ///   [`size_of::<RawRichArray>()`][`RawRichArray`] bytes.
+    ///
+    /// [`RawDos`]: crate::raw::dos::RawDos
+    /// [`RawDos::pe_offset`]: crate::raw::dos::RawDos::pe_offset
     pub unsafe fn find_array<'data>(
         data: *const u8,
         size: usize,
@@ -377,23 +388,31 @@ impl RawRichArray {
         // Safety: Caller
         let b = BStr::new(from_raw_parts(data, size));
 
-        let n = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
-        let n = n.to_ne_bytes();
-        // Safety:
-        // - `o` is guaranteed in-bounds by `rfind`
-        let o = b.rfind(n);
-        let o = match o {
+        let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
+        let magic_xor = magic_xor.to_ne_bytes();
+
+        let offset = b.rfind(magic_xor);
+        let offset = match offset {
             Some(o) => o,
             None => return Ok(None),
         };
-        let ptr = data.add(o);
+
+        // Safety:
+        // - `o` is guaranteed in-bounds by `rfind`
+        let ptr = data.add(offset);
 
         // Safety:
         // - `ptr` is guaranteed to be valid for `size - o`
-        Ok(Some((
-            Self::from_ptr_internal(ptr, size - o, Some(key))?,
-            o,
-        )))
+        match Self::from_ptr_internal(ptr, size - offset, Some(key)) {
+            Ok(p) => Ok(Some((p, offset))),
+            Err(e @ Error::NotEnoughData) => Err(e),
+
+            // `rfind` guarantees the magic, at least, is valid
+            Err(Error::InvalidRichMagic) => unreachable!(),
+
+            // No other errors are ever returned
+            Err(_) => unreachable!(),
+        }
     }
 
     fn debug_fmt(&self, f: &mut fmt::Formatter<'_>, key: u32) -> fmt::Result {
