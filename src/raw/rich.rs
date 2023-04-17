@@ -92,7 +92,7 @@ impl RawRich {
     ///
     /// # Errors
     ///
-    /// - See [`RawRich::from_ptr`]
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawRich`]
     ///
     /// # Safety
     ///
