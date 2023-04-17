@@ -24,13 +24,13 @@ pub struct Rich<'data> {
     /// - When [`OwnedOrRef::Owned`], [`RawRich::key`] must be `0`
     header: RichHdrArg<'data>,
 
-    /// Optional Rich Header entries
-    entries: Option<RichEntryArg<'data>>,
+    /// Rich Header entries
+    entries: RichEntryArg<'data>,
 }
 
 /// Public Serialization API
 impl<'data> Rich<'data> {
-    pub const fn new(header: RichHdrArg<'data>, entries: Option<RichEntryArg<'data>>) -> Self {
+    pub const fn new(header: RichHdrArg<'data>, entries: RichEntryArg<'data>) -> Self {
         Self { header, entries }
     }
 }
@@ -92,7 +92,7 @@ impl<'data> Rich<'data> {
             array_size / size_of::<RawRichEntry>(),
         );
 
-        let entries = Some(VecOrSlice::Slice(entries));
+        let entries = VecOrSlice::Slice(entries);
 
         Ok(Self {
             header: OwnedOrRef::Ref(rich),
@@ -107,7 +107,7 @@ impl<'data> fmt::Debug for Rich<'data> {
         s.field("header", &self.header);
 
         // FIXME: hides Vec vs Slice
-        s.field("entries", &debug::RichHelper::new(self.entries.as_ref()));
+        s.field("entries", &debug::RichHelper::new(&self.entries));
         s.finish()
     }
 }
@@ -121,8 +121,8 @@ mod debug {
     pub struct RichHelper(usize);
 
     impl RichHelper {
-        pub fn new(data: Option<&VecOrSlice<'_, RawRichEntry>>) -> Self {
-            Self(data.map(|d| d.len()).unwrap_or(0))
+        pub fn new(data: &VecOrSlice<'_, RawRichEntry>) -> Self {
+            Self(data.len())
         }
     }
 
