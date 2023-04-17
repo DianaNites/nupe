@@ -23,6 +23,7 @@ use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use bstr::{BStr, ByteSlice};
 
+use super::dos::{RawDos, DOS_MAGIC};
 use crate::error::{Error, Result};
 
 /// Undocumented VS-specific rich header signature
@@ -411,11 +412,10 @@ impl fmt::Debug for RawRichArray {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
 pub struct RawRichEntry {
-    /// Build ID
-    pub build_id: u16,
-
-    /// Product ID
-    pub product_id: u16,
+    /// Contains the product/type ID in the high half, and the build id
+    ///
+    /// Also referred to as the @comp.id, and the fields by ProdID and mCV
+    pub id: u32,
 
     /// Number of times tool has been used
     pub count: u32,
@@ -423,6 +423,33 @@ pub struct RawRichEntry {
 
 /// Public data API
 impl RawRichEntry {
+    /// Build ID
+    #[inline]
+    pub const fn build_id(&self) -> u16 {
+        self.id().0
+    }
+
+    /// Product ID
+    #[inline]
+    pub const fn product_id(&self) -> u16 {
+        self.id().1
+    }
+
+    /// Product and Build ID pair
+    #[inline]
+    pub const fn id(&self) -> (u16, u16) {
+        self.id_with_key(0)
+    }
+
+    /// Product and Build ID pair
+    #[inline]
+    pub const fn id_with_key(&self, key: u32) -> (u16, u16) {
+        let id = self.id ^ key;
+        let product_high = (id >> 16) as u16;
+        let build_low = (id & 0xFFFF) as u16;
+        (product_high, build_low)
+    }
+
     /// Allows calling [`Debug`][`fmt::Debug`] while providing a XOR key,
     /// for printing of correct values in memory without copying.
     pub const fn debug_with_key(&self, key: u32) -> impl fmt::Debug + '_ {
@@ -474,15 +501,11 @@ impl RawRichEntry {
     fn debug_fmt(&self, f: &mut fmt::Formatter<'_>, key: u32) -> fmt::Result {
         let mut s = f.debug_struct("RawRichEntry");
 
-        let build_id = self.build_id.to_ne_bytes();
-        let product_id = self.product_id.to_ne_bytes();
-        let x = u32::from_ne_bytes([build_id[0], build_id[1], product_id[0], product_id[1]]) ^ key;
-        let x = x.to_ne_bytes();
-        let build_id = u16::from_ne_bytes([x[0], x[1]]);
-        let product_id = u16::from_ne_bytes([x[2], x[3]]);
+        let (product_id, build_id) = self.id_with_key(key);
 
-        s.field("build_id", &build_id);
+        s.field("id", &{ self.id ^ key });
         s.field("product_id", &product_id);
+        s.field("build_id", &build_id);
         s.field("count", &{ self.count ^ key });
         s.finish()
     }
@@ -492,6 +515,125 @@ impl fmt::Debug for RawRichEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.debug_fmt(f, 0)
     }
+}
+
+/// Calculate the checksum in the [Rich Header],
+/// given a pointer to PE image.
+///
+/// `key` will be XORed before reading [Rich Header] or [Array Entry] fields.
+/// It can be zero if `data` is not XORed.
+///
+/// `Size` should be only the length until [`RawDos::pe_offset`]
+///
+/// # Safety
+///
+/// - `data` MUST point to a valid PE image
+/// - `data` MUST be valid for `size`
+///
+/// [Rich Header]: RawRich
+/// [Array Entry]: RawRichEntry
+#[cfg(no)]
+pub unsafe fn calculate_checksum_with_key(data: *const u8, size: usize, key: u32) -> u32 {
+    let end = 0;
+
+    let dos = from_raw_parts(data as *const u8, end);
+
+    let initial = 0;
+    let mut check: u32 = initial;
+    let iter = dos.iter().copied().enumerate();
+    let iter2 = iter.clone();
+
+    for (i, b) in iter.take(60) {
+        let b = b as u32;
+        let i = i as u32;
+        check = check.wrapping_add(b.rotate_left(i));
+    }
+
+    for (i, b) in iter2.take(initial as usize).skip(63) {
+        let b = b as u32;
+        let i = i as u32;
+        check = check.wrapping_add(b.rotate_left(i));
+    }
+
+    // check = check.wrapping_add(0u32.rotate_left(60));
+    // check = check.wrapping_add(0u32.rotate_left(61));
+    // check = check.wrapping_add(0u32.rotate_left(62));
+    // check = check.wrapping_add(0u32.rotate_left(63));
+
+    let array = from_raw_parts(array, count);
+    for entry in array {
+        let id = entry.id ^ key;
+        let count = entry.count ^ key;
+        check = check.wrapping_add(id.rotate_left(count));
+        // check = check.wrapping_add(id ^ count);
+    }
+
+    check
+}
+
+/// Calculate the checksum in the [Rich Header],
+/// given a pointer to the [DOS Header],
+/// a pointer to the first [Array Entry], and a count of elements.
+///
+/// `key` will be XORed before reading [Array Entry] fields
+///
+/// # Safety
+///
+/// - `dos` must point to a valid [`RawDos`]
+/// - `array` must point to a valid [`RawRichEntry`] valid for `count` elements
+///
+/// [Rich Header]: RawRich
+/// [DOS Header]: RawDos
+/// [Array Entry]: RawRichEntry
+pub unsafe fn calculate_checksum_with_key(
+    dos: *const RawDos,
+    array: *const RawRichEntry,
+    count: usize,
+    key: u32,
+    initial: u32,
+) -> u32 {
+    let data = dos as *const u8;
+    let dos = from_raw_parts(data, size_of::<RawDos>());
+
+    let mut check: u32 = initial;
+    let iter = dos.iter().copied().enumerate();
+
+    for (i, b) in iter.take(60) {
+        let b = b as u32;
+        let i = i as u32;
+        check = check.wrapping_add(b.rotate_left(i));
+    }
+
+    let x = data.offset_from(array.sub(2).cast());
+    dbg!(x);
+    let stub = from_raw_parts(data.add(size_of::<RawDos>()), 0);
+
+    for (i, b) in stub
+        .iter()
+        .copied()
+        .enumerate()
+        .take(initial as usize)
+        .skip(63)
+    {
+        let b = b as u32;
+        let i = i as u32;
+        check = check.wrapping_add(b.rotate_left(i));
+    }
+
+    // check = check.wrapping_add(0u32.rotate_left(60));
+    // check = check.wrapping_add(0u32.rotate_left(61));
+    // check = check.wrapping_add(0u32.rotate_left(62));
+    // check = check.wrapping_add(0u32.rotate_left(63));
+
+    let array = from_raw_parts(array, count);
+    for entry in array {
+        let id = entry.id ^ key;
+        let count = entry.count ^ key;
+        check = check.wrapping_add(id.rotate_left(count));
+        // check = check.wrapping_add(id ^ count);
+    }
+
+    check
 }
 
 #[cfg(test)]
@@ -514,20 +656,36 @@ mod tests {
 
             let arr = RawRichArray::find_array(data, size, rich.key);
             dbg!(&arr);
-            let (arr, o) = arr?.unwrap();
+            let (arr, arr_o) = arr?.unwrap();
             dbg!(&arr.debug_with_key(rich.key));
+            eprintln!();
 
-            let entries = data.add(o).add(size_of::<RawRichArray>());
+            let entries = data.add(arr_o).add(size_of::<RawRichArray>());
+
+            let entry = &*(entries as *const RawRichEntry);
+            // assert_eq!({ entry.build_id }, 30795, "");
+            // assert_eq!({ entry.product_id }, 259, "");
+
             let end = data.add(rich_o);
+            let mut count = 0;
 
             let mut cur = entries;
             while cur != end {
-                let entry = *(cur as *const RawRichEntry);
+                let entry = &*(cur as *const RawRichEntry);
                 dbg!(&entry.debug_with_key(rich.key));
                 eprintln!();
 
                 cur = cur.add(size_of::<RawRichEntry>());
+                count += 1;
             }
+
+            let initial = arr_o as u32;
+            dbg!(initial);
+            // let calc = calculate_checksum_with_key(data.cast(), count, rich.key);
+            let calc =
+                calculate_checksum_with_key(data.cast(), entries.cast(), count, rich.key, initial);
+
+            assert_eq!({ rich.key }, calc, "Rich header checksum mismatch");
 
             // panic!();
             Ok(())
