@@ -2,7 +2,7 @@
 use core::{fmt, marker::PhantomData, mem::size_of};
 
 use crate::{
-    dos::debug::DosHelper,
+    dos::{Dos, DosArg, DosStubArg},
     error::{Error, Result},
     internal::{
         debug::RawDataDirectoryHelper,
@@ -15,6 +15,7 @@ use crate::{
         VecOrSlice,
     },
     raw::{coff::RawCoff, dos::RawDos, exec::*, pe::*, *},
+    rich::Rich,
     DataDir,
     ExecHeader,
     Section,
@@ -133,10 +134,10 @@ unsafe fn read_exec(
 #[derive(Clone)]
 pub struct Pe<'data> {
     /// DOS header
-    dos: OwnedOrRef<'data, RawDos>,
+    dos: Dos<'data>,
 
-    /// DOS stub code
-    dos_stub: VecOrSlice<'data, u8>,
+    /// Optional Rich Header
+    rich: Option<Rich<'data>>,
 
     /// COFF header
     coff: OwnedOrRef<'data, RawCoff>,
@@ -158,25 +159,25 @@ pub struct Pe<'data> {
 impl<'data> Pe<'data> {
     /// See [`Pe::from_ptr`] for safety and error details
     unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> {
-        let dos = RawDos::from_ptr(data, input_size).map_err(|e| match e {
+        // Safety: Caller
+        let dos = Dos::from_ptr(data, input_size).map_err(|e| match e {
             Error::NotEnoughData => Error::MissingDOS,
             _ => e,
         })?;
+        let stub = dos.dos_stub();
+
+        // Safety: slice is trivially valid
+        let rich = match Rich::from_ptr(stub.as_ptr(), stub.len()) {
+            Ok(it) => Some(it),
+            Err(_) => None,
+        };
 
         // Pointer to the PE signature, and the size of the remainder of the input after
         // the DOS stub.
-        let (pe_ptr, pe_size) = read_sig(dos, data, input_size).map_err(|e| match e {
+        let (pe_ptr, pe_size) = read_sig(dos.raw_dos(), data, input_size).map_err(|e| match e {
             Error::NotEnoughData => Error::MissingPE,
             _ => e,
         })?;
-
-        let stub_ptr = data.add(size_of::<RawDos>());
-        let stub_size = dos.pe_offset.saturating_sub(size_of::<RawDos>() as u32) as usize;
-
-        // Ensure that `input_size` is enough for the DOS stub
-        input_size
-            .checked_sub(stub_size)
-            .ok_or(Error::NotEnoughData)?;
 
         // PE signature and COFF header
         let pe = RawPe::from_ptr(pe_ptr, pe_size).map_err(|e| match e {
@@ -247,11 +248,10 @@ impl<'data> Pe<'data> {
 
         let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
         let sections = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
-        let stub = unsafe { core::slice::from_raw_parts(stub_ptr, stub_size) };
 
         Ok(Self {
-            dos: OwnedOrRef::Ref(dos),
-            dos_stub: VecOrSlice::Slice(stub),
+            dos,
+            rich,
             coff: OwnedOrRef::Ref(&pe.coff),
             exec,
             data_dirs: VecOrSlice::Slice(data_dirs),
@@ -401,9 +401,11 @@ impl<'data> Pe<'data> {
         self.exec.entry()
     }
 
-    /// The DOS stub code
+    /// The DOS stub
+    ///
+    /// See [`Dos::dos_stub`] for details
     pub fn dos_stub(&self) -> &[u8] {
-        &self.dos_stub
+        self.dos.dos_stub()
     }
 
     /// Low 32-bits of a unix timestamp
@@ -487,7 +489,7 @@ impl<'data> Pe<'data> {
     ///
     /// This is only for advanced users.
     pub fn dos(&self) -> &RawDos {
-        &self.dos
+        self.dos.raw_dos()
     }
 }
 
@@ -521,7 +523,6 @@ impl<'data> fmt::Debug for Pe<'data> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct("Pe");
         s.field("dos", &self.dos)
-            .field("dos_stub", &DosHelper::new(&self.dos_stub))
             .field("coff", &self.coff)
             .field("opt", &self.exec);
 
@@ -767,7 +768,7 @@ mod tests {
                 size_of::<RawDos>() as u32,
             ];
             for v in values {
-                eprintln!("{v:#?}");
+                dbg!(v);
 
                 let mut dos = RawDos::new();
                 dos.pe_offset = v;
@@ -776,10 +777,10 @@ mod tests {
                 let ptr = ptr as *const u8;
 
                 let pe = Pe::from_ptr(ptr, size_of::<RawDos>());
-                eprintln!("{pe:#?}");
+                dbg!(&pe);
 
                 assert!(
-                    matches!(pe, Err(Error::MissingPE)),
+                    matches!(pe, Err(Error::MissingDOS | Error::MissingPE)),
                     "Pe::from_ptr returned the incorrect error for an out of bounds PE offset"
                 );
             }
