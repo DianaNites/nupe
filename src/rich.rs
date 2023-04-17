@@ -3,9 +3,13 @@
 use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use crate::{
+    dos::Dos,
     error::{Error, Result},
     internal::debug::DosHelper,
-    raw::rich::{RawRich, RawRichArray, RawRichEntry},
+    raw::{
+        dos::RawDos,
+        rich::{calculate_key, RawRich, RawRichArray, RawRichEntry},
+    },
     OwnedOrRef,
     VecOrSlice,
 };
@@ -26,6 +30,8 @@ pub struct Rich<'data> {
 
     /// Rich Header entries
     entries: RichEntryArg<'data>,
+    // /// Offset in the
+    // entry_offset: u32,
 }
 
 /// Public Serialization API
@@ -65,7 +71,22 @@ impl<'data> Rich<'data> {
 
 /// Public Data API
 impl<'data> Rich<'data> {
-    //
+    /// Get the XOR key used for the entries in memory
+    #[inline]
+    pub const fn key(&self) -> u32 {
+        self.header.as_ref().key
+    }
+
+    #[inline]
+    pub fn entries(&self) -> &[RawRichEntry] {
+        &self.entries
+    }
+
+    /// Return whether the checksum, calculated over `dos` and `stub`,
+    /// matches the one in the rich header.
+    pub fn validate_checksum(&self, dos: &Dos, stub: &[u8]) -> bool {
+        calculate_key(dos.raw_dos(), stub, self.key()) == self.key()
+    }
 }
 
 /// Internal API
@@ -107,7 +128,11 @@ impl<'data> fmt::Debug for Rich<'data> {
         s.field("header", &self.header);
 
         // FIXME: hides Vec vs Slice
-        s.field("entries", &debug::RichHelper::new(&self.entries));
+        s.field(
+            "entries",
+            &debug::RichHelper::new(&self.entries, self.header.key),
+        );
+
         s.finish()
     }
 }
@@ -118,17 +143,21 @@ mod debug {
 
     use crate::{internal::VecOrSlice, raw::rich::RawRichEntry};
 
-    pub struct RichHelper(usize);
+    pub struct RichHelper<'a>(&'a VecOrSlice<'a, RawRichEntry>, u32);
 
-    impl RichHelper {
-        pub fn new(data: &VecOrSlice<'_, RawRichEntry>) -> Self {
-            Self(data.len())
+    impl<'a> RichHelper<'a> {}
+
+    impl<'a> RichHelper<'a> {
+        pub const fn new(data: &'a VecOrSlice<'_, RawRichEntry>, key: u32) -> Self {
+            Self(data, key)
         }
     }
 
-    impl fmt::Debug for RichHelper {
+    impl<'a> fmt::Debug for RichHelper<'a> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, r#"Rich Array (entries {})"#, self.0)
+            f.debug_list()
+                .entries(self.0.iter().map(|f| f.debug_with_key(self.1)))
+                .finish()
         }
     }
 }
@@ -141,20 +170,31 @@ mod r_tests {
 
     #[test]
     fn rich() -> Result<()> {
-        unsafe {
-            let data = RUSTUP_IMAGE.as_ptr();
-            let size = RUSTUP_IMAGE.len();
+        let data = RUSTUP_IMAGE.as_ptr();
+        let size = RUSTUP_IMAGE.len();
 
-            // Safety: slice is trivially valid
-            let dos = Dos::from_ptr(data, size)?;
-            let stub = dos.dos_stub();
+        // Safety: slice is trivially valid
+        let dos = unsafe { Dos::from_ptr(data, size)? };
+        let stub = dos.dos_stub();
 
-            // Safety: slice is trivially valid
-            let rich = Rich::from_ptr(stub.as_ptr(), stub.len())?;
-            dbg!(&rich);
+        // Safety: slice is trivially valid
+        let rich = unsafe { Rich::from_ptr(stub.as_ptr(), stub.len())? };
+        dbg!(&rich);
 
-            // panic!();
-            Ok(())
-        }
+        let key = rich.key();
+        let entry = rich.entries()[0];
+        let (product_id, build_id) = entry.id_with_key(key);
+
+        assert_eq!(build_id, 30795, "");
+        assert_eq!(product_id, 259, "");
+        assert_eq!(entry.count ^ key, 9, "");
+
+        assert!(
+            rich.validate_checksum(&dos, stub),
+            "Rich header checksum mismatch"
+        );
+
+        // panic!();
+        Ok(())
     }
 }
