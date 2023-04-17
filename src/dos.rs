@@ -4,10 +4,7 @@ use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use crate::{
     error::{Error, Result},
-    raw::{
-        dos::RawDos,
-        rich::{RawRich, RawRichArray, RawRichEntry},
-    },
+    raw::dos::RawDos,
     OwnedOrRef,
     VecOrSlice,
 };
@@ -160,7 +157,6 @@ pub mod debug {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rich::Rich;
 
     static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
 
@@ -168,7 +164,6 @@ mod tests {
     fn dos() -> Result<()> {
         unsafe {
             let data = RUSTUP_IMAGE.as_ptr();
-            let size = RUSTUP_IMAGE[..272].len();
             let size = RUSTUP_IMAGE.len();
 
             let dos = Dos::from_ptr(data, size);

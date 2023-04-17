@@ -5,10 +5,7 @@ use core::{fmt, mem::size_of, slice::from_raw_parts};
 use crate::{
     dos::Dos,
     error::{Error, Result},
-    raw::{
-        dos::RawDos,
-        rich::{calculate_key, RawRich, RawRichArray, RawRichEntry},
-    },
+    raw::rich::{calculate_key, RawRich, RawRichArray, RawRichEntry},
     OwnedOrRef,
     VecOrSlice,
 };
@@ -164,7 +161,7 @@ mod debug {
 #[cfg(test)]
 mod r_tests {
     use super::*;
-    use crate::{dos::Dos, raw::dos::RawDos};
+    use crate::dos::Dos;
     static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
 
     #[test]
