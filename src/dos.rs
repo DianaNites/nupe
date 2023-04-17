@@ -47,9 +47,9 @@ impl<'data> Dos<'data> {
     ///
     /// - [`Error::TooMuchData`] If the [PE Offset][pe_off] does not fit in
     ///   [`usize`]. This will only happen on 16-bit platforms
-    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`Dos`]
     /// - [`Error::MissingDOS`] If the DOS header is missing
-    /// - See [`RawDos::from_ptr`]
+    /// - [`Error::InvalidDosMagic`] If the [DOS magic][`DOS_MAGIC`] is
+    ///   incorrect
     ///
     /// # Safety
     ///
@@ -109,9 +109,7 @@ impl<'data> Dos<'data> {
             .map_err(|_| Error::TooMuchData)?;
 
         // Ensure that `input_size` is enough for the DOS stub
-        input_size
-            .checked_sub(stub_size)
-            .ok_or(Error::NotEnoughData)?;
+        input_size.checked_sub(stub_size).ok_or(Error::MissingDOS)?;
 
         // Safety:
         // - We ensure `stub_size` can never exceed `input_size`
