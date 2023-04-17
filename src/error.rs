@@ -5,6 +5,7 @@ pub type Result<T> = core::result::Result<T, Error>;
 
 /// NuPe Error type
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     InvalidDosMagic,
 
