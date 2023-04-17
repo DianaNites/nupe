@@ -141,13 +141,12 @@ impl RawDos {
     /// # Errors
     ///
     /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawDos`]
-    /// - [`Error::InvalidDosMagic`] If the DOS magic value is incorrect
+    /// - [`Error::InvalidDosMagic`] If the [DOS magic][`DOS_MAGIC`] is
+    ///   incorrect
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
-    /// - You must ensure the returned reference does not outlive `data`, and is
-    ///   not mutated for the duration of lifetime `'data`.
+    /// - `data` MUST be valid for `size` bytes
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
         Ok(&*(Self::from_ptr_internal(data, size)?))
     }

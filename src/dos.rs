@@ -45,15 +45,15 @@ impl<'data> Dos<'data> {
     ///
     /// # Errors
     ///
-    /// - [`Error::TooMuchData`] If
+    /// - [`Error::TooMuchData`] If the [PE Offset][pe_off] does not fit in
+    ///   [`usize`]. This will only happen on 16-bit platforms
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`Dos`]
     /// - [`Error::MissingDOS`] If the DOS header is missing
     /// - See [`RawDos::from_ptr`]
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
-    /// - You must ensure the returned reference does not outlive `data`, and is
-    ///   not mutated for the duration of lifetime `'data`.
+    /// - `data` MUST be valid for `size` bytes
     pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
         Self::from_ptr_internal(data, size)
     }
