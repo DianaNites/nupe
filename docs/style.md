@@ -21,9 +21,11 @@ for the raw DOS header.
 
 ## Unsafe
 
+## Safety Comments
+
 Unsafe operations should have a `// Safety` comment explaining why they're safe
 
-### Example
+### Safety Comments Example
 
 This is an example structure, and not a hard rule.
 
@@ -40,6 +42,11 @@ None of the explanations are required.
 // - Condition 2
 // - Condition 3
 ```
+
+## Safety Documentation
+
+Unsafe functions and methods should have a `# Safety` section explaining
+what pre-conditions they rely on.
 
 ## Documentation
 
