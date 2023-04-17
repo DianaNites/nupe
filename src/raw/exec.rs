@@ -11,11 +11,9 @@
 //! [pe_ref]: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
 use core::{fmt, mem::size_of};
 
-use crate::{
-    error::{Error, Result},
-    ExecFlags,
-    Subsystem,
-};
+use bitflags::bitflags;
+
+use crate::error::{Error, Result};
 
 /// PE32 Magic signature
 pub const PE32_MAGIC: u16 = 0x10B;
@@ -118,6 +116,217 @@ impl fmt::Debug for RawExec {
             .field("entry_ptr", &{ self.entry_ptr })
             .field("code_ptr", &{ self.code_ptr })
             .finish()
+    }
+}
+
+/// Subsystem, or type, of the PE file.
+///
+/// This determines a few things, such as the expected signature of the
+/// application entry point, expected existence and contents of sections, etc.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct Subsystem(u16);
+
+impl Subsystem {
+    /// Integer value for this machine type
+    #[inline]
+    pub const fn value(self) -> u16 {
+        self.0
+    }
+}
+
+impl Subsystem {
+    /// Unknown subsystem
+    pub const UNKNOWN: Self = Self(0);
+
+    /// Native kernel code
+    pub const NATIVE: Self = Self(1);
+
+    /// Windows GUI
+    pub const WINDOWS_GUI: Self = Self(2);
+
+    /// Windows CLI
+    pub const WINDOWS_CLI: Self = Self(3);
+
+    /// OS2 CLI
+    pub const OS2_CLI: Self = Self(5);
+
+    /// POSIX CLI
+    pub const POSIX_CLI: Self = Self(7);
+
+    /// Native Win9x
+    pub const NATIVE_WINDOWS: Self = Self(8);
+
+    /// Windows CE
+    pub const WINDOWS_CE_GUI: Self = Self(9);
+
+    /// EFI Application
+    ///
+    /// The result of this is the applications memory type becomes EfiLoader
+    pub const EFI_APPLICATION: Self = Self(10);
+
+    /// EFI Boot Driver
+    ///
+    /// The result of this is the drivers memory type becomes EfiBootServices
+    pub const EFI_BOOT_DRIVER: Self = Self(11);
+
+    /// EFI Runtime driver
+    ///
+    /// The result of this is the drivers memory type becomes EiRuntimeServices
+    pub const EFI_RUNTIME_DRIVER: Self = Self(12);
+
+    /// EFI ROM?
+    ///
+    /// The result of this is the applications memory type becomes ?
+    pub const EFI_ROM: Self = Self(13);
+
+    /// XBOX
+    pub const XBOX: Self = Self(14);
+
+    /// Windows boot?
+    pub const WINDOWS_BOOT: Self = Self(16);
+}
+
+impl fmt::Debug for Subsystem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::UNKNOWN => write!(f, "Subsystem::UNKNOWN"),
+            Self::NATIVE => write!(f, "Subsystem::NATIVE"),
+            Self::WINDOWS_GUI => write!(f, "Subsystem::WINDOWS_GUI"),
+            Self::WINDOWS_CLI => write!(f, "Subsystem::WINDOWS_CLI"),
+            Self::OS2_CLI => write!(f, "Subsystem::OS2_CLI"),
+            Self::POSIX_CLI => write!(f, "Subsystem::POSIX_CLI"),
+            Self::NATIVE_WINDOWS => write!(f, "Subsystem::NATIVE_WINDOWS"),
+            Self::WINDOWS_CE_GUI => write!(f, "Subsystem::WINDOWS_CE_GUI"),
+            Self::EFI_APPLICATION => write!(f, "Subsystem::EFI_APPLICATION"),
+            Self::EFI_BOOT_DRIVER => write!(f, "Subsystem::EFI_BOOT_DRIVER"),
+            Self::EFI_RUNTIME_DRIVER => write!(f, "Subsystem::EFI_RUNTIME_DRIVER"),
+            Self::EFI_ROM => write!(f, "Subsystem::EFI_ROM"),
+            Self::XBOX => write!(f, "Subsystem::XBOX"),
+            Self::WINDOWS_BOOT => write!(f, "Subsystem::WINDOWS_BOOT"),
+            _ => f.debug_tuple("Subsystem").field(&self.0).finish(),
+        }
+    }
+}
+
+impl fmt::Display for Subsystem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::UNKNOWN => write!(f, "UNKNOWN"),
+            Self::NATIVE => write!(f, "NATIVE"),
+            Self::WINDOWS_GUI => write!(f, "WINDOWS_GUI"),
+            Self::WINDOWS_CLI => write!(f, "WINDOWS_CLI"),
+            Self::OS2_CLI => write!(f, "OS2_CLI"),
+            Self::POSIX_CLI => write!(f, "POSIX_CLI"),
+            Self::NATIVE_WINDOWS => write!(f, "NATIVE_WINDOWS"),
+            Self::WINDOWS_CE_GUI => write!(f, "WINDOWS_CE_GUI"),
+            Self::EFI_APPLICATION => write!(f, "EFI_APPLICATION"),
+            Self::EFI_BOOT_DRIVER => write!(f, "EFI_BOOT_DRIVER"),
+            Self::EFI_RUNTIME_DRIVER => write!(f, "EFI_RUNTIME_DRIVER"),
+            Self::EFI_ROM => write!(f, "EFI_ROM"),
+            Self::XBOX => write!(f, "XBOX"),
+            Self::WINDOWS_BOOT => write!(f, "WINDOWS_BOOT"),
+            _ => f.debug_tuple("Subsystem").field(&self.0).finish(),
+        }
+    }
+}
+
+bitflags! {
+    /// Exec header flags
+    ///
+    /// See [`RawExec{64|32}`][`crate::raw::RawExec64`]
+    ///
+    /// Otherwise known as "DLL Characteristics"
+    ///
+    /// See <https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#dll-characteristics>
+    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+    #[repr(transparent)]
+    #[doc(alias = "DllCharacteristics")]
+    pub struct ExecFlags: u16 {
+        /// Reserved and must not be set
+        const RESERVED_1 = 0x1;
+
+        /// Reserved and must not be set
+        const RESERVED_2 = 0x2;
+
+        /// Reserved and must not be set
+        const RESERVED_3 = 0x4;
+
+        /// Reserved and must not be set
+        const RESERVED_4 = 0x8;
+
+        /// Indicates image can handle a high-entropy 64-bit address space
+        const HIGH_ENTROPY_VA = 0x20;
+
+        /// Indicates image can be relocated at runtime
+        const DYNAMIC_BASE = 0x40;
+
+        /// Enforce code integrity checks
+        const FORCE_INTEGRITY = 0x80;
+
+        /// Disable executable stack
+        ///
+        /// Indicates image is Data Execution Prevention / NX compatible /
+        /// No eXecute compatible
+        ///
+        /// Specifically, compatible with code not being run from memory
+        /// pages without the execute permission.
+        ///
+        /// See <https://learn.microsoft.com/en-us/windows/win32/Memory/data-execution-prevention>
+        const NX_COMPAT = 0x100;
+
+        /// Indicates image is Isolation aware, but should not be isolated.
+        ///
+        /// Setting this tells the Windows loader not to use application manifests
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/allowisolation?view=msvc-170>
+        const NO_ISOLATION = 0x200;
+
+        /// Indicates Structured Exception Handling is not used and no SE handler may be called
+        const NO_SEH = 0x400;
+
+        /// Indicates not to bind the image
+        ///
+        /// This may be desired because binding invalidates digital signatures
+        ///
+        /// Binding pre-resolves addresses to entry points in the images import table.
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/allowbind-prevent-dll-binding?view=msvc-170>
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/bind?view=msvc-170>
+        const NO_BIND = 0x800;
+
+        /// Indicates image must execute in the AppContainer isolation environment
+        ///
+        /// Usually this will be UWP or Microsoft Store apps.
+        ///
+        /// See <https://learn.microsoft.com/en-us/windows/win32/secauthz/appcontainer-isolation>
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/appcontainer-windows-store-app?view=msvc-170>
+        const APP_CONTAINER = 0x1000;
+
+        /// Indicates a Windows Driver Model / WDM Driver
+        const WDM_DRIVER = 0x2000;
+
+        /// Indicates image supports Control Flow Guard data
+        const GUARD_CF = 0x4000;
+
+        /// Indicates image is terminal server aware
+        ///
+        /// This means that the image:
+        ///
+        /// - Does not rely on per-user `.ini` files
+        /// - Does not write to `HKEY_CURRENT_USER` during setup
+        /// - Does not run as a system service
+        /// - Does not expect exclusive access to system directories
+        ///   or store per-user temporary o configuration data in them
+        /// - Does not write to `HKEY_LOCAL_MACHINE` for user specific data
+        /// - Generally follows the Remote Desktop Services compatibility guidelines
+        ///
+        /// See <https://learn.microsoft.com/en-us/windows/win32/termserv/application-compatibility-layer>
+        ///
+        /// See <https://learn.microsoft.com/en-us/cpp/build/reference/tsaware-create-terminal-server-aware-application?view=msvc-170>
+        const TERMINAL_SERVER = 0x8000;
     }
 }
 
