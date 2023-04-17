@@ -157,7 +157,7 @@ mod tests {
             let dos = Dos::from_ptr(data, size);
             dbg!(&dos);
 
-            panic!();
+            // panic!();
             Ok(())
         }
     }
