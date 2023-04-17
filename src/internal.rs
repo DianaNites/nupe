@@ -813,7 +813,8 @@ pub(crate) mod debug {
         }
     }
 
-    /// Displays the DOS header and minimal stub
+    /// Helper struct for [`fmt::Debug`] to display "DOS code (len N)"
+    /// instead of a huge byte array.
     pub struct DosHelper<'data>(usize, &'data VecOrSlice<'data, u8>);
 
     impl<'data> DosHelper<'data> {
