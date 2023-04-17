@@ -38,6 +38,9 @@ pub enum Error {
     /// Not enough data, missing DOS header
     MissingDOS,
 
+    /// Not enough data, missing rich header
+    MissingRich,
+
     /// Not enough data, missing PE header
     MissingPE,
 
@@ -63,6 +66,7 @@ impl fmt::Display for Error {
             Self::ImmutableData => write!(f, "tried to modify data that was immutable"),
             Self::TooMuchData => write!(f, "too much data was provided"),
             Self::MissingDOS => write!(f, "missing DOS header"),
+            Self::MissingRich => write!(f, "missing rich header"),
             Self::MissingPE => write!(f, "missing PE header"),
             Self::MissingExecHeader => write!(f, "missing exec header"),
             Self::MissingSectionTable => write!(f, "missing section table"),
