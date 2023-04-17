@@ -61,7 +61,7 @@ impl<'data> Dos<'data> {
 
 /// Public Data API
 impl<'data> Dos<'data> {
-    /// Reference to the DOS stub code
+    /// Reference to the DOS stub
     ///
     /// The "DOS stub" is everything after the [DOS header][RawDos] but before
     /// the [PE header][RawPe].
