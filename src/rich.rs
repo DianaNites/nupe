@@ -42,7 +42,7 @@ impl<'data> Rich<'data> {
     /// `size` *should* be *at least* [`RawDos::pe_offset`][RawDos] to be able
     /// to fully parse the header.
     ///
-    /// Higher values may lead to incorrect results.
+    /// Higher values may lead to confusion with data in the stub.
     ///
     /// `count` must be the number of elements in the
     /// [Rich Header Array][RawRichEntry]
