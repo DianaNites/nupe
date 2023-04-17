@@ -21,6 +21,8 @@ use crate::{
 
 /// Helper to read the PE signature and COFF header
 ///
+/// Returns a pointer to [`RawPE`], and it's size.
+///
 /// # Errors
 ///
 /// - [`Error::TooMuchData`] If the DOS does not fit in [`usize`].
@@ -30,7 +32,7 @@ use crate::{
 /// # Safety
 ///
 /// - `input` must be non-null and valid for `input_size` bytes.
-unsafe fn read_sig(
+pub unsafe fn read_sig(
     dos: &RawDos,
     input: *const u8,
     input_size: usize,
@@ -67,7 +69,7 @@ unsafe fn read_sig(
 ///
 /// This assumes stub code can only exist before the PE offset.
 ///
-/// Returns a pointer to the DOS stub after the header, and its size.
+/// Returns a pointer to the [DOS stub][RawDos] after the header, and its size.
 ///
 /// In the event the PE offset lays *inside* the header, the stub size
 /// will be returned as zero without error.
@@ -79,7 +81,7 @@ unsafe fn read_sig(
 /// # Safety
 ///
 /// - `input` must be non-null and valid for `input_size` bytes.
-unsafe fn read_stub(
+pub unsafe fn read_stub(
     input: *const u8,
     input_size: usize,
     pe_size: usize,
