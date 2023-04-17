@@ -78,16 +78,19 @@ impl RawRich {
     }
 
     /// Find the Rich Header given a pointer to the first byte after the
-    /// DOS Header [`RawDOS`].
+    /// DOS Header [`RawDos`].
     ///
-    /// `Size` must be only the length until [`RawDos::pe_offset`]
+    /// `size` must be *at least* [`RawDos::pe_offset`] to be able to parse the
+    /// Rich Header
     ///
-    /// Returns a pointer to [`RawDOS`], and it's offset from `data`.
+    /// Higher values will lead to slower performance.
+    ///
+    /// Returns a reference to [`RawRich`], and it's offset from `data`.
     ///
     /// # Returns
     ///
     /// - [`Ok(Some)`] If a valid Rich Header was found.
-    /// - [`Ok(None)`] If no rich header was found, and no errors occurred.
+    /// - [`Ok(None)`] If no Rich Header was found, and no errors occurred.
     /// - [`Err`] See Errors
     ///
     /// # Errors
@@ -96,9 +99,16 @@ impl RawRich {
     ///
     /// # Safety
     ///
+    /// ## Pre-conditions
+    ///
     /// - `data` must be valid for `size` bytes
-    /// - `size` must be only until [`RawDos::pe_offset`], not the entire PE
-    ///   image.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - The returned offset is less than `size`
+    ///   - e.g. `data.add(offset)` is always safe if `data.add(size)` is.
+    /// - `data.add(offset)` is valid for at least
+    ///   [`size_of::<RawRich>()`][`RawRich`] bytes.
     ///
     /// [`RawDos`]: crate::raw::dos::RawDos
     /// [`RawDos::pe_offset`]: crate::raw::dos::RawDos::pe_offset
@@ -107,7 +117,10 @@ impl RawRich {
         size: usize,
     ) -> Result<Option<(&'data Self, usize)>> {
         match Self::find_rich_internal(data, size)? {
-            Some((r, o)) => Ok(Some((&*r, o))),
+            Some((r, o)) => {
+                debug_assert!(o < size, "RawRich::find_rich guarantee violated");
+                Ok(Some((&*r, o)))
+            }
             None => Ok(None),
         }
     }
@@ -146,18 +159,28 @@ impl RawRich {
         // Safety: Caller
         let b = BStr::new(from_raw_parts(data, size));
 
-        // Safety:
-        // - `o` is guaranteed in-bounds by `rfind`
         let o = b.rfind(RICH_MAGIC);
         let o = match o {
             Some(o) => o,
             None => return Ok(None),
         };
+
+        // Safety:
+        // - `o` is guaranteed to be within bounds by `rfind`
         let ptr = data.add(o);
 
         // Safety:
         // - `ptr` is guaranteed to be valid for `size - o`
-        Ok(Some((Self::from_ptr_internal(ptr, size - o)?, o)))
+        match Self::from_ptr_internal(ptr, size - o) {
+            Ok(p) => Ok(Some((p, o))),
+            Err(e @ Error::NotEnoughData) => Err(e),
+
+            // `rfind` guarantees the magic, at least, is valid
+            Err(Error::InvalidRichMagic) => unreachable!(),
+
+            // No other errors are ever returned
+            Err(_) => unreachable!(),
+        }
     }
 }
 
