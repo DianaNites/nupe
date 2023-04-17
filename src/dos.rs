@@ -1,6 +1,5 @@
 //! Higher level wrappers around the [DOS Header][RawDos],
 //! see there for more details.
-
 use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use crate::{
@@ -93,6 +92,17 @@ impl<'data> Dos<'data> {
     #[inline]
     pub fn dos_stub(&self) -> &[u8] {
         &self.dos_stub
+    }
+
+    /// Absolute offset in the file to the PE header
+    ///
+    /// "must" be aligned to 8 bytes
+    ///
+    /// Note that this value is untrusted input, and can be anything.
+    /// This should be handled appropriately when using it to find the PE header
+    #[inline]
+    pub const fn pe_offset(&self) -> u32 {
+        self.dos.as_ref().pe_offset
     }
 
     /// Reference to the DOS Rich header, if it exists.
