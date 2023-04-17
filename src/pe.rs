@@ -19,20 +19,36 @@ use crate::{
     Section,
 };
 
-/// Helper to read the PE signature and COFF header
+/// Helper to find the location of the PE signature and COFF header,
+/// given a pointer to a PE file.
 ///
-/// Returns a pointer to [`RawPE`], and it's size.
+/// Returns the pointer the [`RawPE`], and the remaining `input_size`,
+/// in other words the size of the actual PE portion of the file,
+/// including the [PE Signature][pe_sig].
 ///
 /// # Errors
 ///
-/// - [`Error::TooMuchData`] If the DOS does not fit in [`usize`].
-/// - [`Error::NotEnoughData`] If `input_offset` does not fit a [`RawPe`] and
-///   the DOS pe offset
+/// - [`Error::TooMuchData`] If the [PE Offset][pe_off] does not fit in
+///   [`usize`]. This will only happen on 16-bit platforms.
+/// - [`Error::NotEnoughData`] If `input_size` does not fit a [`RawPe`] and the
+///   DOS [PE Offset][pe_off]
 ///
 /// # Safety
 ///
+/// ## Pre-conditions
+///
 /// - `input` must be non-null and valid for `input_size` bytes.
-pub unsafe fn read_sig(
+///
+/// ## Post-conditions
+///
+/// - The returned size is less than `input_size`
+///   - e.g. `input.add(size)` is always safe if `input.add(input_size)` is.
+/// - `input.add(size)` is valid for at least [`size_of::<RawPe>()`][`RawPe`]
+///   bytes.
+///
+/// [pe_sig]: crate::raw::pe::PE_MAGIC
+/// [pe_off]: crate::raw::dos::RawDos
+unsafe fn read_sig(
     dos: &RawDos,
     input: *const u8,
     input_size: usize,
@@ -62,48 +78,9 @@ pub unsafe fn read_sig(
     // This is strictly less than `size`
     let pe_size = input_size - off;
 
+    debug_assert!(pe_size < input_size, "read_sig size guarantee violated");
+
     Ok((pe_ptr, pe_size))
-}
-
-/// Helper to read DOS stub code
-///
-/// This assumes stub code can only exist before the PE offset.
-///
-/// Returns a pointer to the [DOS stub][RawDos] after the header, and its size.
-///
-/// In the event the PE offset lays *inside* the header, the stub size
-/// will be returned as zero without error.
-///
-/// # Errors
-///
-/// - [`Error::NotEnoughData`] If `input_size` does not fit a [`RawDos`]
-///
-/// # Safety
-///
-/// - `input` must be non-null and valid for `input_size` bytes.
-pub unsafe fn read_stub(
-    input: *const u8,
-    input_size: usize,
-    pe_size: usize,
-) -> Result<(*const u8, usize)> {
-    // Ensure that `input_size` is enough for the DOS header
-    input_size
-        .checked_sub(size_of::<RawDos>())
-        .ok_or(Error::NotEnoughData)?;
-
-    // Offset to the DOS stub code
-    //
-    // Safety:
-    // - We just ensured this offset is within bounds of `input` above
-    // - Caller ensures `input` validity
-    let stub_ptr = input.add(size_of::<RawDos>());
-
-    // Size of the DOS stub code is the size of the input,
-    // minus the size of the PE and DOS header, saturating if RawDoes would
-    // overflow.
-    let stub_size = (input_size - pe_size).saturating_sub(size_of::<RawDos>());
-
-    Ok((stub_ptr, stub_size))
 }
 
 /// Helper to read exec header
@@ -192,11 +169,13 @@ impl<'data> Pe<'data> {
             _ => e,
         })?;
 
-        // Pointer to the DOS stub code, and size of the code before the PE header
-        let (stub_ptr, stub_size) = read_stub(data, input_size, pe_size).map_err(|e| match e {
-            Error::NotEnoughData => Error::MissingDOS,
-            _ => e,
-        })?;
+        let stub_ptr = data.add(size_of::<RawDos>());
+        let stub_size = dos.pe_offset.saturating_sub(size_of::<RawDos>() as u32) as usize;
+
+        // Ensure that `input_size` is enough for the DOS stub
+        input_size
+            .checked_sub(stub_size)
+            .ok_or(Error::NotEnoughData)?;
 
         // PE signature and COFF header
         let pe = RawPe::from_ptr(pe_ptr, pe_size).map_err(|e| match e {
