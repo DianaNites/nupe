@@ -354,14 +354,14 @@ impl RawRichArray {
         size.checked_sub(size_of::<RawRichArray>())
             .ok_or(Error::NotEnoughData)?;
 
-        let n = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
-        let n = n.to_ne_bytes();
+        let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
+        let magic_xor = magic_xor.to_ne_bytes();
 
         // Safety:
         // - We just checked `data` would fit a `RawRich`
         // - Caller guarantees `data` is valid
         let arr = &*(data as *const RawRichArray);
-        if arr.magic != n {
+        if arr.magic != magic_xor {
             return Err(Error::InvalidRichArrayMagic);
         }
         if (arr.padding1 ^ key) + (arr.padding2 ^ key) + (arr.padding3 ^ key) != 0 {
