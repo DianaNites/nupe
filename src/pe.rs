@@ -60,7 +60,7 @@ unsafe fn read_sig(
     // This is strictly less than `size`
     let pe_size = input_size - off;
 
-    Ok((pe_ptr.cast(), pe_size))
+    Ok((pe_ptr, pe_size))
 }
 
 /// Helper to read DOS stub code
