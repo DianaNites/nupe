@@ -145,10 +145,12 @@ mod r_tests {
             let data = RUSTUP_IMAGE.as_ptr();
             let size = RUSTUP_IMAGE.len();
 
+            // Safety: slice is trivially valid
             let dos = Dos::from_ptr(data, size);
             let dos = dos?;
             let stub = dos.dos_stub();
 
+            // Safety: slice is trivially valid
             let rich = Rich::from_ptr(stub.as_ptr(), stub.len())?;
             dbg!(&rich);
 
