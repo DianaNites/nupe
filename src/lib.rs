@@ -25,6 +25,7 @@ pub mod error;
 mod internal;
 mod pe;
 pub mod raw;
+pub mod rich;
 
 use core::{mem::size_of, ptr::addr_of, slice::from_raw_parts};
 
