@@ -20,6 +20,7 @@
 extern crate alloc;
 
 pub mod builder;
+pub mod dos;
 pub mod error;
 mod internal;
 mod pe;
