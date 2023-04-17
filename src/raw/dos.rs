@@ -252,3 +252,17 @@ impl fmt::Debug for RawDos {
         s.field("pe_offset", &{ self.pe_offset }).finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use core::mem::align_of;
+
+    use super::*;
+
+    const fn abi() {
+        assert!(size_of::<RawDos>() == 64);
+        assert!(align_of::<RawDos>() == 1);
+    }
+
+    const _: () = abi();
+}
