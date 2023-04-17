@@ -575,62 +575,56 @@ pub unsafe fn calculate_checksum_with_key(data: *const u8, size: usize, key: u32
 /// given a pointer to the [DOS Header],
 /// a pointer to the first [Array Entry], and a count of elements.
 ///
-/// `key` will be XORed before reading [Array Entry] fields
+/// `key` will be XORed before reading [Rich Header] or [Array Entry] fields.
+/// It can be zero if these are not XORed.
+///
+/// `size` ***should*** be only up to [`RawPe`] / the PE signature,
+/// this function does not need and will not work efficiently with the
+/// full image.
+///
+/// `initial` must be
 ///
 /// # Safety
 ///
-/// - `dos` must point to a valid [`RawDos`]
+/// - `data` MUST point to a PE file
+/// - `data` MUST be valid for `size`
 /// - `array` must point to a valid [`RawRichEntry`] valid for `count` elements
 ///
 /// [Rich Header]: RawRich
 /// [DOS Header]: RawDos
 /// [Array Entry]: RawRichEntry
+/// [`RawPe`]: crate::raw::pe::RawPe
 pub unsafe fn calculate_checksum_with_key(
-    dos: *const RawDos,
+    data: *const u8,
+    size: usize,
     array: *const RawRichEntry,
     count: usize,
     key: u32,
     initial: u32,
 ) -> u32 {
-    let data = dos as *const u8;
-    let dos = from_raw_parts(data, size_of::<RawDos>());
-
     let mut check: u32 = initial;
-    let iter = dos.iter().copied().enumerate();
 
-    for (i, b) in iter.take(60) {
+    let dos = from_raw_parts(data, size_of::<RawDos>() - 4);
+    for (i, b) in dos.iter().copied().enumerate() {
         let b = b as u32;
         let i = i as u32;
         check = check.wrapping_add(b.rotate_left(i));
     }
 
-    let x = data.offset_from(array.sub(2).cast());
-    dbg!(x);
-    let stub = from_raw_parts(data.add(size_of::<RawDos>()), 0);
+    let stub_size = size - size_of::<RawDos>();
+    let stub = from_raw_parts(data.add(size_of::<RawDos>()), stub_size);
 
-    for (i, b) in stub
-        .iter()
-        .copied()
-        .enumerate()
-        .take(initial as usize)
-        .skip(63)
-    {
+    for (i, b) in stub.iter().copied().enumerate().take(initial as usize) {
         let b = b as u32;
         let i = i as u32;
         check = check.wrapping_add(b.rotate_left(i));
     }
-
-    // check = check.wrapping_add(0u32.rotate_left(60));
-    // check = check.wrapping_add(0u32.rotate_left(61));
-    // check = check.wrapping_add(0u32.rotate_left(62));
-    // check = check.wrapping_add(0u32.rotate_left(63));
 
     let array = from_raw_parts(array, count);
     for entry in array {
         let id = entry.id ^ key;
         let count = entry.count ^ key;
         check = check.wrapping_add(id.rotate_left(count));
-        // check = check.wrapping_add(id ^ count);
     }
 
     check
@@ -683,7 +677,7 @@ mod tests {
             dbg!(initial);
             // let calc = calculate_checksum_with_key(data.cast(), count, rich.key);
             let calc =
-                calculate_checksum_with_key(data.cast(), entries.cast(), count, rich.key, initial);
+                calculate_checksum_with_key(data, arr_o, entries.cast(), count, rich.key, initial);
 
             assert_eq!({ rich.key }, calc, "Rich header checksum mismatch");
 
