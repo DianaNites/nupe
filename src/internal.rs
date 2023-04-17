@@ -15,6 +15,20 @@ pub enum OwnedOrRef<'data, T> {
 }
 
 impl<'data, T> OwnedOrRef<'data, T> {
+    #[inline]
+    pub const fn from_ref(value: &'data T) -> Self {
+        Self::Ref(value)
+    }
+}
+
+impl<T> OwnedOrRef<'static, T> {
+    #[inline]
+    pub const fn new(value: T) -> Self {
+        Self::Owned(value)
+    }
+}
+
+impl<'data, T> OwnedOrRef<'data, T> {
     /// Constant method to get a reference to `T`
     #[inline]
     pub const fn as_ref(&self) -> &T {
@@ -66,6 +80,20 @@ impl<'data, T> AsMut<T> for OwnedOrRef<'data, T> {
 pub enum VecOrSlice<'data, T> {
     Vec(Vec<T>),
     Slice(&'data [T]),
+}
+
+impl<'data, T> VecOrSlice<'data, T> {
+    #[inline]
+    pub const fn from_slice(value: &'data [T]) -> Self {
+        Self::Slice(value)
+    }
+}
+
+impl<T> VecOrSlice<'static, T> {
+    #[inline]
+    pub const fn new(value: Vec<T>) -> Self {
+        Self::Vec(value)
+    }
 }
 
 impl<'data, T> Deref for VecOrSlice<'data, T> {
