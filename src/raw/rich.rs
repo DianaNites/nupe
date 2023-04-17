@@ -80,10 +80,11 @@ impl RawRich {
     /// Find the Rich Header given a pointer to the first byte after the
     /// DOS Header [`RawDos`].
     ///
-    /// `size` must be *at least* [`RawDos::pe_offset`] to be able to parse the
-    /// Rich Header
+    /// `size` must be *at least* [`RawDos::pe_offset`] to be able to find the
+    /// Rich Header in a PE file.
     ///
-    /// Higher values will lead to slower performance.
+    /// Higher values may lead to slower performance,
+    /// and incorrect results in the case of PE files or untrusted user input.
     ///
     /// Returns a reference to [`RawRich`], and it's offset from `data`.
     ///
