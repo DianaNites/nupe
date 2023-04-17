@@ -146,8 +146,7 @@ mod r_tests {
             let size = RUSTUP_IMAGE.len();
 
             // Safety: slice is trivially valid
-            let dos = Dos::from_ptr(data, size);
-            let dos = dos?;
+            let dos = Dos::from_ptr(data, size)?;
             let stub = dos.dos_stub();
 
             // Safety: slice is trivially valid
