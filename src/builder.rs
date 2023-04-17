@@ -12,16 +12,14 @@ use crate::{
         dos::RawDos,
         exec::*,
         pe::*,
+        RawDataDirectory,
         RawSectionHeader,
     },
     DataDirIdent,
-    ExecFlags,
     OwnedOrRef,
     Pe,
-    RawDataDirectory,
     Section,
     SectionFlags,
-    Subsystem,
     VecOrSlice,
 };
 

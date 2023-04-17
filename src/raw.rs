@@ -31,7 +31,7 @@
 //! from Microsoft
 //!
 //! [pe_ref]: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
-use core::{fmt, mem::size_of};
+use core::fmt;
 
 use crate::{
     error::{Error, Result},

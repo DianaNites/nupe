@@ -28,12 +28,9 @@ mod pe;
 pub mod raw;
 pub mod rich;
 
-use core::{mem::size_of, ptr::addr_of, slice::from_raw_parts};
+use raw::{RawDataDirectory, RawSectionHeader};
 
-use crate::{
-    error::{Error, Result},
-    raw::{dos::RawDos, exec::*, *},
-};
+use crate::error::Error;
 pub use crate::{
     internal::{DataDirIdent, OwnedOrRef, SectionFlags, VecOrSlice},
     pe::*,
@@ -166,6 +163,8 @@ impl<'data> DataDir<'data> {
 
 #[cfg(test)]
 mod tests {
+    use core::mem::size_of;
+
     // #![allow(
     //     unused_variables,
     //     unused_imports,
@@ -185,6 +184,8 @@ mod tests {
         exec::ExecHeader,
         raw::{
             coff::{CoffFlags, MachineType},
+            dos::RawDos,
+            exec::{ExecFlags, RawExec64, Subsystem},
             pe::*,
         },
     };

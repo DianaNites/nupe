@@ -23,7 +23,7 @@ use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use bstr::{BStr, ByteSlice};
 
-use super::dos::{RawDos, DOS_MAGIC};
+use super::dos::RawDos;
 use crate::{
     error::{Error, Result},
     rich::Rich,
@@ -613,7 +613,6 @@ pub fn calculate_key(dos: &RawDos, stub: &[u8], key: u32) -> u32 {
     }
 
     // Safety: `stub` is trivially valid for `stub.len()`
-    let rich = unsafe { RawRich::from_ptr(stub.as_ptr(), stub.len()) };
     let rich = unsafe { Rich::from_ptr(stub.as_ptr(), stub.len()) };
     let rich = match rich {
         Ok(r) => r,

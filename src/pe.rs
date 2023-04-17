@@ -2,7 +2,7 @@
 use core::{fmt, marker::PhantomData, mem::size_of};
 
 use crate::{
-    dos::{Dos, DosArg, DosStubArg},
+    dos::Dos,
     error::{Error, Result},
     exec::ExecHeader,
     internal::{debug::RawDataDirectoryHelper, DataDirIdent, OwnedOrRef, VecOrSlice},
