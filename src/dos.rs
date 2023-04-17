@@ -82,6 +82,12 @@ impl<'data> Dos<'data> {
     pub const fn pe_offset(&self) -> u32 {
         self.dos.as_ref().pe_offset
     }
+
+    /// Reference to the [Raw DOS header][RawDos]
+    #[inline]
+    pub const fn raw_dos(&self) -> &RawDos {
+        self.dos.as_ref()
+    }
 }
 
 /// Internal API
