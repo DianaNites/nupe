@@ -3,8 +3,9 @@ use alloc::{vec, vec::Vec};
 use core::{fmt, marker::PhantomData, mem::size_of, slice::from_raw_parts};
 
 use crate::{
+    dos::debug::DosHelper,
     error::{Error, Result},
-    internal::debug::{DosHelper, RawDataDirectoryHelper},
+    internal::debug::RawDataDirectoryHelper,
     raw::{coff::RawCoff, dos::RawDos, exec::*, pe::*, RawSectionHeader},
     CoffFlags,
     DataDirIdent,

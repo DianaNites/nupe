@@ -2,9 +2,10 @@
 use core::{fmt, marker::PhantomData, mem::size_of};
 
 use crate::{
+    dos::debug::DosHelper,
     error::{Error, Result},
     internal::{
-        debug::{DosHelper, RawDataDirectoryHelper},
+        debug::RawDataDirectoryHelper,
         CoffFlags,
         DataDirIdent,
         ExecFlags,

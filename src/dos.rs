@@ -4,7 +4,6 @@ use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use crate::{
     error::{Error, Result},
-    internal::debug::DosHelper,
     raw::{
         dos::RawDos,
         rich::{RawRich, RawRichArray, RawRichEntry},
@@ -128,7 +127,7 @@ impl<'data> fmt::Debug for Dos<'data> {
         let mut s = f.debug_struct("Dos");
         s.field("dos", &self.dos);
 
-        s.field("dos_stub", &DosHelper::new(&self.dos_stub));
+        s.field("dos_stub", &debug::DosHelper::new(&self.dos_stub));
 
         s.finish()
     }
@@ -136,6 +135,26 @@ impl<'data> fmt::Debug for Dos<'data> {
 
 pub mod debug {
     //! [`fmt::Debug`] helper types
+
+    use core::fmt;
+
+    use crate::VecOrSlice;
+
+    /// Helper struct for [`fmt::Debug`] to display "DOS code (len N)"
+    /// instead of a huge byte array.
+    pub struct DosHelper<'data>(usize, &'data VecOrSlice<'data, u8>);
+
+    impl<'data> DosHelper<'data> {
+        pub fn new(data: &'data VecOrSlice<'data, u8>) -> Self {
+            Self(data.len(), data)
+        }
+    }
+
+    impl<'data> fmt::Debug for DosHelper<'data> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, r#"DOS code (len {})"#, self.0)
+        }
+    }
 }
 
 #[cfg(test)]

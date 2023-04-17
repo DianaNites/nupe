@@ -5,7 +5,6 @@ use core::{fmt, mem::size_of, slice::from_raw_parts};
 use crate::{
     dos::Dos,
     error::{Error, Result},
-    internal::debug::DosHelper,
     raw::{
         dos::RawDos,
         rich::{calculate_key, RawRich, RawRichArray, RawRichEntry},

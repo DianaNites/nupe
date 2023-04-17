@@ -812,20 +812,4 @@ pub(crate) mod debug {
                 .finish()
         }
     }
-
-    /// Helper struct for [`fmt::Debug`] to display "DOS code (len N)"
-    /// instead of a huge byte array.
-    pub struct DosHelper<'data>(usize, &'data VecOrSlice<'data, u8>);
-
-    impl<'data> DosHelper<'data> {
-        pub fn new(data: &'data VecOrSlice<'data, u8>) -> Self {
-            Self(data.len(), data)
-        }
-    }
-
-    impl<'data> fmt::Debug for DosHelper<'data> {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, r#"DOS code (len {})"#, self.0)
-        }
-    }
 }
