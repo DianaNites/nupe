@@ -71,8 +71,6 @@ impl RawRich {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    /// - You must ensure the returned reference does not outlive `data`, and is
-    ///   not mutated for the duration of lifetime `'data`.
     ///
     /// [`RawDos`]: crate::raw::RawDos
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
@@ -84,6 +82,8 @@ impl RawRich {
     ///
     /// `Size` must be only the length until [`RawDos::pe_offset`]
     ///
+    /// Returns a pointer to [`RawDOS`], and it's offset from `data`.
+    ///
     /// # Returns
     ///
     /// - [`Ok(Some)`] If a valid Rich Header was found.
@@ -92,7 +92,7 @@ impl RawRich {
     ///
     /// # Errors
     ///
-    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawRich`]
+    /// - See [`RawRich::from_ptr`]
     ///
     /// # Safety
     ///
@@ -253,6 +253,8 @@ impl RawRichArray {
     /// `Size` must be only the length until [`RawDos::pe_offset`]
     ///
     /// `key` should be [`RawRich::key`]
+    ///
+    /// Returns a pointer to [`RawRichArray`], and it's offset from `data`.
     ///
     /// # Returns
     ///
