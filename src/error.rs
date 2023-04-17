@@ -42,6 +42,9 @@ pub enum Error {
     /// Not enough data, missing rich header
     MissingRich,
 
+    /// Not enough data, missing rich array
+    MissingRichArray,
+
     /// Not enough data, missing PE header
     MissingPE,
 
@@ -68,6 +71,7 @@ impl fmt::Display for Error {
             Self::TooMuchData => write!(f, "too much data was provided"),
             Self::MissingDOS => write!(f, "missing DOS header"),
             Self::MissingRich => write!(f, "missing rich header"),
+            Self::MissingRichArray => write!(f, "missing rich array"),
             Self::MissingPE => write!(f, "missing PE header"),
             Self::MissingExecHeader => write!(f, "missing exec header"),
             Self::MissingSectionTable => write!(f, "missing section table"),
