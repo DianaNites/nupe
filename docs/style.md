@@ -60,5 +60,13 @@ Documentation describing things from the [PE Reference][pe_ref]
 should document the name used in reference, if different from the Rust name,
 see [Naming][naming].
 
+In documentation, `"must"` refers to something the [PE Reference][pe_ref]
+requires, but which is known to, in the wild, work if violated.
+These requirements should be upheld unless you know what you're doing.
+
+### Lists
+
+Lists in documentation should not end in periods.
+
 [pe_ref]: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format#the-attribute-certificate-table-image-only
 [naming]: #naming
