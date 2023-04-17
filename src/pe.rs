@@ -4,20 +4,17 @@ use core::{fmt, marker::PhantomData, mem::size_of};
 use crate::{
     dos::{Dos, DosArg, DosStubArg},
     error::{Error, Result},
-    internal::{
-        debug::RawDataDirectoryHelper,
-        CoffFlags,
-        DataDirIdent,
-        ExecFlags,
-        MachineType,
-        OwnedOrRef,
-        Subsystem,
-        VecOrSlice,
+    exec::ExecHeader,
+    internal::{debug::RawDataDirectoryHelper, DataDirIdent, OwnedOrRef, VecOrSlice},
+    raw::{
+        coff::{CoffFlags, MachineType, RawCoff},
+        dos::RawDos,
+        exec::*,
+        pe::*,
+        *,
     },
-    raw::{coff::RawCoff, dos::RawDos, exec::*, pe::*, *},
     rich::Rich,
     DataDir,
-    ExecHeader,
     Section,
 };
 
