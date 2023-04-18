@@ -4,7 +4,7 @@ use core::fmt;
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// NuPe Error type
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[non_exhaustive]
 pub enum Error {
     InvalidDosMagic,
