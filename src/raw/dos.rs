@@ -307,6 +307,10 @@ mod tests {
             }
         } else {
             assert!(d.is_err());
+            assert!(matches!(
+                d,
+                Err(Error::InvalidDosMagic | Error::NotEnoughData)
+            ));
         }
 
         #[cfg(not(kani))]
