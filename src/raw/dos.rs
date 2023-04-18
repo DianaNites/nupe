@@ -281,7 +281,7 @@ mod tests {
     fn kani_dos() -> Result<()> {
         let magic = kani::any();
 
-        let mut bytes = [0u8; 64];
+        let mut bytes = [0u8; size_of::<RawDos>()];
         let len = bytes.len();
         let len = kani::any_where(|x| *x <= len);
         let ptr = bytes.as_mut_ptr();
@@ -296,16 +296,17 @@ mod tests {
 
         let d = unsafe { RawDos::from_ptr(ptr, len) };
 
-        if magic == DOS_MAGIC {
-            assert!(matches!(d, Ok(_) | Err(Error::NotEnoughData)));
-            if len >= 64 {
-                assert!(d.is_ok());
+        if len >= size_of::<RawDos>() {
+            if magic == DOS_MAGIC {
+                assert!(matches!(d, Ok(_) | Err(Error::NotEnoughData)));
+            } else {
+                assert!(matches!(
+                    d,
+                    Err(Error::InvalidDosMagic | Error::NotEnoughData)
+                ));
             }
         } else {
-            assert!(matches!(
-                d,
-                Err(Error::InvalidDosMagic | Error::NotEnoughData)
-            ));
+            assert!(d.is_err());
         }
 
         #[cfg(not(kani))]
