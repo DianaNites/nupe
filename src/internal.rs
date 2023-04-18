@@ -493,6 +493,17 @@ pub mod test_util {
     pub mod kani {
         use core::mem::MaybeUninit;
 
+        pub trait Arbitrary
+        where
+            Self: Sized,
+        {
+            fn any() -> Self;
+
+            fn any_array<const MAX_ARRAY_LENGTH: usize>() -> [Self; MAX_ARRAY_LENGTH] {
+                unsafe { MaybeUninit::zeroed().assume_init() }
+            }
+        }
+
         pub fn any<T>() -> T {
             unsafe { MaybeUninit::zeroed().assume_init() }
         }
