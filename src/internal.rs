@@ -491,6 +491,7 @@ pub mod test_util {
 
     #[cfg(not(kani))]
     pub mod kani {
+        //! Helps RA provide a usable experience because kani refuses to
         use core::mem::MaybeUninit;
 
         pub mod slice {
