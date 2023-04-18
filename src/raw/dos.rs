@@ -253,6 +253,14 @@ impl fmt::Debug for RawDos {
     }
 }
 
+#[cfg(kani)]
+impl kani::Arbitrary for RawDos {
+    #[inline(always)]
+    fn any() -> Self {
+        crate::internal::test_util::kani_raw_dos(kani::any())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use core::mem::align_of;
