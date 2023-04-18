@@ -493,6 +493,18 @@ pub mod test_util {
     pub mod kani {
         use core::mem::MaybeUninit;
 
+        pub mod slice {
+            use core::mem::MaybeUninit;
+
+            pub struct AnySlice<T, const MAX_SLICE_LENGTH: usize> {
+                _t: *mut T,
+            }
+
+            pub fn any_slice<T, const MAX_SLICE_LENGTH: usize>() -> AnySlice<T, MAX_SLICE_LENGTH> {
+                unsafe { MaybeUninit::zeroed().assume_init() }
+            }
+        }
+
         pub trait Arbitrary
         where
             Self: Sized,
