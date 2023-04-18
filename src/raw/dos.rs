@@ -283,44 +283,36 @@ mod tests {
 
         let mut bytes = [0u8; 64];
         let len = bytes.len();
+        let len = kani::any_where(|x| *x <= len);
         let ptr = bytes.as_mut_ptr();
         let dos_ptr = ptr as *mut RawDos;
         let dos = unsafe { &mut *dos_ptr };
-        *dos = RawDos {
-            magic,
-            pe_offset: kani::any(),
-            last_bytes: kani::any(),
-            pages: kani::any(),
-            relocations: kani::any(),
-            header_size: kani::any(),
-            min_alloc: kani::any(),
-            max_alloc: kani::any(),
-            initial_ss: kani::any(),
-            initial_sp: kani::any(),
-            checksum: kani::any(),
-            initial_ip: kani::any(),
-            initial_cs: kani::any(),
-            relocation_offset: kani::any(),
-            overlay_num: kani::any(),
-            _reserved: kani::any(),
-            oem_id: kani::any(),
-            oem_info: kani::any(),
-            _reserved2: kani::any(),
-        };
-        eprintln!("{:#?}", dos);
-
-        let d = unsafe { RawDos::from_ptr(ptr, len) };
-        if magic == DOS_MAGIC {
-            assert!(d.is_ok());
-        } else {
-            assert!(d.is_err());
-            assert!(matches!(d, Err(Error::InvalidDosMagic)));
-        }
-
-        eprintln!("{:#?}", d);
+        *dos = kani_raw_dos(magic);
 
         #[cfg(not(kani))]
-        panic!("This should only run as a test for manual debugging purposes");
+        {
+            eprintln!("{:#?}", dos);
+        }
+
+        let d = unsafe { RawDos::from_ptr(ptr, len) };
+
+        if magic == DOS_MAGIC {
+            assert!(matches!(d, Ok(_) | Err(Error::NotEnoughData)));
+            if len >= 64 {
+                assert!(d.is_ok());
+            }
+        } else {
+            assert!(matches!(
+                d,
+                Err(Error::InvalidDosMagic | Error::NotEnoughData)
+            ));
+        }
+
+        #[cfg(not(kani))]
+        {
+            eprintln!("{:#?}", d);
+            panic!("This should only run as a test for manual debugging purposes");
+        }
         Ok(())
     }
 
