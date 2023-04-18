@@ -322,7 +322,7 @@ mod tests {
         use super::*;
 
         #[kani::proof]
-        fn feature() -> Result<()> {
+        fn raw_dos() -> Result<()> {
             kani_dos()?;
 
             Ok(())
