@@ -295,22 +295,16 @@ mod tests {
         }
 
         let d = unsafe { RawDos::from_ptr(ptr, len) };
+        let allowed_errors = matches!(d, Err(Error::InvalidDosMagic | Error::NotEnoughData));
 
         if len >= size_of::<RawDos>() {
             if magic == DOS_MAGIC {
                 assert!(matches!(d, Ok(_) | Err(Error::NotEnoughData)));
             } else {
-                assert!(matches!(
-                    d,
-                    Err(Error::InvalidDosMagic | Error::NotEnoughData)
-                ));
+                assert!(allowed_errors);
             }
         } else {
-            assert!(d.is_err());
-            assert!(matches!(
-                d,
-                Err(Error::InvalidDosMagic | Error::NotEnoughData)
-            ));
+            assert!(allowed_errors);
         }
 
         #[cfg(not(kani))]
