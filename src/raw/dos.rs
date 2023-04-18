@@ -259,9 +259,104 @@ mod tests {
 
     use super::*;
 
+    #[cfg(not(kani))]
+    mod kani {
+        use core::mem::MaybeUninit;
+
+        pub fn any<T>() -> T {
+            unsafe { MaybeUninit::zeroed().assume_init() }
+        }
+
+        pub fn any_where<T, F: FnOnce(&T) -> bool>(f: F) -> T {
+            unsafe { MaybeUninit::zeroed().assume_init() }
+        }
+
+        pub fn assume(_: bool) {}
+
+        #[allow(unused_macros)]
+        macro_rules! cover {
+            () => {};
+            ($cond:expr $(,)?) => {};
+            ($cond:expr, $msg:literal) => {};
+        }
+        pub(crate) use cover;
+    }
+
+    /// Ensure expected ABI
     #[test]
     fn abi() {
         assert!(size_of::<RawDos>() == 64);
         assert!(align_of::<RawDos>() == 1);
+    }
+
+    /// Ensure this simple operation passes miri / in general
+    #[test]
+    fn miri() -> Result<()> {
+        let dos = RawDos::new();
+        let dos2 = unsafe { RawDos::from_ptr(&dos as *const _ as *const u8, 64)? };
+        assert_eq!(&dos, dos2);
+        Ok(())
+    }
+
+    /// Ensure various stuff is sound
+    #[cfg_attr(not(kani), test, ignore)]
+    fn kani_dos() -> Result<()> {
+        let magic = kani::any();
+
+        let mut bytes = [0u8; 64];
+        let len = bytes.len();
+        let ptr = bytes.as_mut_ptr();
+        let dos_ptr = ptr as *mut RawDos;
+        let dos = unsafe { &mut *dos_ptr };
+        *dos = RawDos {
+            magic,
+            pe_offset: kani::any(),
+            last_bytes: kani::any(),
+            pages: kani::any(),
+            relocations: kani::any(),
+            header_size: kani::any(),
+            min_alloc: kani::any(),
+            max_alloc: kani::any(),
+            initial_ss: kani::any(),
+            initial_sp: kani::any(),
+            checksum: kani::any(),
+            initial_ip: kani::any(),
+            initial_cs: kani::any(),
+            relocation_offset: kani::any(),
+            overlay_num: kani::any(),
+            _reserved: kani::any(),
+            oem_id: kani::any(),
+            oem_info: kani::any(),
+            _reserved2: kani::any(),
+        };
+        eprintln!("{:#?}", dos);
+
+        let d = unsafe { RawDos::from_ptr(ptr, len) };
+        if magic == DOS_MAGIC {
+            assert!(d.is_ok());
+        } else {
+            assert!(d.is_err());
+            assert!(matches!(d, Err(Error::InvalidDosMagic)));
+        }
+
+        eprintln!("{:#?}", d);
+
+        #[cfg(not(kani))]
+        panic!("This should only run as a test for manual debugging purposes");
+        Ok(())
+    }
+
+    #[cfg(all(test, kani))]
+    mod kan {
+        use kani::*;
+
+        use super::*;
+
+        #[kani::proof]
+        fn feature() -> Result<()> {
+            kani_dos()?;
+
+            Ok(())
+        }
     }
 }
