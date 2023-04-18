@@ -480,3 +480,57 @@ pub(crate) mod debug {
         }
     }
 }
+
+#[cfg(test)]
+pub mod test_util {
+    //! Utilities helpful across unit tests
+
+    use crate::raw::dos::RawDos;
+
+    #[cfg(not(kani))]
+    pub mod kani {
+        use core::mem::MaybeUninit;
+
+        pub fn any<T>() -> T {
+            unsafe { MaybeUninit::zeroed().assume_init() }
+        }
+
+        pub fn any_where<T, F: FnOnce(&T) -> bool>(f: F) -> T {
+            unsafe { MaybeUninit::zeroed().assume_init() }
+        }
+
+        pub fn assume(_: bool) {}
+
+        #[allow(unused_macros)]
+        macro_rules! cover {
+            () => {};
+            ($cond:expr $(,)?) => {};
+            ($cond:expr, $msg:literal) => {};
+        }
+        pub(crate) use cover;
+    }
+
+    pub fn kani_raw_dos(magic: [u8; 2]) -> RawDos {
+        RawDos {
+            magic,
+            pe_offset: kani::any(),
+            last_bytes: kani::any(),
+            pages: kani::any(),
+            relocations: kani::any(),
+            header_size: kani::any(),
+            min_alloc: kani::any(),
+            max_alloc: kani::any(),
+            initial_ss: kani::any(),
+            initial_sp: kani::any(),
+            checksum: kani::any(),
+            initial_ip: kani::any(),
+            initial_cs: kani::any(),
+            relocation_offset: kani::any(),
+            overlay_num: kani::any(),
+            _reserved: kani::any(),
+            oem_id: kani::any(),
+            oem_info: kani::any(),
+            _reserved2: kani::any(),
+        }
+    }
+}

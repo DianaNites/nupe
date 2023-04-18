@@ -258,29 +258,7 @@ mod tests {
     use core::mem::align_of;
 
     use super::*;
-
-    #[cfg(not(kani))]
-    mod kani {
-        use core::mem::MaybeUninit;
-
-        pub fn any<T>() -> T {
-            unsafe { MaybeUninit::zeroed().assume_init() }
-        }
-
-        pub fn any_where<T, F: FnOnce(&T) -> bool>(f: F) -> T {
-            unsafe { MaybeUninit::zeroed().assume_init() }
-        }
-
-        pub fn assume(_: bool) {}
-
-        #[allow(unused_macros)]
-        macro_rules! cover {
-            () => {};
-            ($cond:expr $(,)?) => {};
-            ($cond:expr, $msg:literal) => {};
-        }
-        pub(crate) use cover;
-    }
+    use crate::internal::test_util::*;
 
     /// Ensure expected ABI
     #[test]
