@@ -161,8 +161,7 @@ mod debug {
 #[cfg(test)]
 mod r_tests {
     use super::*;
-    use crate::dos::Dos;
-    static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
+    use crate::{dos::Dos, internal::test_util::*};
 
     #[test]
     fn rich() -> Result<()> {

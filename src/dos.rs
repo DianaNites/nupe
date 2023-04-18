@@ -157,8 +157,7 @@ pub mod debug {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
+    use crate::internal::test_util::*;
 
     #[test]
     fn dos() -> Result<()> {

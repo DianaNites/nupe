@@ -182,6 +182,7 @@ mod tests {
     use super::{builder::*, *};
     use crate::{
         exec::ExecHeader,
+        internal::test_util::*,
         raw::{
             coff::{CoffFlags, MachineType},
             dos::RawDos,
@@ -189,8 +190,6 @@ mod tests {
             pe::*,
         },
     };
-
-    static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
 
     /// Test ability to write a copy of rustup-init.exe, from our own parsed
     /// data structures.

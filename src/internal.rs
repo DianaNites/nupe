@@ -487,6 +487,8 @@ pub mod test_util {
 
     use crate::raw::dos::RawDos;
 
+    pub static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
+
     #[cfg(not(kani))]
     pub mod kani {
         use core::mem::MaybeUninit;
