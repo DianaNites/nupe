@@ -253,7 +253,7 @@ impl fmt::Debug for RawDos {
     }
 }
 
-#[cfg(kani)]
+#[cfg(all(test, kani))]
 impl kani::Arbitrary for RawDos {
     #[inline(always)]
     fn any() -> Self {
