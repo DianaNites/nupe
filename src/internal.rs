@@ -491,18 +491,76 @@ pub mod test_util {
 
     #[cfg(not(kani))]
     pub mod kani {
-        //! Helps RA provide a usable experience because kani refuses to
+        //! Helps RA provide a usable experience with stub impls
+        //! because kani is terrible ootb.
+        //!
+        //! Everything here is for the sake of getting it to compile for RA.
+        #![deny(unsafe_code)]
         use core::mem::MaybeUninit;
 
         pub mod slice {
-            use core::mem::MaybeUninit;
+            use core::{
+                mem::{transmute_copy, MaybeUninit},
+                ops::{Deref, DerefMut},
+            };
 
             pub struct AnySlice<T, const MAX_SLICE_LENGTH: usize> {
                 _t: *mut T,
             }
 
+            impl<T, const MAX_SLICE_LENGTH: usize> AnySlice<T, MAX_SLICE_LENGTH> {
+                fn new() -> Self {
+                    Self {
+                        _t: core::ptr::null_mut(),
+                    }
+                }
+
+                fn alloc_slice() -> Self {
+                    Self {
+                        _t: core::ptr::null_mut(),
+                    }
+                }
+
+                pub fn get_slice(&self) -> &[T] {
+                    &[]
+                }
+
+                pub fn get_slice_mut(&mut self) -> &mut [T] {
+                    &mut []
+                }
+            }
+
+            impl<T, const MAX_SLICE_LENGTH: usize> Drop for AnySlice<T, MAX_SLICE_LENGTH> {
+                fn drop(&mut self) {}
+            }
+
+            impl<T, const MAX_SLICE_LENGTH: usize> Deref for AnySlice<T, MAX_SLICE_LENGTH> {
+                type Target = [T];
+
+                fn deref(&self) -> &Self::Target {
+                    &[]
+                }
+            }
+
+            impl<T, const MAX_SLICE_LENGTH: usize> DerefMut for AnySlice<T, MAX_SLICE_LENGTH> {
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    &mut []
+                }
+            }
+
             pub fn any_slice<T, const MAX_SLICE_LENGTH: usize>() -> AnySlice<T, MAX_SLICE_LENGTH> {
-                unsafe { MaybeUninit::zeroed().assume_init() }
+                AnySlice::new()
+            }
+
+            pub fn any_slice_of_array<T, const LENGTH: usize>(arr: &[T; LENGTH]) -> &[T] {
+                &[]
+            }
+
+            /// A mutable version of the previous function
+            pub fn any_slice_of_array_mut<T, const LENGTH: usize>(
+                arr: &mut [T; LENGTH],
+            ) -> &mut [T] {
+                &mut []
             }
         }
 
@@ -513,16 +571,22 @@ pub mod test_util {
             fn any() -> Self;
 
             fn any_array<const MAX_ARRAY_LENGTH: usize>() -> [Self; MAX_ARRAY_LENGTH] {
-                unsafe { MaybeUninit::zeroed().assume_init() }
+                [(); MAX_ARRAY_LENGTH].map(|_| Self::any())
             }
         }
 
-        pub fn any<T>() -> T {
-            unsafe { MaybeUninit::zeroed().assume_init() }
+        impl<T: Default> Arbitrary for T {
+            fn any() -> Self {
+                Default::default()
+            }
         }
 
-        pub fn any_where<T, F: FnOnce(&T) -> bool>(f: F) -> T {
-            unsafe { MaybeUninit::zeroed().assume_init() }
+        pub fn any<T: Arbitrary>() -> T {
+            T::any()
+        }
+
+        pub fn any_where<T: Arbitrary, F: FnOnce(&T) -> bool>(f: F) -> T {
+            T::any()
         }
 
         pub fn assume(_: bool) {}
