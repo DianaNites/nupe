@@ -195,12 +195,13 @@ impl RawDos {
         // Safety:
         // - We just checked `data` would fit a `RawDos`
         // - Caller guarantees `data` is valid
-        let dos = &*(data as *const RawDos);
+        let data = data as *const RawDos;
+        let dos = &*data;
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
         }
 
-        Ok(data.cast())
+        Ok(data)
     }
 }
 
