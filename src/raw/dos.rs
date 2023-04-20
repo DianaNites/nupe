@@ -146,8 +146,11 @@ impl RawDos {
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes
+    /// - `data` MUST be valid for reads of `size` bytes.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        // Safety:
+        // - Caller asserts `data` is valid for `size`
+        // - `RawDos` has no alignment requirements or invalid values.
         Ok(&*(Self::from_ptr_internal(data, size)?))
     }
 
@@ -157,11 +160,12 @@ impl RawDos {
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
-    /// - You MUST ensure NO OTHER references exist when you call this.
-    /// - No instance of `&Self` can exist at the moment of this call.
-    /// - You must ensure the returned reference does not outlive `data`
+    /// - `data` MUST be valid for reads and writes of `size` bytes.
     pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
+        // Safety:
+        // - caller asserts `data` is valid for writes
+        // - const casting pointers like has no safety requirements besides the above
+        // - `RawDos` has no alignment requirements or invalid values.
         Ok(&mut *(Self::from_ptr_internal(data.cast_const(), size)?).cast_mut())
     }
 }
