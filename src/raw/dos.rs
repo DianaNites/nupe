@@ -269,6 +269,8 @@ impl kani::Arbitrary for RawDos {
 mod tests {
     use core::mem::align_of;
 
+    use kani::Arbitrary;
+
     use super::*;
     use crate::internal::test_util::*;
 
@@ -288,42 +290,51 @@ mod tests {
         Ok(())
     }
 
-    /// Ensure various stuff is sound
+    /// Ensure that [`RawDos`] behaves as expected for any input up to `128`
     #[cfg_attr(not(kani), test, ignore)]
-    fn kani_dos() -> Result<()> {
-        let magic = kani::any();
+    fn raw_dos() -> Result<()> {
+        const SIZE: usize = 128;
 
-        let mut bytes = [0u8; size_of::<RawDos>()];
+        let mut file = kani::slice::any_slice::<u8, SIZE>();
+        let bytes = file.get_slice_mut();
         let len = bytes.len();
-        let len = kani::any_where(|x| *x <= len);
         let ptr = bytes.as_mut_ptr();
-        let dos_ptr = ptr as *mut RawDos;
-        let dos = unsafe { &mut *dos_ptr };
-        *dos = kani_raw_dos(magic);
-
-        #[cfg(not(kani))]
-        {
-            eprintln!("{:#?}", dos);
-        }
 
         let d = unsafe { RawDos::from_ptr(ptr, len) };
         let allowed_errors = matches!(d, Err(Error::InvalidDosMagic | Error::NotEnoughData));
 
-        if len >= size_of::<RawDos>() {
-            if magic == DOS_MAGIC {
-                assert!(matches!(d, Ok(_) | Err(Error::NotEnoughData)));
-            } else {
-                assert!(allowed_errors);
+        match d {
+            Ok(d) => {
+                // Ensure successful OK
+                kani::cover!(true, "Ok");
+                assert_eq!(d.magic, DOS_MAGIC, "Incorrect `Ok` DOS magic");
+                // Should only be `Ok` if `len` is this
+                assert!(len >= size_of::<RawDos>(), "Invalid `Ok` len");
             }
-        } else {
-            assert!(allowed_errors);
-        }
+            Err(Error::InvalidDosMagic) => {
+                // Ensure this error happens, and only when its supposed to.
+                kani::cover!(true, "InvalidDosMagic");
+                // Should have gotten NotEnoughData if there wasn't enough
+                assert!(len >= size_of::<RawDos>(), "Invalid InvalidDosMagic len");
+            }
+            Err(Error::NotEnoughData) => {
+                // Ensure this error happens, and only when its supposed to.
+                kani::cover!(true, "NotEnoughData");
+                // Should only get this when `len` is too small
+                assert!(len < size_of::<RawDos>());
+            }
+            Err(e) => {
+                // Should never get any other errors.
+                unreachable!("Invalid error {e} dbg {e:#?}");
+            }
+        };
 
         #[cfg(not(kani))]
         {
             eprintln!("{:#?}", d);
             panic!("This should only run as a test for manual debugging purposes");
         }
+
         Ok(())
     }
 
@@ -334,8 +345,8 @@ mod tests {
         use super::*;
 
         #[kani::proof]
-        fn raw_dos() -> Result<()> {
-            kani_dos()?;
+        fn kani_raw_dos() -> Result<()> {
+            raw_dos()?;
 
             Ok(())
         }
