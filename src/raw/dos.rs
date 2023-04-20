@@ -305,7 +305,7 @@ mod tests {
     /// Ensure that [`RawDos`] behaves as expected for any input up to `128`
     #[cfg_attr(not(kani), test, ignore)]
     fn raw_dos() -> Result<()> {
-        const SIZE: usize = 128;
+        const SIZE: usize = size_of::<RawDos>() * 2;
 
         let mut file = kani::slice::any_slice::<u8, SIZE>();
         let bytes = file.get_slice_mut();
