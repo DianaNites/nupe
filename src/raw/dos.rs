@@ -146,7 +146,13 @@ impl RawDos {
     ///
     /// # Safety
     ///
+    /// ## Pre-conditions
+    ///
     /// - `data` MUST be valid for reads of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
         // Safety:
         // - Caller asserts `data` is valid for `size`
@@ -160,7 +166,13 @@ impl RawDos {
     ///
     /// # Safety
     ///
+    /// ## Pre-conditions
+    ///
     /// - `data` MUST be valid for reads and writes of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned
     pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
         // Safety:
         // - caller asserts `data` is valid for writes
