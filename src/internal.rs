@@ -495,7 +495,6 @@ pub mod test_util {
         //! because kani is terrible ootb.
         //!
         //! Everything here is for the sake of getting it to compile for RA.
-        #![deny(unsafe_code)]
         use core::mem::MaybeUninit;
 
         pub mod slice {
@@ -575,9 +574,10 @@ pub mod test_util {
             }
         }
 
-        impl<T: Default> Arbitrary for T {
+        impl<T> Arbitrary for T {
             fn any() -> Self {
-                Default::default()
+                // // Safety: no, but kani won't call it and real testing code shouldn't either
+                unsafe { core::mem::MaybeUninit::zeroed().assume_init() }
             }
         }
 
