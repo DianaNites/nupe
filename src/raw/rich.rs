@@ -26,6 +26,7 @@ use bstr::{BStr, ByteSlice};
 use super::dos::RawDos;
 use crate::{
     error::{Error, Result},
+    internal::miri_helper,
     rich::Rich,
 };
 
@@ -143,10 +144,13 @@ impl RawRich {
         // Safety:
         // - We just checked `data` would fit a `RawRich`
         // - Caller guarantees `data` is valid
-        let rich = &*(data as *const RawRich);
+        let data = data as *const RawRich;
+        let rich = &*data;
         if rich.magic != RICH_MAGIC {
             return Err(Error::InvalidRichMagic);
         }
+
+        miri_helper!(data as *const u8, size);
 
         Ok(data.cast())
     }
