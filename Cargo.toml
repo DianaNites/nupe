@@ -15,4 +15,5 @@ std = []
 
 [dev-dependencies]
 anyhow = "1.0.70"
+bolero = "0.9.0"
 static_assertions = "1.1.0"
