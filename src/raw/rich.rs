@@ -76,6 +76,9 @@ impl RawRich {
     ///
     /// - `data` MUST be valid for `size` bytes.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        // Safety:
+        // - Caller asserts `data` is valid for `size`
+        // - `RawRich` has no alignment requirements or invalid values.
         Ok(&*(Self::from_ptr_internal(data, size)?))
     }
 
@@ -122,6 +125,9 @@ impl RawRich {
         match Self::find_rich_internal(data, size)? {
             Some((r, o)) => {
                 debug_assert!(o < size, "RawRich::find_rich guarantee violated");
+                // Safety:
+                // - Caller asserts `data` is valid for `size`
+                // - `RawRich` has no alignment requirements or invalid values.
                 Ok(Some((&*r, o)))
             }
             None => Ok(None),
