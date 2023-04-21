@@ -74,7 +74,13 @@ impl RawRich {
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
+    /// ## Pre-conditions
+    ///
+    /// - `data` MUST be valid for reads of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
         // Safety:
         // - Caller asserts `data` is valid for `size`
@@ -667,6 +673,45 @@ mod tests {
 
     #[cfg_attr(not(kani), test, ignore)]
     fn kani_imp() -> Result<()> {
+        const SIZE: usize = size_of::<RawRich>() * 2;
+
+        let mut file = kani::slice::any_slice::<u8, SIZE>();
+        let bytes = file.get_slice_mut();
+        let len = bytes.len();
+        let ptr = bytes.as_mut_ptr();
+
+        let d = unsafe { RawRich::from_ptr(ptr, len) };
+
+        match d {
+            // Ensure the `Ok` branch is hit
+            Ok(d) => {
+                kani::cover!(true, "Ok");
+                assert_eq!(d.magic, RICH_MAGIC, "Incorrect `Ok` Rich magic");
+                // Should only be `Ok` if `len` is enough
+                assert!(len >= size_of::<RawRich>(), "Invalid `Ok` len");
+            }
+
+            // Ensure `InvalidRichMagic` error happens
+            Err(Error::InvalidRichMagic) => {
+                kani::cover!(true, "InvalidRichMagic");
+                // Should have gotten NotEnoughData if there wasn't enough
+                assert!(len >= size_of::<RawRich>(), "Invalid InvalidRichMagic len");
+            }
+
+            // Ensure `NotEnoughData` error happens
+            Err(Error::NotEnoughData) => {
+                kani::cover!(true, "NotEnoughData");
+                // Should only get this when `len` isn't enough
+                assert!(len < size_of::<RawRich>());
+            }
+
+            // Ensure no other errors happen
+            Err(_) => {
+                kani::cover!(false, "Unexpected Error");
+                unreachable!();
+            }
+        };
+
         Ok(())
     }
 
