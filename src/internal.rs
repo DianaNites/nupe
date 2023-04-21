@@ -624,3 +624,13 @@ pub mod test_util {
         }
     }
 }
+
+/// Help miri/tests catch invalid `size`, since we otherwise will never go
+/// beyond Self
+macro_rules! miri_helper {
+    ($data:expr, $size:expr) => {
+        #[cfg(any(miri, test))]
+        let _ = ::core::slice::from_raw_parts($data, $size);
+    };
+}
+pub(crate) use miri_helper;
