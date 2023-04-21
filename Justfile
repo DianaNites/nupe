@@ -1,14 +1,22 @@
-export MIRIFLAGS := "\
+miri_base := "\
 -Zmiri-strict-provenance \
 -Zmiri-symbolic-alignment-check \
--Zmiri-isolation-error=warn-nobacktrace \
 "
+
+miri_isolation := miri_base + " -Zmiri-isolation-error=warn-nobacktrace"
+
+export MIRIFLAGS := miri_base + miri_isolation
 
 @_default:
     {{just_executable()}} --list
 
 # Run tests with miri nextest
 @miri *args='':
+    cargo +nightly miri nextest run {{args}}
+
+# Run miri without isolation, for bolero tests
+@miri-no-isolation *args='':
+    MIRIFLAGS="{{miri_base}} -Zmiri-disable-isolation" \
     cargo +nightly miri nextest run {{args}}
 
 # Run tests with nextest
