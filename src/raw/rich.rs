@@ -725,57 +725,49 @@ mod tests {
         Ok(())
     }
 
-    #[cfg_attr(not(kani), test, ignore)]
-    fn kani_imp() -> Result<()> {
-        const SIZE: usize = size_of::<RawRich>() * 2;
-
-        let mut file = kani::slice::any_slice::<u8, SIZE>();
-        let bytes = file.get_slice_mut();
-        let len = bytes.len();
-        let ptr = bytes.as_mut_ptr();
-
-        let d = unsafe { RawRich::from_ptr(ptr, len) };
-
-        match d {
-            // Ensure the `Ok` branch is hit
-            Ok(d) => {
-                kani::cover!(true, "Ok");
-                assert_eq!(d.magic, RICH_MAGIC, "Incorrect `Ok` Rich magic");
-                // Should only be `Ok` if `len` is enough
-                assert!(len >= size_of::<RawRich>(), "Invalid `Ok` len");
-            }
-
-            // Ensure `InvalidRichMagic` error happens
-            Err(Error::InvalidRichMagic) => {
-                kani::cover!(true, "InvalidRichMagic");
-                // Should have gotten NotEnoughData if there wasn't enough
-                assert!(len >= size_of::<RawRich>(), "Invalid InvalidRichMagic len");
-            }
-
-            // Ensure `NotEnoughData` error happens
-            Err(Error::NotEnoughData) => {
-                kani::cover!(true, "NotEnoughData");
-                // Should only get this when `len` isn't enough
-                assert!(len < size_of::<RawRich>());
-            }
-
-            // Ensure no other errors happen
-            Err(_) => {
-                kani::cover!(false, "Unexpected Error");
-                unreachable!();
-            }
-        };
-
-        Ok(())
-    }
-
     /// Test, fuzz, and model RawRich::from_ptr
-    #[cfg(no)]
     #[test]
     #[cfg_attr(kani, kani::proof)]
     fn raw_rich_from_ptr() {
         bolero::check!().for_each(|bytes: &[u8]| {
-            //
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+
+            let d = unsafe { RawRich::from_ptr(ptr, len) };
+
+            match d {
+                // Ensure the `Ok` branch is hit
+                Ok(d) => {
+                    kani::cover!(true, "Ok");
+
+                    assert_eq!(d.magic, RICH_MAGIC, "Incorrect `Ok` Rich magic");
+
+                    // Should only be `Ok` if `len` is enough
+                    assert!(len >= size_of::<RawRich>(), "Invalid `Ok` len");
+                }
+
+                // Ensure `InvalidRichMagic` error happens
+                Err(Error::InvalidRichMagic) => {
+                    kani::cover!(true, "InvalidRichMagic");
+
+                    // Should have gotten NotEnoughData if there wasn't enough
+                    assert!(len >= size_of::<RawRich>(), "Invalid InvalidRichMagic len");
+                }
+
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
+
+                    // Should only get this when `len` isn't enough
+                    assert!(len < size_of::<RawRich>());
+                }
+
+                // Ensure no other errors happen
+                Err(_) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!();
+                }
+            };
         });
     }
 
@@ -885,19 +877,5 @@ mod tests {
                 }
             };
         })
-    }
-
-    #[cfg(all(test, kani))]
-    mod kan {
-        use kani::*;
-
-        use super::*;
-
-        #[kani::proof]
-        fn kani_raw_rich() -> Result<()> {
-            kani_imp()?;
-
-            Ok(())
-        }
     }
 }
