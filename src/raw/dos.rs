@@ -133,7 +133,7 @@ impl RawDos {
         }
     }
 
-    /// Get a [`RawDos`] from a pointer to a DOS header
+    /// Get a [`RawDos`] from a pointer to the DOS header
     ///
     /// This function validates that `size` is enough to contain the header,
     /// and that the DOS magic is correct.
@@ -314,7 +314,6 @@ mod tests {
         let ptr = bytes.as_mut_ptr();
 
         let d = unsafe { RawDos::from_ptr(ptr, len) };
-        let allowed_errors = matches!(d, Err(Error::InvalidDosMagic | Error::NotEnoughData));
 
         match d {
             Ok(d) => {
