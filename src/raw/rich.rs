@@ -115,9 +115,6 @@ impl RawRich {
     ///   - e.g. `data.add(offset)` is always safe if `data.add(size)` is.
     /// - `data.add(offset)` is valid for at least
     ///   [`size_of::<RawRich>()`][`RawRich`] bytes.
-    ///
-    /// [`RawDos`]: crate::raw::dos::RawDos
-    /// [`RawDos::pe_offset`]: crate::raw::dos::RawDos::pe_offset
     pub unsafe fn find_rich<'data>(
         data: *const u8,
         size: usize,
