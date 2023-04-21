@@ -631,3 +631,55 @@ pub fn calculate_key(dos: &RawDos, stub: &[u8], key: u32) -> u32 {
 
     check
 }
+
+#[cfg(test)]
+mod tests {
+    use core::mem::align_of;
+
+    use kani::Arbitrary;
+
+    use super::*;
+    use crate::{internal::test_util::*, raw::dos::DOS_MAGIC};
+
+    /// Ensure expected ABI
+    #[test]
+    fn abi() {
+        assert!(size_of::<RawRich>() == 8);
+        assert!(align_of::<RawRich>() == 1);
+
+        assert!(size_of::<RawRichArray>() == 16);
+        assert!(align_of::<RawRichArray>() == 1);
+
+        assert!(size_of::<RawRichEntry>() == 8);
+        assert!(align_of::<RawRichEntry>() == 1);
+    }
+
+    /// Ensure this simple operation passes miri / in general
+    #[test]
+    fn miri() -> Result<()> {
+        let rich = RawRich::new();
+        let rich2 = unsafe { RawRich::from_ptr(&rich as *const _ as *const u8, 8)? };
+        assert_eq!(&rich, rich2);
+        // TODO: Rest of rich
+        Ok(())
+    }
+
+    #[cfg_attr(not(kani), test, ignore)]
+    fn kani_imp() -> Result<()> {
+        Ok(())
+    }
+
+    #[cfg(all(test, kani))]
+    mod kan {
+        use kani::*;
+
+        use super::*;
+
+        #[kani::proof]
+        fn kani_raw_rich() -> Result<()> {
+            kani_imp()?;
+
+            Ok(())
+        }
+    }
+}
