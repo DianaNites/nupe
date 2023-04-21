@@ -290,7 +290,7 @@ mod tests {
     use kani::Arbitrary;
 
     use super::*;
-    use crate::internal::test_util::*;
+    use crate::internal::test_util::kani;
 
     /// Ensure expected ABI
     #[test]
@@ -303,69 +303,54 @@ mod tests {
     #[test]
     fn miri() -> Result<()> {
         let dos = RawDos::new();
-        let dos2 = unsafe { RawDos::from_ptr(&dos as *const _ as *const u8, 64)? };
+        let dos2 = unsafe { RawDos::from_ptr(&dos as *const _ as *const u8, size_of::<RawDos>())? };
         assert_eq!(&dos, dos2);
         Ok(())
     }
 
-    /// Ensure that [`RawDos`] behaves as expected for any input up to `128`
-    #[cfg_attr(not(kani), test, ignore)]
-    fn raw_dos() -> Result<()> {
-        const SIZE: usize = size_of::<RawDos>() * 2;
+    /// Test, fuzz, and model [`RawDos::from_ptr`]
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn raw_dos_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
 
-        let mut file = kani::slice::any_slice::<u8, SIZE>();
-        let bytes = file.get_slice_mut();
-        let len = bytes.len();
-        let ptr = bytes.as_mut_ptr();
+            let d = unsafe { RawDos::from_ptr(ptr, len) };
 
-        let d = unsafe { RawDos::from_ptr(ptr, len) };
+            match d {
+                // Ensure the `Ok` branch is hit
+                Ok(d) => {
+                    kani::cover!(true, "Ok");
 
-        match d {
-            Ok(d) => {
-                // Ensure successful OK
-                kani::cover!(true, "Ok");
-                assert_eq!(d.magic, DOS_MAGIC, "Incorrect `Ok` DOS magic");
-                // Should only be `Ok` if `len` is this
-                assert!(len >= size_of::<RawDos>(), "Invalid `Ok` len");
-            }
-            Err(Error::InvalidDosMagic) => {
-                // Ensure this error happens, and only when its supposed to.
-                kani::cover!(true, "InvalidDosMagic");
-                // Should have gotten NotEnoughData if there wasn't enough
-                assert!(len >= size_of::<RawDos>(), "Invalid InvalidDosMagic len");
-            }
-            Err(Error::NotEnoughData) => {
-                // Ensure this error happens, and only when its supposed to.
-                kani::cover!(true, "NotEnoughData");
-                // Should only get this when `len` is too small
-                assert!(len < size_of::<RawDos>());
-            }
-            Err(e) => {
-                // Should never get any other errors.
-                unreachable!("Invalid error {e} dbg {e:#?}");
-            }
-        };
+                    assert_eq!(d.magic, DOS_MAGIC, "Incorrect `Ok` DOS magic");
 
-        #[cfg(not(kani))]
-        {
-            eprintln!("{:#?}", d);
-            panic!("This should only run as a test for manual debugging purposes");
-        }
+                    // Should only be `Ok` if `len` is this
+                    assert!(len >= size_of::<RawDos>(), "Invalid `Ok` len");
+                }
 
-        Ok(())
-    }
+                // Ensure `InvalidDosMagic` error happens
+                Err(Error::InvalidDosMagic) => {
+                    kani::cover!(true, "InvalidDosMagic");
 
-    #[cfg(all(test, kani))]
-    mod kan {
-        use kani::*;
+                    // Should have gotten NotEnoughData if there wasn't enough
+                    assert!(len >= size_of::<RawDos>(), "Invalid InvalidDosMagic len");
+                }
 
-        use super::*;
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
 
-        #[kani::proof]
-        fn kani_raw_dos() -> Result<()> {
-            raw_dos()?;
+                    // Should only get this when `len` is too small
+                    assert!(len < size_of::<RawDos>());
+                }
 
-            Ok(())
-        }
+                // Ensure no other errors happen
+                Err(e) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!();
+                }
+            };
+        });
     }
 }
