@@ -62,7 +62,7 @@ impl RawRich {
     }
 
     /// Get a [`RawRich`] from a pointer to the first byte after the
-    /// DOS Header [`RawDOS`].
+    /// DOS Header [`RawDos`].
     ///
     /// This function validates that `size` is enough to contain the header,
     /// and that the rich signature is correct.
@@ -75,8 +75,6 @@ impl RawRich {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    ///
-    /// [`RawDos`]: crate::raw::RawDos
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
         Ok(&*(Self::from_ptr_internal(data, size)?))
     }
