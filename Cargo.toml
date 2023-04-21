@@ -17,3 +17,8 @@ std = []
 anyhow = "1.0.70"
 bolero = "0.9.0"
 static_assertions = "1.1.0"
+
+[[bin]]
+name = "dbg"
+# Required so afl works
+test = false
