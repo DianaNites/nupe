@@ -166,14 +166,45 @@ impl RawRich {
         data: *const u8,
         size: usize,
     ) -> Result<Option<(*const Self, usize)>> {
+        #[cfg(test)]
+        use crate::internal::test_util::kani;
+
         // Ensure that size is enough
         size.checked_sub(size_of::<RawRich>())
             .ok_or(Error::NotEnoughData)?;
 
         // Safety: Caller
+        #[cfg(not(kani))]
         let b = BStr::new(from_raw_parts(data, size));
 
+        #[cfg(not(kani))]
         let offset = b.rfind(RICH_MAGIC);
+
+        // Need to fake this for `kani` because `rfind` is super slow
+        // Make sure to uphold the invariants we expect from `rfind`
+        // Namely:
+        // `offset` is always in bounds of `size`
+        // for `offset` to be in bounds it must have space for `RICH_MAGIC`
+        // Theres no guarantee it has space for the XOR key, it's user input.
+        // FIXME: This should be removed and support extended when possible.
+        #[cfg(any(kani, test))]
+        // #[cfg(kani_)]
+        let offset = {
+            let bound = size - RICH_MAGIC.len();
+            kani::any_where(|x| match *x {
+                Some(x) => {
+                    let o = x <= bound;
+                    kani::assume(o);
+                    let ptr = data.add(x);
+                    let ptr = ptr as *const [u8; 4];
+                    let magic = *ptr == RICH_MAGIC;
+                    kani::assume(magic);
+                    o && magic
+                }
+                None => true,
+            })
+        };
+
         let offset = match offset {
             Some(o) => o,
             None => return Ok(None),
@@ -184,8 +215,14 @@ impl RawRich {
         let ptr = data.add(offset);
 
         // Safety:
-        // - `ptr` is guaranteed to be valid for `size - o`
-        match Self::from_ptr_internal(ptr, size - offset) {
+        // - `ptr` is guaranteed to be valid for `size - offset`
+        let rich = Self::from_ptr_internal(ptr, size - offset);
+
+        // Need to tell kani to assume the magic is actually there
+        // #[cfg(kani)]
+        // kani::assume(!matches!(rich, Err(Error::InvalidRichMagic)));
+
+        match rich {
             Ok(p) => Ok(Some((p, offset))),
             Err(e @ Error::NotEnoughData) => Err(e),
 
@@ -714,6 +751,54 @@ mod tests {
         Ok(())
     }
 
+    #[cfg_attr(not(kani), test, ignore)]
+    fn kani_imp2() -> Result<()> {
+        const SIZE: usize = size_of::<RawDos>() * 2;
+
+        let mut file = kani::slice::any_slice::<u8, SIZE>();
+        let bytes = file.get_slice_mut();
+        let len = bytes.len();
+        let ptr = bytes.as_mut_ptr();
+
+        let d = unsafe { RawRich::find_rich(ptr, len) };
+
+        match d {
+            // Ensure the `Ok(Some)` branch is hit
+            Ok(Some((d, o))) => {
+                kani::cover!(true, "Ok(Some)");
+                assert_eq!(d.magic, RICH_MAGIC, "Incorrect `Ok(Some)` Rich magic");
+                // Should only be `Ok(Some)` if `len` is enough
+                assert!(len >= size_of::<RawRich>(), "Invalid `Ok(Some)` len");
+
+                // Offset has to leave enough space in `len` to fit RawRich
+                assert!(o <= (len - size_of::<RawRich>()), "Invalid `Ok(Some)` len");
+            }
+
+            // Ensure the `Ok(Some)` branch is hit
+            Ok(None) => {
+                kani::cover!(true, "Ok(None)");
+                // Should only be `Ok(None)` if `len` is enough
+                assert!(len >= size_of::<RawRich>(), "Invalid `Ok(None)` len");
+            }
+
+            // Ensure `NotEnoughData` error happens
+            Err(Error::NotEnoughData) => {
+                kani::cover!(true, "NotEnoughData");
+                // Should only get this when `len` isn't enough
+                // assert!(len < size_of::<RawRich>());
+                assert!(len <= RICH_MAGIC.len());
+            }
+
+            // Ensure no other errors happen
+            Err(_) => {
+                kani::cover!(false, "Unexpected Error");
+                unreachable!();
+            }
+        };
+
+        Ok(())
+    }
+
     #[cfg(all(test, kani))]
     mod kan {
         use kani::*;
@@ -723,6 +808,7 @@ mod tests {
         #[kani::proof]
         fn kani_raw_rich() -> Result<()> {
             kani_imp()?;
+            kani_imp2()?;
 
             Ok(())
         }
