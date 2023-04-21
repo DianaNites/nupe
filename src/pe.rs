@@ -161,7 +161,7 @@ impl<'data> Pe<'data> {
             Error::NotEnoughData => Error::MissingDOS,
             _ => e,
         })?;
-        let stub = dos.dos_stub();
+        let stub = dos.stub();
 
         // Safety: slice is trivially valid
         let rich = match Rich::from_ptr(stub.as_ptr(), stub.len()) {
@@ -398,11 +398,11 @@ impl<'data> Pe<'data> {
         self.exec.entry()
     }
 
-    /// The DOS stub
+    /// The DOS stub code
     ///
-    /// See [`Dos::dos_stub`] for details
+    /// See [`Dos::stub`] for details
     pub fn dos_stub(&self) -> &[u8] {
-        self.dos.dos_stub()
+        self.dos.stub()
     }
 
     /// Low 32-bits of a unix timestamp

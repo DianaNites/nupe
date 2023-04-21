@@ -170,7 +170,7 @@ mod r_tests {
 
         // Safety: slice is trivially valid
         let dos = unsafe { Dos::from_ptr(data, size)? };
-        let stub = dos.dos_stub();
+        let stub = dos.stub();
 
         // Safety: slice is trivially valid
         let rich = unsafe { Rich::from_ptr(stub.as_ptr(), stub.len())? };
