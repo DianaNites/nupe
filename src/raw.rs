@@ -215,6 +215,36 @@ impl fmt::Debug for RawSectionHeader {
     }
 }
 
+/// Low level, raw Error type common to all types in [this module][`crate::raw`]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[non_exhaustive]
+#[cfg(no)]
+pub enum RawError {
+    /// Invalid [`RawDos::magic`]
+    InvalidDosMagic,
+
+    /// Invalid [`RawRich::magic`][`rich::RawRich::magic`]
+    InvalidRichMagic,
+
+    /// Invalid [`RawRichArray::magic`][`rich::RawRichArray::magic`]
+    InvalidRichArrayMagic,
+
+    /// Invalid [`RawPe::magic`][`pe::RawPe::magic`]
+    InvalidPeMagic,
+
+    /// Not enough data for operation
+    NotEnoughData,
+
+    /// The data requested by the operation did not fit within [`usize`]
+    ///
+    ///
+    /// The data requested by the operation was too large for the platform
+    /// and did not fit in [`usize`].
+    ///
+    /// This will only happen on 16-bit platforms, due to [`usize`]
+    TooLarge,
+}
+
 #[cfg(test)]
 mod tests {
     use core::mem::align_of;
