@@ -9,7 +9,10 @@
 //! of the actual PE headers.
 use core::{fmt, mem::size_of, slice::from_raw_parts};
 
-use crate::error::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    internal::miri_helper,
+};
 
 /// DOS Magic signature
 pub const DOS_MAGIC: [u8; 2] = *b"MZ";
@@ -201,10 +204,7 @@ impl RawDos {
             return Err(Error::InvalidDosMagic);
         }
 
-        // Help miri/tests catch invalid `size`, since we otherwise will never go beyond
-        // Self
-        #[cfg(any(miri, test))]
-        let _ = from_raw_parts(data as *const u8, size);
+        miri_helper!(data as *const u8, size);
 
         Ok(data)
     }
