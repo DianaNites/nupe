@@ -19,14 +19,14 @@ pub struct Dos<'data> {
     dos: DosArg<'data>,
 
     /// DOS stub code
-    dos_stub: DosStubArg<'data>,
+    stub: DosStubArg<'data>,
 }
 
 /// Public Serialization API
 impl<'data> Dos<'data> {
     #[inline]
-    pub const fn new(dos: DosArg<'data>, dos_stub: DosStubArg<'data>) -> Self {
-        Self { dos, dos_stub }
+    pub const fn new(dos: DosArg<'data>, stub: DosStubArg<'data>) -> Self {
+        Self { dos, stub }
     }
 }
 
@@ -63,15 +63,15 @@ impl<'data> Dos<'data> {
 
 /// Public Data API
 impl<'data> Dos<'data> {
-    /// Reference to the DOS stub
+    /// Reference to the stub code
     ///
-    /// The "DOS stub" is everything after the [DOS header][RawDos] but before
-    /// the [PE header][RawPe].
+    /// The "stub code" is everything after the [DOS header][`RawDos`] but
+    /// before the [PE header][RawPe].
     ///
     /// [RawPe]: crate::raw::pe::RawPe
     #[inline]
-    pub fn dos_stub(&self) -> &[u8] {
-        &self.dos_stub
+    pub fn stub(&self) -> &[u8] {
+        &self.stub
     }
 
     /// Absolute offset in the file to the PE header
@@ -123,7 +123,7 @@ impl<'data> Dos<'data> {
 
         Ok(Self {
             dos: OwnedOrRef::Ref(dos),
-            dos_stub: VecOrSlice::Slice(stub),
+            stub: VecOrSlice::Slice(stub),
         })
     }
 }
@@ -133,7 +133,7 @@ impl<'data> fmt::Debug for Dos<'data> {
         let mut s = f.debug_struct("Dos");
         s.field("dos", &self.dos);
 
-        s.field("dos_stub", &debug::DosHelper::new(&self.dos_stub));
+        s.field("stub", &debug::DosHelper::new(&self.stub));
 
         s.finish()
     }
@@ -206,7 +206,7 @@ mod tests {
                 // Should only be `Ok` if `len` is enough
                 assert!(len >= size_of::<RawDos>(), "Invalid `Ok` len");
 
-                let stub = d.dos_stub();
+                let stub = d.stub();
                 let expected = (d.pe_offset() as usize).saturating_sub(size_of::<RawDos>());
 
                 assert_eq!(
