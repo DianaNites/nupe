@@ -600,6 +600,9 @@ pub mod test_util {
         pub(crate) use cover;
     }
 
+    #[cfg(kani)]
+    pub use kani;
+
     pub fn kani_raw_dos(magic: [u8; 2]) -> RawDos {
         RawDos {
             magic,
