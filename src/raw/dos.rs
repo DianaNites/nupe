@@ -7,7 +7,7 @@
 //!
 //! The DOS Stub contains one field of interest, the offset to the start
 //! of the actual PE headers.
-use core::{fmt, mem::size_of};
+use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use crate::error::{Error, Result};
 
@@ -200,6 +200,11 @@ impl RawDos {
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic);
         }
+
+        // Help miri/tests catch invalid `size`, since we otherwise will never go beyond
+        // Self
+        #[cfg(any(miri, test))]
+        let _ = from_raw_parts(data as *const u8, size);
 
         Ok(data)
     }
