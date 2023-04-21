@@ -22,15 +22,15 @@ export MIRIFLAGS := "\
 @doc *args='':
     cargo +nightly doc --no-deps {{args}}
 
+kani_flags := "\
+RUSTC_WRAPPER= cargo kani --tests --enable-unstable \
+"
+
 # Run the Kani model tests
 @kani *args='':
-    if ! RUSTC_WRAPPER= cargo kani --tests {{args}}; then \
-        echo; \
-        echo RUSTC_WRAPPER= cargo kani --tests --enable-unstable --concrete-playback=print {{args}}; \
-        echo; \
-        RUSTC_WRAPPER= cargo kani \
-            --tests \
-            --enable-unstable \
-            --visualize \
-            {{args}} \
-    ;fi
+    {{kani_flags}} {{args}}
+
+# Visualize failing Kani model tests
+@kani_v *args='':
+    {{kani_flags}} {{args}} --concrete-playback=print
+    # {{kani_flags}} {{args}} --visualize
