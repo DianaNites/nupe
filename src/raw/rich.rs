@@ -61,11 +61,10 @@ impl RawRich {
         }
     }
 
-    /// Get a [`RawRich`] from a pointer to the first byte after the
-    /// DOS Header [`RawDos`].
+    /// Get a [`RawRich`] from a pointer to the Rich header
     ///
     /// This function validates that `size` is enough to contain the header,
-    /// and that the rich signature is correct.
+    /// and that the magic is correct.
     ///
     /// # Errors
     ///
