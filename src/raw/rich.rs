@@ -87,8 +87,8 @@ impl RawRich {
         Ok(&*(Self::from_ptr_internal(data, size)?))
     }
 
-    /// Find the Rich Header given a pointer to the first byte after the
-    /// DOS Header [`RawDos`].
+    /// Find the Rich Header given a pointer to the
+    /// [DOS stub code][`crate::dos::Dos::stub`]
     ///
     /// `size` must be *at least* [`RawDos::pe_offset`] to be able to find the
     /// Rich Header in a PE file.
