@@ -814,6 +814,7 @@ mod tests {
                     let no_xor = bytes.ends_with(&RICH_MAGIC);
 
                     if !(too_small || no_xor) {
+                        kani::cover!(true, "NotEnoughData - Offset XOR");
                         let end = bytes
                             .get(bytes.len().saturating_sub(size_of::<RawRich>() - 1)..)
                             .unwrap_or(&[]);
