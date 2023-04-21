@@ -36,6 +36,54 @@ pub const RICH_MAGIC: [u8; 4] = *b"Rich";
 /// Rich Header array magic signature
 pub const ARRAY_MAGIC: [u8; 4] = *b"DanS";
 
+/// Helper to find the [`RICH_MAGIC`] in a way that works in and out of kani
+/// model checking
+///
+/// Returns the index of the magic, or [`None`].
+fn find_rich_helper(bytes: &[u8]) -> Option<usize> {
+    #[cfg(test)]
+    use crate::internal::test_util::kani;
+
+    // Safety: Caller
+    let b = BStr::new(bytes);
+
+    // Need to fake this for `kani` because `rfind` is super slow
+    // Make sure to uphold the invariants we expect from `rfind`
+    //
+    // Namely:
+    // `offset` is always in bounds of `size`
+    // for `offset` to be in bounds it must have space for `RICH_MAGIC`
+    // Theres no guarantee it has space for the XOR key, it's user input.
+    //
+    // Note that this will not actually "search" from the "end",
+    // this over-estimates `rfind`. This shouldn't matter.
+    // FIXME: This should be removed and support extended when possible.
+    #[cfg(any(kani, test))]
+    let offset: Option<usize> = {
+        let bound = bytes.len() - RICH_MAGIC.len();
+        kani::any_where(|x| match *x {
+            Some(x) => {
+                let o = x <= bound;
+                kani::assume(o);
+                let magic = bytes[x..][..RICH_MAGIC.len()] == RICH_MAGIC;
+                kani::assume(magic);
+                o && magic
+            }
+            None => true,
+        })
+    };
+
+    // Put this after the above so that non-kani testing uses it
+    // This is because the above uses `any` with `test` for dev experience.
+    #[cfg(not(kani))]
+    let offset = b.rfind(RICH_MAGIC);
+
+    // TODO: Add negative test, ensure this always returning None fails.
+    // Note that kani does catch it as `Ok(Some)` being UNREACHABLE though.
+    // But ideally we have a better test than noticing that.
+    offset
+}
+
 /// Microsoft Rich Header
 ///
 /// The actual rich header *precedes* this structure in memory.
@@ -174,36 +222,7 @@ impl RawRich {
             .ok_or(Error::NotEnoughData)?;
 
         // Safety: Caller
-        #[cfg(not(kani))]
-        let b = BStr::new(from_raw_parts(data, size));
-
-        #[cfg(not(kani))]
-        let offset = b.rfind(RICH_MAGIC);
-
-        // Need to fake this for `kani` because `rfind` is super slow
-        // Make sure to uphold the invariants we expect from `rfind`
-        // Namely:
-        // `offset` is always in bounds of `size`
-        // for `offset` to be in bounds it must have space for `RICH_MAGIC`
-        // Theres no guarantee it has space for the XOR key, it's user input.
-        // FIXME: This should be removed and support extended when possible.
-        #[cfg(any(kani, test))]
-        // #[cfg(kani_)]
-        let offset = {
-            let bound = size - RICH_MAGIC.len();
-            kani::any_where(|x| match *x {
-                Some(x) => {
-                    let o = x <= bound;
-                    kani::assume(o);
-                    let ptr = data.add(x);
-                    let ptr = ptr as *const [u8; 4];
-                    let magic = *ptr == RICH_MAGIC;
-                    kani::assume(magic);
-                    o && magic
-                }
-                None => true,
-            })
-        };
+        let offset = find_rich_helper(from_raw_parts(data, size));
 
         let offset = match offset {
             Some(o) => o,
@@ -213,14 +232,13 @@ impl RawRich {
         // Safety:
         // - `o` is guaranteed to be within bounds by `rfind`
         let ptr = data.add(offset);
+        let len = size - offset;
+
+        miri_helper!(ptr, len);
 
         // Safety:
         // - `ptr` is guaranteed to be valid for `size - offset`
-        let rich = Self::from_ptr_internal(ptr, size - offset);
-
-        // Need to tell kani to assume the magic is actually there
-        // #[cfg(kani)]
-        // kani::assume(!matches!(rich, Err(Error::InvalidRichMagic)));
+        let rich = Self::from_ptr_internal(ptr, len);
 
         match rich {
             Ok(p) => Ok(Some((p, offset))),
@@ -682,7 +700,7 @@ mod tests {
     use kani::Arbitrary;
 
     use super::*;
-    use crate::{internal::test_util::*, raw::dos::DOS_MAGIC};
+    use crate::{internal::test_util::kani, raw::dos::DOS_MAGIC};
 
     /// Ensure expected ABI
     #[test]
@@ -751,52 +769,122 @@ mod tests {
         Ok(())
     }
 
-    #[cfg_attr(not(kani), test, ignore)]
-    fn kani_imp2() -> Result<()> {
-        const SIZE: usize = size_of::<RawDos>() * 2;
+    /// Test, fuzz, and model RawRich::from_ptr
+    #[cfg(no)]
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn raw_rich_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            //
+        });
+    }
 
-        let mut file = kani::slice::any_slice::<u8, SIZE>();
-        let bytes = file.get_slice_mut();
-        let len = bytes.len();
-        let ptr = bytes.as_mut_ptr();
+    /// Test, fuzz, and model RawRich::find_rich
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn find_rich() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
 
-        let d = unsafe { RawRich::find_rich(ptr, len) };
+            let d = unsafe { RawRich::find_rich(ptr, len) };
 
-        match d {
-            // Ensure the `Ok(Some)` branch is hit
-            Ok(Some((d, o))) => {
-                kani::cover!(true, "Ok(Some)");
-                assert_eq!(d.magic, RICH_MAGIC, "Incorrect `Ok(Some)` Rich magic");
-                // Should only be `Ok(Some)` if `len` is enough
-                assert!(len >= size_of::<RawRich>(), "Invalid `Ok(Some)` len");
+            match d {
+                // Ensure the `Ok(Some)` branch is hit
+                Ok(Some((d, o))) => {
+                    kani::cover!(true, "Ok(Some)");
 
-                // Offset has to leave enough space in `len` to fit RawRich
-                assert!(o <= (len - size_of::<RawRich>()), "Invalid `Ok(Some)` len");
-            }
+                    assert_eq!(d.magic, RICH_MAGIC, "Incorrect `Ok(Some)` Rich magic");
 
-            // Ensure the `Ok(Some)` branch is hit
-            Ok(None) => {
-                kani::cover!(true, "Ok(None)");
-                // Should only be `Ok(None)` if `len` is enough
-                assert!(len >= size_of::<RawRich>(), "Invalid `Ok(None)` len");
-            }
+                    // Should only be `Ok(Some)` if `len` is enough
+                    assert!(len >= size_of::<RawRich>(), "Invalid `Ok(Some)` len");
 
-            // Ensure `NotEnoughData` error happens
-            Err(Error::NotEnoughData) => {
-                kani::cover!(true, "NotEnoughData");
-                // Should only get this when `len` isn't enough
-                // assert!(len < size_of::<RawRich>());
-                assert!(len <= RICH_MAGIC.len());
-            }
+                    // Offset has to leave enough space in `len` to fit RawRich
+                    assert!(o <= (len - size_of::<RawRich>()), "Invalid `Ok(Some)` len");
+                }
 
-            // Ensure no other errors happen
-            Err(_) => {
-                kani::cover!(false, "Unexpected Error");
-                unreachable!();
-            }
-        };
+                // Ensure the `Ok(Some)` branch is hit
+                Ok(None) => {
+                    kani::cover!(true, "Ok(None)");
 
-        Ok(())
+                    // Should only be `Ok(None)` if `len` is enough
+                    assert!(len >= size_of::<RawRich>(), "Invalid `Ok(None)` len");
+                }
+
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
+
+                    // Should only get this when `len` isn't enough
+                    // Or when the rich magic is at the end,
+                    // but NOT followed by enough bytes for the XOR key.
+                    let too_small = len < size_of::<RawRich>();
+                    let no_xor = bytes.ends_with(&RICH_MAGIC);
+
+                    if !(too_small || no_xor) {
+                        let end = bytes
+                            .get(bytes.len().saturating_sub(size_of::<RawRich>() - 1)..)
+                            .unwrap_or(&[]);
+                        let l = end.len();
+
+                        // Do this weirdness because kani cannot handle using
+                        // `Iterator::windows`, the initial implementation.
+                        let off1_xor = end.ends_with(&[
+                            //
+                            b'R',
+                            b'i',
+                            b'c',
+                            b'h',
+                            end[l - 1],
+                        ]);
+                        let off2_xor = end.ends_with(&[
+                            //
+                            b'R',
+                            b'i',
+                            b'c',
+                            b'h',
+                            end[l - 2],
+                            end[l - 1],
+                        ]);
+                        let off3_xor = end.ends_with(&[
+                            b'R',
+                            b'i',
+                            b'c',
+                            b'h',
+                            end[l - 3],
+                            end[l - 2],
+                            end[l - 1],
+                        ]);
+                        let off4_xor = end.ends_with(&[
+                            b'R',
+                            b'i',
+                            b'c',
+                            b'h',
+                            end[l - 4],
+                            end[l - 3],
+                            end[l - 2],
+                            end[l - 1],
+                        ]);
+
+                        let off_xor = off1_xor || off2_xor || off3_xor || off4_xor;
+                        assert!(off_xor);
+                    }
+
+                    #[cfg(no)]
+                    let off_xor = bytes
+                        .get(bytes.len().saturating_sub(size_of::<RawRich>() - 1)..)
+                        .unwrap_or(&[])
+                        .windows(4)
+                        .any(|b| b == RICH_MAGIC);
+                }
+
+                // Ensure no other errors happen
+                Err(_) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!();
+                }
+            };
+        })
     }
 
     #[cfg(all(test, kani))]
@@ -808,7 +896,6 @@ mod tests {
         #[kani::proof]
         fn kani_raw_rich() -> Result<()> {
             kani_imp()?;
-            kani_imp2()?;
 
             Ok(())
         }
