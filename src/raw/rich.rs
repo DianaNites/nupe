@@ -952,9 +952,6 @@ mod r_tests {
                     let too_small = len < size_of::<RawRichArray>();
                     let no_xor = bytes.ends_with(&ARRAY_MAGIC);
 
-                    // let mut m = [0; size_of::<RawRichArray>()];
-                    // m[..ARRAY_MAGIC.len()].copy_from_slice(&ARRAY_MAGIC);
-
                     if !(too_small || no_xor) {
                         kani::cover!(true, "NotEnoughData - Offset Padding");
                         let mut off_xor = bytes[..bytes.len() - 1].ends_with(&ARRAY_MAGIC);
