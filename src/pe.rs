@@ -673,7 +673,7 @@ mod tests {
 
             // #[cfg(no)]
             {
-                let raw_pe = RawPe::from_ptr(ptr.add(2), size);
+                let raw_pe = RawPe::from_ptr(ptr.add(2), size - 2);
 
                 eprintln!("raw pe = {raw_pe:#?}");
 
@@ -686,7 +686,10 @@ mod tests {
                     );
                 }
 
-                let exec = ExecHeader::from_ptr(ptr.add(2).add(size_of::<RawPe>()), size);
+                let exec = ExecHeader::from_ptr(
+                    ptr.add(2).add(size_of::<RawPe>()),
+                    size - 2 - size_of::<RawPe>(),
+                );
 
                 eprintln!("raw exec = {exec:#?}");
 
