@@ -528,7 +528,7 @@ impl RawExec32 {
     ///
     /// ## Pre-conditions
     ///
-    /// - `data` MUST be valid for reads and writes of `size` bytes.
+    /// - `data` MUST be valid for reads of `size` bytes.
     ///
     /// ## Post-conditions
     ///
