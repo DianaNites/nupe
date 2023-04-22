@@ -296,7 +296,7 @@ impl RawExec {
 
 /// Public Deserialization API
 impl RawExec {
-    /// Get a [`ExecHeader`] from a pointer to an exec header.
+    /// Get a [`RawExec`] from a pointer to an exec header.
     ///
     /// # Errors
     ///
