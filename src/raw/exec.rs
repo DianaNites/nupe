@@ -461,6 +461,7 @@ pub struct RawExec32 {
     pub data_dirs: u32,
 }
 
+/// Public Serialization API
 impl RawExec32 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -511,17 +512,43 @@ impl RawExec32 {
             data_dirs,
         }
     }
+}
 
-    /// Get a [`RawExec32`] from `data`. Checks for the magic.
+/// Public Deserialization API
+impl RawExec32 {
+    /// Get a [`RawExec32`] from a pointer to an exec header.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a
+    ///   [`RawExec32`]
+    /// - [`Error::InvalidPeMagic`] If the [magic][`PE32_MAGIC`] is incorrect
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
+    /// ## Pre-conditions
+    ///
+    /// - `data` MUST be valid for reads and writes of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
-        if data.is_null() {
-            return Err(Error::InvalidData);
-        }
+        Ok(&*(Self::from_ptr_internal(data, size)?))
+    }
 
+    /// Get a [`RawExec32`] from `bytes`. Checks for the magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        unsafe { RawExec32::from_ptr(bytes.as_ptr(), bytes.len()) }
+    }
+}
+
+/// Internal API
+impl RawExec32 {
+    /// # Safety
+    /// See [`RawExec32::from_ptr`]
+    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
+        debug_assert!(!data.is_null(), "`data` was null in RawExec32::from_ptr");
         miri_helper!(data, size);
 
         // Ensure that size is enough
@@ -530,16 +557,12 @@ impl RawExec32 {
 
         // Safety: Have just verified theres enough `size`
         // and `RawExec32` is POD.
-        let opt = unsafe { &*(data as *const RawExec32) };
-        if opt.standard.magic != PE32_MAGIC {
+        let exec = unsafe { &*(data as *const RawExec32) };
+        if exec.standard.magic != PE32_MAGIC {
             return Err(Error::InvalidPeMagic);
         }
-        Ok(opt)
-    }
 
-    /// Get a [`RawExec32`] from `bytes`. Checks for the magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        unsafe { RawExec32::from_ptr(bytes.as_ptr(), bytes.len()) }
+        Ok(data.cast())
     }
 }
 
@@ -632,6 +655,7 @@ pub struct RawExec64 {
     pub data_dirs: u32,
 }
 
+/// Public Serialization API
 impl RawExec64 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -680,17 +704,43 @@ impl RawExec64 {
             data_dirs,
         }
     }
+}
 
-    /// Get a [`RawExec64`] from `data`. Checks for the magic.
+/// Public Deserialization API
+impl RawExec64 {
+    /// Get a [`RawExec64`] from a pointer to an exec header.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a
+    ///   [`RawExec64`]
+    /// - [`Error::InvalidPeMagic`] If the [magic][`PE32_64_MAGIC`] is incorrect
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
+    /// ## Pre-conditions
+    ///
+    /// - `data` MUST be valid for reads and writes of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
-        if data.is_null() {
-            return Err(Error::InvalidData);
-        }
+        Ok(&*(Self::from_ptr_internal(data, size)?))
+    }
 
+    /// Get a [`RawExec64`] from `bytes`. Checks for the magic.
+    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
+        unsafe { RawExec64::from_ptr(bytes.as_ptr(), bytes.len()) }
+    }
+}
+
+/// Internal API
+impl RawExec64 {
+    /// # Safety
+    /// See [`RawExec64::from_ptr`]
+    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
+        debug_assert!(!data.is_null(), "`data` was null in RawExec64::from_ptr");
         miri_helper!(data, size);
 
         // Ensure that size is enough
@@ -698,17 +748,13 @@ impl RawExec64 {
             .ok_or(Error::NotEnoughData)?;
 
         // Safety: Have just verified theres enough `size`
-        // and `RawExec64` is POD.
-        let opt = unsafe { &*(data as *const RawExec64) };
-        if opt.standard.magic != PE32_64_MAGIC {
+        // and `RawExec32` is POD.
+        let exec = unsafe { &*(data as *const RawExec64) };
+        if exec.standard.magic != PE32_64_MAGIC {
             return Err(Error::InvalidPeMagic);
         }
-        Ok(opt)
-    }
 
-    /// Get a [`RawExec64`] from `bytes`. Checks for the magic.
-    pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        unsafe { RawExec64::from_ptr(bytes.as_ptr(), bytes.len()) }
+        Ok(data.cast())
     }
 }
 
@@ -742,6 +788,96 @@ mod fuzz {
 
                     // Should only get this when `len` is too small
                     assert!(len < size_of::<RawExec>());
+                }
+
+                // Ensure no other errors happen
+                Err(e) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!("{e:#?}");
+                }
+            };
+        });
+    }
+
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn raw_exec32_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+
+            let d = unsafe { RawExec32::from_ptr(ptr, len) };
+
+            match d {
+                // Ensure the `Ok` branch is hit
+                Ok(d) => {
+                    kani::cover!(true, "Ok");
+
+                    assert_eq!({ d.standard.magic }, PE32_MAGIC);
+
+                    // Should only be `Ok` if `len` is this
+                    assert!(len >= size_of::<RawExec32>(), "Invalid `Ok` len");
+                }
+
+                // Ensure `InvalidPeMagic` error happens
+                Err(Error::InvalidPeMagic) => {
+                    kani::cover!(true, "InvalidPeMagic");
+
+                    // Should have gotten NotEnoughData otherwise
+                    assert!(len >= size_of::<RawExec32>());
+                }
+
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
+
+                    // Should only get this when `len` is too small
+                    assert!(len < size_of::<RawExec32>());
+                }
+
+                // Ensure no other errors happen
+                Err(e) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!("{e:#?}");
+                }
+            };
+        });
+    }
+
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn raw_exec64_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+
+            let d = unsafe { RawExec64::from_ptr(ptr, len) };
+
+            match d {
+                // Ensure the `Ok` branch is hit
+                Ok(d) => {
+                    kani::cover!(true, "Ok");
+
+                    assert_eq!({ d.standard.magic }, PE32_64_MAGIC);
+
+                    // Should only be `Ok` if `len` is this
+                    assert!(len >= size_of::<RawExec64>(), "Invalid `Ok` len");
+                }
+
+                // Ensure `InvalidPeMagic` error happens
+                Err(Error::InvalidPeMagic) => {
+                    kani::cover!(true, "InvalidPeMagic");
+
+                    // Should have gotten NotEnoughData otherwise
+                    assert!(len >= size_of::<RawExec64>());
+                }
+
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
+
+                    // Should only get this when `len` is too small
+                    assert!(len < size_of::<RawExec64>());
                 }
 
                 // Ensure no other errors happen
