@@ -491,17 +491,14 @@ pub mod test_util {
 
     #[cfg(not(kani))]
     pub mod kani {
+        #![allow(dead_code, unused_variables)]
         //! Helps RA provide a usable experience with stub impls
         //! because kani is terrible ootb.
         //!
         //! Everything here is for the sake of getting it to compile for RA.
-        use core::mem::MaybeUninit;
 
         pub mod slice {
-            use core::{
-                mem::{transmute_copy, MaybeUninit},
-                ops::{Deref, DerefMut},
-            };
+            use core::ops::{Deref, DerefMut};
 
             pub struct AnySlice<T, const MAX_SLICE_LENGTH: usize> {
                 _t: *mut T,
@@ -603,6 +600,7 @@ pub mod test_util {
     #[cfg(kani)]
     pub use kani;
 
+    #[allow(dead_code)]
     pub fn kani_raw_dos(magic: [u8; 2]) -> RawDos {
         RawDos {
             magic,

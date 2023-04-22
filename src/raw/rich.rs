@@ -61,6 +61,7 @@ fn find_rich_helper(bytes: &[u8], search: [u8; 4]) -> Option<usize> {
     // this over-estimates `rfind`. This shouldn't matter.
     // FIXME: This should be removed and support extended when possible.
     #[cfg(any(kani, test))]
+    #[allow(unused)]
     let offset: Option<usize> = {
         let bound = bytes.len() - search.len();
         kani::any_where(|x| match *x {
@@ -216,9 +217,6 @@ impl RawRich {
         data: *const u8,
         size: usize,
     ) -> Result<Option<(*const Self, usize)>> {
-        #[cfg(test)]
-        use crate::internal::test_util::kani;
-
         // Ensure that size is enough
         size.checked_sub(size_of::<RawRich>())
             .ok_or(Error::NotEnoughData)?;
