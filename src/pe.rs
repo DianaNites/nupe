@@ -18,115 +18,6 @@ use crate::{
     Section,
 };
 
-/// Helper to find the location of the PE signature and COFF header,
-/// given a pointer to a PE file.
-///
-/// Returns the pointer the [`RawPE`], and the remaining `input_size`,
-/// in other words the size of the actual PE portion of the file,
-/// including the [PE Signature][pe_sig].
-///
-/// # Errors
-///
-/// - [`Error::TooMuchData`] If the [PE Offset][pe_off] does not fit in
-///   [`usize`]. This will only happen on 16-bit platforms.
-/// - [`Error::NotEnoughData`] If `input_size` does not fit a [`RawPe`] and the
-///   DOS [PE Offset][pe_off]
-///
-/// # Safety
-///
-/// ## Pre-conditions
-///
-/// - `input` must be non-null and valid for `input_size` bytes.
-///
-/// ## Post-conditions
-///
-/// - The returned size is less than `input_size`
-///   - e.g. `input.add(size)` is always safe if `input.add(input_size)` is.
-/// - `input.add(size)` is valid for at least [`size_of::<RawPe>()`][`RawPe`]
-///   bytes.
-///
-/// [pe_sig]: crate::raw::pe::PE_MAGIC
-/// [pe_off]: crate::raw::dos::RawDos
-unsafe fn read_sig(
-    dos: &RawDos,
-    input: *const u8,
-    input_size: usize,
-) -> Result<(*const u8, usize)> {
-    // Offset in the file to the PE signature
-    // This is untrusted input
-    let off: usize = dos.pe_offset.try_into().map_err(|_| Error::TooMuchData)?;
-
-    // Ensure that `size` is enough for the common header
-    // After this, it is trusted.
-    input_size
-        .checked_sub(off)
-        .ok_or(Error::NotEnoughData)?
-        .checked_sub(size_of::<RawPe>())
-        .ok_or(Error::NotEnoughData)?;
-
-    // Offset to the PE signature
-    //
-    // Safety:
-    // - We just ensured `off` is within bounds of `input` above
-    // - Caller ensures `input` validity
-    let pe_ptr = input.add(off);
-
-    // Size of the entire input minus the offset to the PE section,
-    // the missing space being the preceding DOS stub.
-    //
-    // This is strictly less than `size`
-    let pe_size = input_size - off;
-
-    debug_assert!(pe_size < input_size, "read_sig size guarantee violated");
-
-    Ok((pe_ptr, pe_size))
-}
-
-/// Helper to read exec header
-///
-/// Returns a pointer to the exec header, and its size.
-/// The size may be zero, in which case the returned pointer is
-/// one past the end the [`RawCoff`] COFF header.
-///
-/// # Errors
-///
-/// - [`Error::TooMuchData`] If the exec header is too large
-/// - [`Error::NotEnoughData`] If `pe_size` does not fit the entire exec header,
-/// as reported by [`RawCoff::exec_header_size`].
-///
-/// # Safety
-///
-/// - `pe_ptr` must be non-null and valid for `pe_size` bytes.
-unsafe fn read_exec(
-    coff: &RawCoff,
-    pe_ptr: *const u8,
-    pe_size: usize,
-) -> Result<(*const u8, usize)> {
-    // Size of the exec header
-    // This is untrusted input
-    let exec_size: usize = coff.exec_header_size.into();
-
-    // Offset from pe_ptr to exec header
-    //
-    // This can in theory overflow because `usize` can be 16 bits, the same as
-    // `exec_header_size`
-    let off = size_of::<RawPe>()
-        .checked_add(exec_size)
-        .ok_or(Error::TooMuchData)?;
-
-    // Ensure that `exec_size` is within `pe_size`
-    // After this, it is trusted.
-    pe_size.checked_sub(off).ok_or(Error::NotEnoughData)?;
-
-    // Exec header appears directly after PE sig and COFF header
-    //
-    // Safety:
-    // - `pe_ptr` and this operation is guaranteed to be valid by earlier code.
-    let exec_ptr = pe_ptr.add(size_of::<RawPe>());
-
-    Ok((exec_ptr, exec_size))
-}
-
 /// An executable PE file following Microsoft Windows conventions
 #[derive(Clone)]
 pub struct Pe<'data> {
@@ -156,25 +47,29 @@ pub struct Pe<'data> {
 impl<'data> Pe<'data> {
     /// Get a [`Pe`] from a pointer to a PE, while ensuring its validity.
     ///
-    /// This validates that:
-    ///
-    /// - All header data is within bounds of `input_size`
-    ///   - Other data, such as sections and data directories, remains untrusted
-    ///     and must be validated later
-    /// - All magic values and signatures are correct
-    ///
     /// # Errors
     ///
-    /// - [`Error::MissingDOS`] If the DOS header could not be read
-    /// - [`Error::MissingPE`] If the PE signature and COFF header could not be
-    ///   read
-    /// - [`Error::InvalidDosMagic`] If the DOS header magic value was incorrect
-    /// - See [`RawDos::from_ptr`]
-    /// - [`Error::TooMuchData`] If the DOS `pe_offset` does not fit in `usize`.
+    ///
+    /// - [`Error::TooMuchData`] If any fields do not fit into [`usize`] but
+    ///   need to
+    /// - [`Error::MissingDOS`] If the DOS stub was missing or invalid
+    /// - [`Error::MissingPE`] If the PE header was missing
+    /// - [`Error::MissingExecHeader`] If the Executable header was missing
+    /// - [`Error::MissingSectionTable`] If the Section Table was missing
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
+    /// ## Pre-conditions
+    ///
+    /// - `data` MUST be valid for reads of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned.
+    /// - All header data is within bounds of `size`
+    ///   - Other data, such as sections and data directories, remains untrusted
+    ///     and must be validated later
+    /// - All magic values and signatures are correct
     pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
         Self::from_ptr_internal(data, size)
     }
@@ -403,14 +298,9 @@ impl<'data> Pe<'data> {
     /// See [`Pe::from_ptr`] for safety and error details
     unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> {
         // Safety: Caller
-        let dos = Dos::from_ptr(data, input_size).map_err(|e| match e {
-            Error::NotEnoughData => Error::MissingDOS,
-            _ => e,
-        })?;
+        let dos = Dos::from_ptr(data, input_size)?;
         let stub = dos.stub();
-
-        // dbg!(&dos);
-        // panic!();
+        let off = dos.pe_offset().try_into().map_err(|_| Error::TooMuchData)?;
 
         // Safety: slice is trivially valid
         let rich = match Rich::from_ptr(stub.as_ptr(), stub.len()) {
@@ -420,19 +310,30 @@ impl<'data> Pe<'data> {
 
         // Pointer to the PE signature, and the size of the remainder of the input after
         // the DOS stub.
-        let (pe_ptr, pe_size) = read_sig(dos.raw_dos(), data, input_size).map_err(|e| match e {
-            Error::NotEnoughData => Error::MissingPE,
-            _ => e,
-        })?;
+        let pe_ptr = data.add(off);
+        let pe_size = input_size - off;
 
         // PE signature and COFF header
-        let pe = RawPe::from_ptr(pe_ptr, pe_size).map_err(|e| match e {
-            Error::NotEnoughData => Error::MissingPE,
-            _ => e,
-        })?;
+        let pe = RawPe::from_ptr(pe_ptr, pe_size).map_err(|_| Error::MissingPE)?;
 
         // Pointer to the exec header, and its size.
-        let (exec_ptr, exec_size) = read_exec(&pe.coff, pe_ptr, pe_size)?;
+        // let (exec_ptr, exec_size) = read_exec(&pe.coff, pe_ptr, pe_size)?;
+
+        let exec_size: usize = pe.coff.exec_header_size.into();
+
+        // Ensure exec is within bounds
+        pe_size
+            .checked_sub(size_of::<RawPe>())
+            .ok_or(Error::MissingExecHeader)?
+            .checked_sub(exec_size)
+            .ok_or(Error::MissingExecHeader)?;
+
+        let exec_ptr = pe_ptr.add(size_of::<RawPe>());
+
+        let exec = ExecHeader::from_ptr(exec_ptr, exec_size).map_err(|e| match e {
+            Error::NotEnoughData | Error::InvalidPeMagic => Error::MissingExecHeader,
+            _ => unreachable!(),
+        })?;
 
         // Pointer to section table, and its size in elements.
         let (section_ptr, section_size) = {
@@ -456,11 +357,6 @@ impl<'data> Pe<'data> {
 
             (section_ptr, pe.coff.sections.into())
         };
-
-        let exec = ExecHeader::from_ptr(exec_ptr, exec_size).map_err(|e| match e {
-            Error::NotEnoughData => Error::MissingExecHeader,
-            _ => e,
-        })?;
 
         // Pointer to data directory, and its size in elements.
         let (data_ptr, data_size) = {
@@ -789,5 +685,70 @@ mod tests {
 
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+    use crate::internal::test_util::kani;
+
+    /// Test, fuzz, and model [`Pe::from_ptr`]
+    #[test]
+    // #[ignore]
+    #[cfg_attr(kani, kani::proof)]
+    fn pe_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+
+            let dos = unsafe { Pe::from_ptr(ptr, len) };
+
+            // #[cfg(no)]
+            match dos {
+                // Ensure the `Ok` branch is hit
+                Ok(d) => {
+                    kani::cover!(true, "Ok");
+                }
+
+                // Ensure `MissingDOS` error happens
+                Err(Error::MissingDOS) => {
+                    kani::cover!(true, "MissingDOS");
+                }
+
+                // Ensure `MissingPE` error happens
+                Err(Error::MissingPE) => {
+                    kani::cover!(true, "MissingPE");
+                }
+
+                // Ensure `MissingExecHeader` error happens
+                Err(Error::MissingExecHeader) => {
+                    kani::cover!(true, "MissingExecHeader");
+                }
+
+                // Ensure `MissingSectionTable` error happens
+                Err(Error::MissingSectionTable) => {
+                    kani::cover!(true, "MissingSectionTable");
+                }
+
+                // Ensure `TooMuchData` error happens on 16-bit platforms
+                #[cfg(target_pointer_width = "4")]
+                Err(Error::TooMuchData) => {
+                    kani::cover!(true, "TooMuchData (16bit)");
+                }
+
+                // Ensure `TooMuchData` error doesn't happen on larger platforms
+                #[cfg(not(target_pointer_width = "4"))]
+                Err(Error::TooMuchData) => {
+                    kani::cover!(false, "TooMuchData (not 16bit)");
+                }
+
+                // Ensure no other errors happen
+                Err(e) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!("{e:#?}");
+                }
+            };
+        });
     }
 }
