@@ -427,6 +427,8 @@ impl RawRichArray {
         let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
         let magic_xor = magic_xor.to_ne_bytes();
 
+        miri_helper!(data, size);
+
         // Safety:
         // - We just checked `data` would fit a `RawRich`
         // - Caller guarantees `data` is valid
@@ -472,10 +474,13 @@ impl RawRichArray {
         // Safety:
         // - `o` is guaranteed in-bounds by `rfind`
         let ptr = data.add(offset);
+        let len = size - offset;
+
+        miri_helper!(ptr, len);
 
         // Safety:
         // - `ptr` is guaranteed to be valid for `size - o`
-        match Self::from_ptr_internal(ptr, size - offset, Some(key)) {
+        match Self::from_ptr_internal(ptr, len, Some(key)) {
             Ok(p) => Ok(Some((p, offset))),
             Err(e @ Error::NotEnoughData) => Err(e),
             Err(e @ Error::InvalidData) => Err(e),
