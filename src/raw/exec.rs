@@ -24,146 +24,6 @@ pub const PE32_MAGIC: u16 = 0x10B;
 /// PE32+ Magic signature
 pub const PE32_64_MAGIC: u16 = 0x20B;
 
-/// Common subset of the PE Executable header,
-/// otherwise known as the "optional" header.
-///
-/// Parts of this structure differ depending on whether the input is
-/// 32 or 64 bit.
-#[derive(Clone, Copy)]
-#[repr(C, packed)]
-pub struct RawExec {
-    /// Magic identifying PE32 vs PE32+
-    pub magic: u16,
-
-    /// Linker major version
-    pub linker_major: u8,
-
-    /// Linker minor version
-    pub linker_minor: u8,
-
-    /// Virtual Size or sum of all code/text sections
-    pub code_size: u32,
-
-    /// Virtual Size or sum of all initialized/data sections
-    pub init_size: u32,
-
-    /// Virtual Size or sum of all uninitialized/data sections
-    pub uninit_size: u32,
-
-    /// Offset to image entry point, relative to image base.
-    pub entry_ptr: u32,
-
-    /// Offset to beginning-of-code section, relative to image base.
-    pub code_ptr: u32,
-}
-
-/// Public Serialization API
-impl RawExec {
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        magic: u16,
-        linker_major: u8,
-        linker_minor: u8,
-        code_size: u32,
-        init_size: u32,
-        uninit_size: u32,
-        entry_offset: u32,
-        code_base: u32,
-    ) -> Self {
-        Self {
-            magic,
-            linker_major,
-            linker_minor,
-            code_size,
-            init_size,
-            uninit_size,
-            entry_ptr: entry_offset,
-            code_ptr: code_base,
-        }
-    }
-}
-
-/// Public Deserialization API
-impl RawExec {
-    /// Get a [`ExecHeader`] from a pointer to an exec header.
-    ///
-    /// # Errors
-    ///
-    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawExec`]
-    ///   - Note this may not be enough for the full [`RawExec32`] or
-    ///     [`RawExec64`]
-    ///   - Note also that the magic may not indicate a PE32 or PE32+
-    ///
-    /// # Safety
-    ///
-    /// ## Pre-conditions
-    ///
-    /// - `data` MUST be valid for reads and writes of `size` bytes.
-    ///
-    /// ## Post-conditions
-    ///
-    /// - Only the documented errors will ever be returned.
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
-        Ok(&*(Self::from_ptr_internal(data, size)?))
-    }
-}
-
-/// Internal API
-impl RawExec {
-    /// # Safety
-    /// See [`RawExec::from_ptr`]
-    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
-        debug_assert!(!data.is_null(), "`data` was null in RawExec::from_ptr");
-        miri_helper!(data, size);
-
-        // Ensure that size is enough
-        size.checked_sub(size_of::<RawExec>())
-            .ok_or(Error::NotEnoughData)?;
-
-        Ok(data.cast())
-    }
-}
-
-impl fmt::Debug for RawExec {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct Helper2<const B: u16>;
-        impl fmt::Debug for Helper2<PE32_64_MAGIC> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "PE32_64_MAGIC")
-            }
-        }
-        impl fmt::Debug for Helper2<PE32_MAGIC> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "PE32_MAGIC")
-            }
-        }
-
-        let mut s = f.debug_struct("RawPeImageStandard");
-        if self.magic == PE32_64_MAGIC {
-            s.field("magic", &Helper2::<PE32_64_MAGIC>);
-        } else if self.magic == PE32_MAGIC {
-            s.field("magic", &Helper2::<PE32_MAGIC>);
-        } else {
-            struct Helper(u16);
-            impl fmt::Debug for Helper {
-                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                    write!(f, "(Unknown) {}", &self.0)
-                }
-            }
-            s.field("magic", &Helper(self.magic));
-        }
-
-        s.field("linker_major", &{ self.linker_major })
-            .field("linker_minor", &{ self.linker_minor })
-            .field("code_size", &{ self.code_size })
-            .field("init_size", &{ self.init_size })
-            .field("uninit_size", &{ self.uninit_size })
-            .field("entry_ptr", &{ self.entry_ptr })
-            .field("code_ptr", &{ self.code_ptr })
-            .finish()
-    }
-}
-
 /// Subsystem, or type, of the PE file.
 ///
 /// This determines a few things, such as the expected signature of the
@@ -372,6 +232,146 @@ bitflags! {
         ///
         /// See <https://learn.microsoft.com/en-us/cpp/build/reference/tsaware-create-terminal-server-aware-application?view=msvc-170>
         const TERMINAL_SERVER = 0x8000;
+    }
+}
+
+/// Common subset of the PE Executable header,
+/// otherwise known as the "optional" header.
+///
+/// Parts of this structure differ depending on whether the input is
+/// 32 or 64 bit.
+#[derive(Clone, Copy)]
+#[repr(C, packed)]
+pub struct RawExec {
+    /// Magic identifying PE32 vs PE32+
+    pub magic: u16,
+
+    /// Linker major version
+    pub linker_major: u8,
+
+    /// Linker minor version
+    pub linker_minor: u8,
+
+    /// Virtual Size or sum of all code/text sections
+    pub code_size: u32,
+
+    /// Virtual Size or sum of all initialized/data sections
+    pub init_size: u32,
+
+    /// Virtual Size or sum of all uninitialized/data sections
+    pub uninit_size: u32,
+
+    /// Offset to image entry point, relative to image base.
+    pub entry_ptr: u32,
+
+    /// Offset to beginning-of-code section, relative to image base.
+    pub code_ptr: u32,
+}
+
+/// Public Serialization API
+impl RawExec {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        magic: u16,
+        linker_major: u8,
+        linker_minor: u8,
+        code_size: u32,
+        init_size: u32,
+        uninit_size: u32,
+        entry_offset: u32,
+        code_base: u32,
+    ) -> Self {
+        Self {
+            magic,
+            linker_major,
+            linker_minor,
+            code_size,
+            init_size,
+            uninit_size,
+            entry_ptr: entry_offset,
+            code_ptr: code_base,
+        }
+    }
+}
+
+/// Public Deserialization API
+impl RawExec {
+    /// Get a [`ExecHeader`] from a pointer to an exec header.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawExec`]
+    ///   - Note this may not be enough for the full [`RawExec32`] or
+    ///     [`RawExec64`]
+    ///   - Note also that the magic may not indicate a PE32 or PE32+
+    ///
+    /// # Safety
+    ///
+    /// ## Pre-conditions
+    ///
+    /// - `data` MUST be valid for reads and writes of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned.
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        Ok(&*(Self::from_ptr_internal(data, size)?))
+    }
+}
+
+/// Internal API
+impl RawExec {
+    /// # Safety
+    /// See [`RawExec::from_ptr`]
+    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
+        debug_assert!(!data.is_null(), "`data` was null in RawExec::from_ptr");
+        miri_helper!(data, size);
+
+        // Ensure that size is enough
+        size.checked_sub(size_of::<RawExec>())
+            .ok_or(Error::NotEnoughData)?;
+
+        Ok(data.cast())
+    }
+}
+
+impl fmt::Debug for RawExec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        struct Helper2<const B: u16>;
+        impl fmt::Debug for Helper2<PE32_64_MAGIC> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "PE32_64_MAGIC")
+            }
+        }
+        impl fmt::Debug for Helper2<PE32_MAGIC> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "PE32_MAGIC")
+            }
+        }
+
+        let mut s = f.debug_struct("RawPeImageStandard");
+        if self.magic == PE32_64_MAGIC {
+            s.field("magic", &Helper2::<PE32_64_MAGIC>);
+        } else if self.magic == PE32_MAGIC {
+            s.field("magic", &Helper2::<PE32_MAGIC>);
+        } else {
+            struct Helper(u16);
+            impl fmt::Debug for Helper {
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    write!(f, "(Unknown) {}", &self.0)
+                }
+            }
+            s.field("magic", &Helper(self.magic));
+        }
+
+        s.field("linker_major", &{ self.linker_major })
+            .field("linker_minor", &{ self.linker_minor })
+            .field("code_size", &{ self.code_size })
+            .field("init_size", &{ self.init_size })
+            .field("uninit_size", &{ self.uninit_size })
+            .field("entry_ptr", &{ self.entry_ptr })
+            .field("code_ptr", &{ self.code_ptr })
+            .finish()
     }
 }
 
