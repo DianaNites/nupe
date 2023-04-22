@@ -456,9 +456,6 @@ impl RawRichArray {
         size.checked_sub(size_of::<RawRichArray>())
             .ok_or(Error::NotEnoughData)?;
 
-        // Safety: Caller
-        let b = BStr::new(from_raw_parts(data, size));
-
         let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
         let magic_xor = magic_xor.to_ne_bytes();
 
