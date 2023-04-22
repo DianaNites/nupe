@@ -52,7 +52,8 @@ impl<'data> Rich<'data> {
     /// # Errors
     ///
     /// - [`Error::MissingRich`] If the rich header is missing
-    /// - See [`RawRich::from_ptr`][RawRich]
+    /// - See [`RawRich::find_array`]
+    /// - [`Error::MissingRichArray`] If the rich array is missing
     ///
     /// # Safety
     ///
@@ -193,10 +194,21 @@ mod r_tests {
                     kani::cover!(true, "MissingRich");
                 }
 
+                // Ensure `MissingRichArray` error happens
+                Err(Error::MissingRichArray) => {
+                    kani::cover!(true, "MissingRichArray");
+                }
+
                 // Ensure no other errors happen
-                Err(_) => {
-                    kani::cover!(false, "Unexpected Error");
-                    // unreachable!();
+                Err(e) => {
+                    if matches!(e, Error::NotEnoughData | Error::InvalidData) {
+                        kani::cover!(true, "RawRich::find_array error");
+                        // These errors are expected and their tests verify
+                        // their correctness.
+                    } else {
+                        kani::cover!(false, "Unexpected Error");
+                        unreachable!("{e:#?}");
+                    }
                 }
             };
         });
