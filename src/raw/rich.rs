@@ -730,7 +730,7 @@ mod r_tests {
         Ok(())
     }
 
-    /// Test, fuzz, and model RawRich::from_ptr
+    /// Test, fuzz, and model [`RawRich::from_ptr`]
     #[test]
     #[cfg_attr(kani, kani::proof)]
     fn raw_rich_from_ptr() {
@@ -776,7 +776,7 @@ mod r_tests {
         });
     }
 
-    /// Test, fuzz, and model RawRich::find_rich
+    /// Test, fuzz, and model [`RawRich::find_rich`]
     #[test]
     #[cfg_attr(kani, kani::proof)]
     fn find_rich() {
