@@ -44,8 +44,6 @@ impl RawPe {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    /// - You must ensure the returned reference does not outlive `data`, and is
-    ///   not mutated for the duration of lifetime `'data`.
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
         Ok(&*(Self::from_ptr_internal(data, size)?))
     }
@@ -57,9 +55,6 @@ impl RawPe {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    /// - You MUST ensure NO OTHER references exist when you call this.
-    /// - No instance of `&Self` can exist at the moment of this call.
-    /// - You must ensure the returned reference does not outlive `data`
     pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
         Ok(&mut *(Self::from_ptr_internal(data.cast_const(), size)?).cast_mut())
     }
