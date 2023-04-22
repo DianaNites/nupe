@@ -43,7 +43,13 @@ impl RawPe {
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
+    /// ## Pre-conditions
+    ///
+    /// - `data` MUST be valid for reads of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
         Ok(&*(Self::from_ptr_internal(data, size)?))
     }
@@ -54,7 +60,13 @@ impl RawPe {
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
+    /// ## Pre-conditions
+    ///
+    /// - `data` MUST be valid for reads and writes of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned.
     pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
         Ok(&mut *(Self::from_ptr_internal(data.cast_const(), size)?).cast_mut())
     }
