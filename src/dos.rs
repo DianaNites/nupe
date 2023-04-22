@@ -55,6 +55,7 @@ impl<'data> Dos<'data> {
     ///
     /// - Only the documented errors will ever be returned
     /// - [`Dos::stub().len()`][`slice::len`] will always be less than `size`
+    /// - [`RawDos::pe_offset`] will always be less than or equal to `size`
     pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
         Self::from_ptr_internal(data, size)
     }
@@ -217,6 +218,7 @@ mod fuzz {
                         "mismatch between expected and actual stub size"
                     );
                     assert!((stub.len() < len), "stub was larger than len");
+                    assert!((d.pe_offset() as usize) <= len, "pe offset out of bounds");
                 }
 
                 // Ensure `MissingDOS` error happens
