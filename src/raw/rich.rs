@@ -694,7 +694,7 @@ pub fn calculate_key(dos: &RawDos, stub: &[u8], key: u32) -> u32 {
 }
 
 #[cfg(test)]
-mod tests {
+mod r_tests {
     use core::mem::align_of;
 
     use kani::Arbitrary;
