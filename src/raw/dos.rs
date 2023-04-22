@@ -351,7 +351,7 @@ mod fuzz {
                 // Ensure no other errors happen
                 Err(e) => {
                     kani::cover!(false, "Unexpected Error");
-                    unreachable!();
+                    unreachable!("{e:#?}");
                 }
             };
         });
