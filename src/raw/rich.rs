@@ -820,60 +820,14 @@ mod r_tests {
 
                     if !(too_small || no_xor) {
                         kani::cover!(true, "NotEnoughData - Offset XOR");
-                        let end = bytes
-                            .get(bytes.len().saturating_sub(size_of::<RawRich>() - 1)..)
-                            .unwrap_or(&[]);
-                        let l = end.len();
 
-                        // Do this weirdness because kani cannot handle using
-                        // `Iterator::windows`, the initial implementation.
-                        let off1_xor = end.ends_with(&[
-                            //
-                            b'R',
-                            b'i',
-                            b'c',
-                            b'h',
-                            end[l - 1],
-                        ]);
-                        let off2_xor = end.ends_with(&[
-                            //
-                            b'R',
-                            b'i',
-                            b'c',
-                            b'h',
-                            end[l - 2],
-                            end[l - 1],
-                        ]);
-                        let off3_xor = end.ends_with(&[
-                            b'R',
-                            b'i',
-                            b'c',
-                            b'h',
-                            end[l - 3],
-                            end[l - 2],
-                            end[l - 1],
-                        ]);
-                        let off4_xor = end.ends_with(&[
-                            b'R',
-                            b'i',
-                            b'c',
-                            b'h',
-                            end[l - 4],
-                            end[l - 3],
-                            end[l - 2],
-                            end[l - 1],
-                        ]);
+                        let mut off_xor = bytes[..bytes.len() - 1].ends_with(&RICH_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 2].ends_with(&RICH_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 3].ends_with(&RICH_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 4].ends_with(&RICH_MAGIC);
 
-                        let off_xor = off1_xor || off2_xor || off3_xor || off4_xor;
                         assert!(off_xor);
                     }
-
-                    #[cfg(no)]
-                    let off_xor = bytes
-                        .get(bytes.len().saturating_sub(size_of::<RawRich>() - 1)..)
-                        .unwrap_or(&[])
-                        .windows(4)
-                        .any(|b| b == RICH_MAGIC);
                 }
 
                 // Ensure no other errors happen
