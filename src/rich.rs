@@ -99,7 +99,7 @@ impl<'data> Rich<'data> {
             .ok_or(Error::MissingRichArray)?;
 
         let entry_offset = array_header_offset + size_of::<RawRichArray>();
-        let array_size = rich_offset - entry_offset;
+        let array_size = rich_offset.saturating_sub(entry_offset);
 
         // Safety:
         // - `entry_offset` is guaranteed to be valid via `find_array`
