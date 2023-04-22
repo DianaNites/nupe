@@ -7,7 +7,7 @@
 //!
 //! The DOS Stub contains one field of interest, the offset to the start
 //! of the actual PE headers.
-use core::{fmt, mem::size_of, slice::from_raw_parts};
+use core::{fmt, mem::size_of};
 
 use crate::{
     error::{Error, Result},
