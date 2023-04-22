@@ -36,11 +36,13 @@ pub const RICH_MAGIC: [u8; 4] = *b"Rich";
 /// Rich Header array magic signature
 pub const ARRAY_MAGIC: [u8; 4] = *b"DanS";
 
-/// Helper to find the [`RICH_MAGIC`] in a way that works in and out of kani
-/// model checking
+/// Helper to find `search` in `bytes` in a way that works in and
+/// out of kani model checking
+///
+/// Should be [`RICH_MAGIC`] or [`ARRAY_MAGIC`]
 ///
 /// Returns the index of the magic, or [`None`].
-fn find_rich_helper(bytes: &[u8]) -> Option<usize> {
+fn find_rich_helper(bytes: &[u8], search: [u8; 4]) -> Option<usize> {
     #[cfg(test)]
     use crate::internal::test_util::kani;
 
@@ -60,12 +62,12 @@ fn find_rich_helper(bytes: &[u8]) -> Option<usize> {
     // FIXME: This should be removed and support extended when possible.
     #[cfg(any(kani, test))]
     let offset: Option<usize> = {
-        let bound = bytes.len() - RICH_MAGIC.len();
+        let bound = bytes.len() - search.len();
         kani::any_where(|x| match *x {
             Some(x) => {
                 let o = x <= bound;
                 kani::assume(o);
-                let magic = bytes[x..][..RICH_MAGIC.len()] == RICH_MAGIC;
+                let magic = bytes[x..][..search.len()] == search;
                 kani::assume(magic);
                 o && magic
             }
@@ -76,7 +78,7 @@ fn find_rich_helper(bytes: &[u8]) -> Option<usize> {
     // Put this after the above so that non-kani testing uses it
     // This is because the above uses `any` with `test` for dev experience.
     #[cfg(not(kani))]
-    let offset = b.rfind(RICH_MAGIC);
+    let offset = b.rfind(search);
 
     // TODO: Add negative test, ensure this always returning None fails.
     // Note that kani does catch it as `Ok(Some)` being UNREACHABLE though.
@@ -222,7 +224,7 @@ impl RawRich {
             .ok_or(Error::NotEnoughData)?;
 
         // Safety: Caller
-        let offset = find_rich_helper(from_raw_parts(data, size));
+        let offset = find_rich_helper(from_raw_parts(data, size), RICH_MAGIC);
 
         let offset = match offset {
             Some(o) => o,
