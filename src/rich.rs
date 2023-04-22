@@ -161,7 +161,44 @@ mod debug {
 #[cfg(test)]
 mod r_tests {
     use super::*;
-    use crate::{dos::Dos, internal::test_util::*};
+    use crate::{dos::Dos, internal::test_util::*, raw::rich::RICH_MAGIC};
+
+    /// Test, fuzz, and model [`Rich::from_ptr`]
+    #[test]
+    // #[ignore]
+    #[cfg_attr(kani, kani::proof)]
+    fn rich_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+
+            let rich = unsafe { Rich::from_ptr(ptr, len) };
+
+            match rich {
+                // Ensure the `Ok(Some)` branch is hit
+                Ok(r) => {
+                    kani::cover!(true, "Ok");
+                    let r = r.header;
+
+                    assert_eq!(r.magic, RICH_MAGIC, "Incorrect `Ok` Rich magic");
+
+                    // Should only be `Ok(Some)` if `len` is enough
+                    assert!(len >= size_of::<RawRich>(), "Invalid `Ok` len");
+                }
+
+                // Ensure `MissingRich` error happens
+                Err(Error::MissingRich) => {
+                    kani::cover!(true, "MissingRich");
+                }
+
+                // Ensure no other errors happen
+                Err(_) => {
+                    kani::cover!(false, "Unexpected Error");
+                    // unreachable!();
+                }
+            };
+        });
+    }
 
     #[test]
     fn rich() -> Result<()> {
