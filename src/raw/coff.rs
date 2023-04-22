@@ -7,7 +7,10 @@ use core::{fmt, mem::size_of};
 
 use bitflags::bitflags;
 
-use crate::error::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    internal::miri_helper,
+};
 
 /// Machine type, or target architecture, of the PE file.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -231,6 +234,8 @@ impl RawCoff {
     /// See [`RawCoff::from_ptr`]
     fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
         debug_assert!(!data.is_null(), "`data` was null in RawCoff::from_ptr");
+
+        miri_helper!(data, size);
 
         // Ensure that size is enough
         size.checked_sub(size_of::<RawCoff>())

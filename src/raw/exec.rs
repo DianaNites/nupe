@@ -13,7 +13,10 @@ use core::{fmt, mem::size_of};
 
 use bitflags::bitflags;
 
-use crate::error::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    internal::miri_helper,
+};
 
 /// PE32 Magic signature
 pub const PE32_MAGIC: u16 = 0x10B;
@@ -477,6 +480,8 @@ impl RawExec32 {
             return Err(Error::InvalidData);
         }
 
+        miri_helper!(data, size);
+
         // Ensure that size is enough
         size.checked_sub(size_of::<RawExec32>())
             .ok_or(Error::NotEnoughData)?;
@@ -643,6 +648,8 @@ impl RawExec64 {
         if data.is_null() {
             return Err(Error::InvalidData);
         }
+
+        miri_helper!(data, size);
 
         // Ensure that size is enough
         size.checked_sub(size_of::<RawExec64>())
