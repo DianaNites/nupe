@@ -52,8 +52,8 @@ impl<'data> Rich<'data> {
     /// # Errors
     ///
     /// - [`Error::MissingRich`] If the rich header is missing
-    /// - See [`RawRich::find_array`]
     /// - [`Error::MissingRichArray`] If the rich array is missing
+    /// - See [`RawRich::find_array`]
     ///
     /// # Safety
     ///
@@ -102,7 +102,9 @@ impl<'data> Rich<'data> {
         let entry_offset = array_header_offset + size_of::<RawRichArray>();
         let array_size = rich_offset.saturating_sub(entry_offset);
 
-        // TODO: Error if array_size not % 8?
+        if array_size % size_of::<RawRichEntry>() != 0 {
+            return Err(Error::NotEnoughData);
+        }
 
         // Safety:
         // - `entry_offset` is guaranteed to be valid via `find_array`
