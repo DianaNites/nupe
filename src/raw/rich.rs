@@ -768,9 +768,9 @@ mod r_tests {
                 }
 
                 // Ensure no other errors happen
-                Err(_) => {
+                Err(e) => {
                     kani::cover!(false, "Unexpected Error");
-                    unreachable!();
+                    unreachable!("{e:#?}");
                 }
             };
         });
@@ -831,9 +831,157 @@ mod r_tests {
                 }
 
                 // Ensure no other errors happen
-                Err(_) => {
+                Err(e) => {
                     kani::cover!(false, "Unexpected Error");
-                    unreachable!();
+                    unreachable!("{e:#?}");
+                }
+            };
+        })
+    }
+
+    /// Test, fuzz, and model [`RawRichArray::from_ptr`]
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn array_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+
+            let hdr = unsafe { RawRichArray::from_ptr(ptr, len) };
+
+            match hdr {
+                // Ensure the `Ok` branch is hit
+                Ok(hdr) => {
+                    kani::cover!(true, "Ok");
+
+                    assert_eq!(hdr.magic, ARRAY_MAGIC, "Incorrect `Ok` Array magic");
+
+                    // Should only be `Ok` if `len` is enough
+                    assert!(len >= size_of::<RawRichArray>(), "Invalid `Ok` len");
+                }
+
+                // Ensure `InvalidData` error happens
+                Err(Error::InvalidData) => {
+                    kani::cover!(true, "InvalidData");
+
+                    // Should only get this when `len` isn't enough
+                    assert!(len >= size_of::<RawRichArray>());
+                }
+
+                // Ensure the `InvalidRichArrayMagic` branch is hit
+                Err(Error::InvalidRichArrayMagic) => {
+                    kani::cover!(true, "InvalidRichArrayMagic");
+
+                    // Should only be `InvalidRichArrayMagic` if `len` is enough
+                    assert!(
+                        len >= size_of::<RawRichArray>(),
+                        "Invalid `InvalidRichArrayMagic` len"
+                    );
+                }
+
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
+
+                    // Should only get this when `len` isn't enough
+                    // Or when the array magic is at the start,
+                    // but NOT followed by enough bytes for the padding
+                    assert!(len < size_of::<RawRichArray>());
+                }
+
+                // Ensure no other errors happen
+                Err(e) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!("{e:#?}");
+                }
+            };
+        })
+    }
+
+    /// Test, fuzz, and model [`RawRichArray::find_array`]
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn find_array() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+            let key = 0;
+
+            let hdr = unsafe { RawRichArray::find_array(ptr, len, key) };
+
+            match hdr {
+                // Ensure the `Ok(Some)` branch is hit
+                Ok(Some((hdr, o))) => {
+                    kani::cover!(true, "Ok(Some)");
+
+                    assert_eq!(hdr.magic, ARRAY_MAGIC, "Incorrect `Ok(Some)` Rich magic");
+
+                    // Should only be `Ok(Some)` if `len` is enough
+                    assert!(len >= size_of::<RawRichArray>(), "Invalid `Ok(Some)` len");
+
+                    // Offset has to leave enough space in `len` to fit RawRich
+                    assert!(
+                        o <= (len - size_of::<RawRichArray>()),
+                        "Invalid `Ok(Some)` len"
+                    );
+                }
+
+                // Ensure the `Ok(Some)` branch is hit
+                Ok(None) => {
+                    kani::cover!(true, "Ok(None)");
+
+                    // Should only be `Ok(None)` if `len` is enough
+                    assert!(len >= size_of::<RawRichArray>(), "Invalid `Ok(None)` len");
+                }
+
+                // Ensure `InvalidData` error happens
+                Err(Error::InvalidData) => {
+                    kani::cover!(true, "InvalidData");
+
+                    // Should only get this when `len` isn't enough
+                    assert!(len >= size_of::<RawRichArray>());
+                }
+
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
+
+                    // Should only get this when `len` isn't enough
+                    // Or when the array magic is found,
+                    // but NOT followed by enough bytes for the padding
+                    let too_small = len < size_of::<RawRichArray>();
+                    let no_xor = bytes.ends_with(&ARRAY_MAGIC);
+
+                    // let mut m = [0; size_of::<RawRichArray>()];
+                    // m[..ARRAY_MAGIC.len()].copy_from_slice(&ARRAY_MAGIC);
+
+                    if !(too_small || no_xor) {
+                        kani::cover!(true, "NotEnoughData - Offset Padding");
+                        let mut off_xor = bytes[..bytes.len() - 1].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 2].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 3].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 4].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 5].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 6].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 7].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 8].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 9].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 10].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 11].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 12].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 13].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 14].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 15].ends_with(&ARRAY_MAGIC);
+                        off_xor = off_xor || bytes[..bytes.len() - 16].ends_with(&ARRAY_MAGIC);
+
+                        assert!(off_xor);
+                    }
+                }
+
+                // Ensure no other errors happen
+                Err(e) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!("{e:#?}");
                 }
             };
         })
