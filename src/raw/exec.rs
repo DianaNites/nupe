@@ -57,6 +57,7 @@ pub struct RawExec {
     pub code_ptr: u32,
 }
 
+/// Public Serialization API
 impl RawExec {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -79,6 +80,47 @@ impl RawExec {
             entry_ptr: entry_offset,
             code_ptr: code_base,
         }
+    }
+}
+
+/// Public Deserialization API
+impl RawExec {
+    /// Get a [`ExecHeader`] from a pointer to an exec header.
+    ///
+    /// # Errors
+    ///
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawExec`]
+    ///   - Note this may not be enough for the full [`RawExec32`] or
+    ///     [`RawExec64`]
+    ///   - Note also that the magic may not indicate a PE32 or PE32+
+    ///
+    /// # Safety
+    ///
+    /// ## Pre-conditions
+    ///
+    /// - `data` MUST be valid for reads and writes of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned.
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        Ok(&*(Self::from_ptr_internal(data, size)?))
+    }
+}
+
+/// Internal API
+impl RawExec {
+    /// # Safety
+    /// See [`RawExec::from_ptr`]
+    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
+        debug_assert!(!data.is_null(), "`data` was null in RawExec::from_ptr");
+        miri_helper!(data, size);
+
+        // Ensure that size is enough
+        size.checked_sub(size_of::<RawExec>())
+            .ok_or(Error::NotEnoughData)?;
+
+        Ok(data.cast())
     }
 }
 
@@ -667,5 +709,47 @@ impl RawExec64 {
     /// Get a [`RawExec64`] from `bytes`. Checks for the magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
         unsafe { RawExec64::from_ptr(bytes.as_ptr(), bytes.len()) }
+    }
+}
+
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+    use crate::internal::test_util::kani;
+
+    /// Test, fuzz, and model [`RawExec::from_ptr`]
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn raw_exec_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+
+            let d = unsafe { RawExec::from_ptr(ptr, len) };
+
+            match d {
+                // Ensure the `Ok` branch is hit
+                Ok(d) => {
+                    kani::cover!(true, "Ok");
+
+                    // Should only be `Ok` if `len` is this
+                    assert!(len >= size_of::<RawExec>(), "Invalid `Ok` len");
+                }
+
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
+
+                    // Should only get this when `len` is too small
+                    assert!(len < size_of::<RawExec>());
+                }
+
+                // Ensure no other errors happen
+                Err(e) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!("{e:#?}");
+                }
+            };
+        });
     }
 }
