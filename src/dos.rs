@@ -168,7 +168,10 @@ mod tests {
     use kani::Arbitrary;
 
     use super::*;
-    use crate::{internal::test_util::*, raw::dos::DOS_MAGIC};
+    use crate::{
+        internal::test_util::{kani, RUSTUP_IMAGE},
+        raw::dos::DOS_MAGIC,
+    };
 
     #[test]
     fn dos() -> Result<()> {
@@ -184,95 +187,85 @@ mod tests {
         }
     }
 
-    /// Ensure various stuff is sound
-    #[cfg_attr(not(kani), test, ignore)]
-    // #[cfg(no)]
-    fn kani_dos_imp() -> Result<()> {
-        const SIZE: usize = size_of::<RawDos>() * 2;
+    /// Test, fuzz, and model [`Dos::from_ptr`]
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn dos_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
 
-        let mut file = kani::slice::any_slice::<u8, SIZE>();
-        let bytes = file.get_slice_mut();
-        let len = bytes.len();
-        let ptr = bytes.as_mut_ptr();
+            let dos = unsafe { Dos::from_ptr(ptr, len) };
 
-        let dos = unsafe { Dos::from_ptr(ptr, len) };
+            match dos {
+                // Ensure the `Ok` branch is hit
+                Ok(d) => {
+                    kani::cover!(true, "Ok");
 
-        match dos {
-            // Ensure the `Ok` branch is hit
-            Ok(d) => {
-                kani::cover!(true, "Ok");
-                // This should never fail
-                assert_eq!(d.raw_dos().magic, DOS_MAGIC, "Incorrect `Ok` DOS magic");
-                // Should only be `Ok` if `len` is enough
-                assert!(len >= size_of::<RawDos>(), "Invalid `Ok` len");
+                    // This should never fail
+                    assert_eq!(d.raw_dos().magic, DOS_MAGIC, "Incorrect `Ok` DOS magic");
 
-                let stub = d.stub();
-                let expected = (d.pe_offset() as usize).saturating_sub(size_of::<RawDos>());
+                    // Should only be `Ok` if `len` is enough
+                    assert!(len >= size_of::<RawDos>(), "Invalid `Ok` len");
 
-                assert_eq!(
-                    stub.len(),
-                    expected,
-                    "mismatch between expected and actual stub size"
-                );
-                assert!((stub.len() < len), "stub was larger than len");
-            }
+                    let stub = d.stub();
+                    let expected = (d.pe_offset() as usize).saturating_sub(size_of::<RawDos>());
 
-            // Ensure `MissingDOS` error happens
-            Err(Error::MissingDOS) => {
-                kani::cover!(true, "MissingDOS");
-                // Should only get this when `len` is too small
-                // or when the bytes magic is wrong
-                // or when the stub code is missing
-                let too_small = len < size_of::<RawDos>();
-
-                if too_small {
-                    kani::cover!(true, "Too small for header");
-                } else {
-                    let dos = unsafe { RawDos::from_ptr(ptr, len) };
-                    kani::assume(dos.is_ok());
-                    let dos = dos.unwrap();
-                    let expected = (dos.pe_offset as usize).saturating_sub(size_of::<RawDos>());
-
-                    assert_eq!(dos.magic, DOS_MAGIC);
-                    // assert_ne!(len - size_of::<RawDos>(), expected);
-                    assert!((len - size_of::<RawDos>()) < expected);
-                    kani::cover!(true, "Too small for dos stub");
+                    assert_eq!(
+                        stub.len(),
+                        expected,
+                        "mismatch between expected and actual stub size"
+                    );
+                    assert!((stub.len() < len), "stub was larger than len");
                 }
-            }
 
-            // Ensure `TooMuchData` error happens on 16-bit platforms
-            #[cfg(target_pointer_width = "4")]
-            Err(Error::TooMuchData) => {
-                kani::cover!(true, "TooMuchData (16bit)");
-            }
+                // Ensure `MissingDOS` error happens
+                Err(Error::MissingDOS) => {
+                    kani::cover!(true, "MissingDOS");
 
-            // Ensure `TooMuchData` error doesn't happen on larger platforms
-            #[cfg(not(target_pointer_width = "4"))]
-            Err(Error::TooMuchData) => {
-                kani::cover!(false, "TooMuchData (not 16bit)");
-            }
+                    // Should only get this when `len` is too small
+                    // or when the dos magic is wrong
+                    // or when the stub code is missing
+                    let too_small = len < size_of::<RawDos>();
+                    let no_magic = !bytes.starts_with(&DOS_MAGIC);
 
-            // Ensure no other errors happen
-            Err(_) => {
-                kani::cover!(false, "Unexpected Error");
-                unreachable!();
-            }
-        };
+                    // If its not too small, or has no magic
+                    if !(too_small || no_magic) {
+                        // Then it must have a magic, but a missing stub
+                        kani::cover!(true, "MissingDOS - Missing Stub");
+                        assert!(!no_magic);
 
-        Ok(())
-    }
+                        let dos = unsafe { RawDos::from_ptr(ptr, len) };
+                        let dos = dos.unwrap();
 
-    #[cfg(all(test, kani))]
-    mod kan {
-        use kani::*;
+                        let expected = (dos.pe_offset as usize).saturating_sub(size_of::<RawDos>());
 
-        use super::*;
+                        assert_eq!(dos.magic, DOS_MAGIC);
 
-        #[kani::proof]
-        fn kani_dos() -> Result<()> {
-            kani_dos_imp()?;
+                        assert!((len - size_of::<RawDos>()) < expected);
 
-            Ok(())
-        }
+                        kani::cover!(true, "Too small for dos stub");
+                    }
+                }
+
+                // Ensure `TooMuchData` error happens on 16-bit platforms
+                #[cfg(target_pointer_width = "4")]
+                Err(Error::TooMuchData) => {
+                    kani::cover!(true, "TooMuchData (16bit)");
+                }
+
+                // Ensure `TooMuchData` error doesn't happen on larger platforms
+                #[cfg(not(target_pointer_width = "4"))]
+                Err(Error::TooMuchData) => {
+                    kani::cover!(false, "TooMuchData (not 16bit)");
+                }
+
+                // Ensure no other errors happen
+                Err(_) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!();
+                }
+            };
+        });
     }
 }
