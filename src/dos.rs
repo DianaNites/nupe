@@ -54,8 +54,7 @@ impl<'data> Dos<'data> {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned
-    /// - [`Dos::dos_stub().len()`][`slice::len`] will always be less than
-    ///   `size`
+    /// - [`Dos::stub().len()`][`slice::len`] will always be less than `size`
     pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
         Self::from_ptr_internal(data, size)
     }
