@@ -284,7 +284,7 @@ impl kani::Arbitrary for RawDos {
 }
 
 #[cfg(test)]
-mod tests {
+mod r_tests {
     use core::mem::align_of;
 
     use kani::Arbitrary;
