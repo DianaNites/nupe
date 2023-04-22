@@ -707,10 +707,7 @@ pub fn calculate_key(dos: &RawDos, stub: &[u8], key: u32) -> u32 {
 mod r_tests {
     use core::mem::align_of;
 
-    use kani::Arbitrary;
-
     use super::*;
-    use crate::{internal::test_util::kani, raw::dos::DOS_MAGIC};
 
     /// Ensure expected ABI
     #[test]
@@ -734,6 +731,13 @@ mod r_tests {
         // TODO: Rest of rich
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod fuzz {
+
+    use super::*;
+    use crate::internal::test_util::kani;
 
     /// Test, fuzz, and model [`RawRich::from_ptr`]
     #[test]
