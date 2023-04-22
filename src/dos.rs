@@ -165,13 +165,8 @@ pub mod debug {
 
 #[cfg(test)]
 mod tests {
-    use kani::Arbitrary;
-
     use super::*;
-    use crate::{
-        internal::test_util::{kani, RUSTUP_IMAGE},
-        raw::dos::DOS_MAGIC,
-    };
+    use crate::internal::test_util::RUSTUP_IMAGE;
 
     #[test]
     fn dos() -> Result<()> {
@@ -186,6 +181,12 @@ mod tests {
             Ok(())
         }
     }
+}
+
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+    use crate::{internal::test_util::kani, raw::dos::DOS_MAGIC};
 
     /// Test, fuzz, and model [`Dos::from_ptr`]
     #[test]

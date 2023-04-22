@@ -287,10 +287,7 @@ impl kani::Arbitrary for RawDos {
 mod r_tests {
     use core::mem::align_of;
 
-    use kani::Arbitrary;
-
     use super::*;
-    use crate::internal::test_util::kani;
 
     /// Ensure expected ABI
     #[test]
@@ -307,6 +304,12 @@ mod r_tests {
         assert_eq!(&dos, dos2);
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+    use crate::internal::test_util::kani;
 
     /// Test, fuzz, and model [`RawDos::from_ptr`]
     #[test]
