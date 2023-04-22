@@ -278,7 +278,7 @@ impl fmt::Debug for RawRich {
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
 pub struct RawRichArray {
-    /// Constant of value [`ARRAY_MAGIC`] identifying the PE executable
+    /// Constant of value [`ARRAY_MAGIC`] identifying the rich array
     pub magic: [u8; 4],
 
     /// Padding array entry that should be all zeros
