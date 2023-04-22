@@ -18,36 +18,39 @@ pub enum ExecHeader<'data> {
     Raw64(OwnedOrRef<'data, RawExec64>),
 }
 
+/// Public Data API
 impl<'data> ExecHeader<'data> {
-    /// Get header as a byte slice
-    pub(crate) const fn as_slice(&self) -> &[u8] {
+    /// Get the header as a byte slice
+    pub const fn as_slice(&self) -> &[u8] {
         match self {
             ExecHeader::Raw32(h) => {
-                //
                 let ptr = h.as_ref() as *const RawExec32 as *const u8;
+                // Safety: bytes over POD type, tied to `self`
                 unsafe { from_raw_parts(ptr, size_of::<RawExec32>()) }
             }
             ExecHeader::Raw64(h) => {
-                //
                 let ptr = h.as_ref() as *const RawExec64 as *const u8;
+                // Safety: bytes over POD type, tied to `self`
                 unsafe { from_raw_parts(ptr, size_of::<RawExec64>()) }
             }
         }
     }
 
-    pub(crate) const fn code_size(&self) -> u32 {
+    pub const fn code_size(&self) -> u32 {
         match self {
             ExecHeader::Raw32(h) => h.as_ref().standard.code_size,
             ExecHeader::Raw64(h) => h.as_ref().standard.code_size,
         }
     }
-    pub(crate) const fn init_size(&self) -> u32 {
+
+    pub const fn init_size(&self) -> u32 {
         match self {
             ExecHeader::Raw32(h) => h.as_ref().standard.init_size,
             ExecHeader::Raw64(h) => h.as_ref().standard.init_size,
         }
     }
-    pub(crate) const fn uninit_size(&self) -> u32 {
+
+    pub const fn uninit_size(&self) -> u32 {
         match self {
             ExecHeader::Raw32(h) => h.as_ref().standard.uninit_size,
             ExecHeader::Raw64(h) => h.as_ref().standard.uninit_size,
@@ -69,218 +72,144 @@ impl<'data> ExecHeader<'data> {
             ExecHeader::Raw64(_) => size_of::<RawExec64>(),
         }
     }
-}
 
-/// Public Data API
-impl<'data> ExecHeader<'data> {
     /// How many data directories
-    pub(crate) const fn data_dirs(&self) -> u32 {
+    pub const fn data_dirs(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => match h {
-                OwnedOrRef::Owned(h) => h.data_dirs,
-                OwnedOrRef::Ref(h) => h.data_dirs,
-            },
-            ExecHeader::Raw64(h) => match h {
-                OwnedOrRef::Owned(h) => h.data_dirs,
-                OwnedOrRef::Ref(h) => h.data_dirs,
-            },
+            ExecHeader::Raw32(h) => h.as_ref().data_dirs,
+            ExecHeader::Raw64(h) => h.as_ref().data_dirs,
         }
     }
 
     /// Subsystem
-    pub(crate) fn subsystem(&self) -> Subsystem {
+    pub const fn subsystem(&self) -> Subsystem {
         match self {
-            ExecHeader::Raw32(h) => h.subsystem,
-            ExecHeader::Raw64(h) => h.subsystem,
+            ExecHeader::Raw32(h) => h.as_ref().subsystem,
+            ExecHeader::Raw64(h) => h.as_ref().subsystem,
         }
     }
 
     /// Entry point address relative to the image base
-    pub(crate) fn entry(&self) -> u32 {
+    pub const fn entry(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => h.standard.entry_ptr,
-            ExecHeader::Raw64(h) => h.standard.entry_ptr,
+            ExecHeader::Raw32(h) => h.as_ref().standard.entry_ptr,
+            ExecHeader::Raw64(h) => h.as_ref().standard.entry_ptr,
         }
     }
 
     /// OS (major, minor)
-    pub(crate) fn os_version(&self) -> (u16, u16) {
+    pub const fn os_version(&self) -> (u16, u16) {
         match self {
-            ExecHeader::Raw32(h) => (h.os_major, h.os_minor),
-            ExecHeader::Raw64(h) => (h.os_major, h.os_minor),
+            ExecHeader::Raw32(h) => (h.as_ref().os_major, h.as_ref().os_minor),
+            ExecHeader::Raw64(h) => (h.as_ref().os_major, h.as_ref().os_minor),
         }
     }
 
     /// Image (major, minor)
-    pub(crate) fn image_version(&self) -> (u16, u16) {
+    pub const fn image_version(&self) -> (u16, u16) {
         match self {
-            ExecHeader::Raw32(h) => (h.image_major, h.image_minor),
-            ExecHeader::Raw64(h) => (h.image_major, h.image_minor),
+            ExecHeader::Raw32(h) => (h.as_ref().image_major, h.as_ref().image_minor),
+            ExecHeader::Raw64(h) => (h.as_ref().image_major, h.as_ref().image_minor),
         }
     }
 
     /// Subsystem (major, minor)
-    pub(crate) fn subsystem_version(&self) -> (u16, u16) {
+    pub const fn subsystem_version(&self) -> (u16, u16) {
         match self {
-            ExecHeader::Raw32(h) => (h.subsystem_major, h.subsystem_minor),
-            ExecHeader::Raw64(h) => (h.subsystem_major, h.subsystem_minor),
+            ExecHeader::Raw32(h) => (h.as_ref().subsystem_major, h.as_ref().subsystem_minor),
+            ExecHeader::Raw64(h) => (h.as_ref().subsystem_major, h.as_ref().subsystem_minor),
         }
     }
 
     /// Linker (major, minor)
-    pub(crate) fn linker_version(&self) -> (u8, u8) {
+    pub const fn linker_version(&self) -> (u8, u8) {
         match self {
-            ExecHeader::Raw32(h) => (h.standard.linker_major, h.standard.linker_minor),
-            ExecHeader::Raw64(h) => (h.standard.linker_major, h.standard.linker_minor),
+            ExecHeader::Raw32(h) => (
+                h.as_ref().standard.linker_major,
+                h.as_ref().standard.linker_minor,
+            ),
+            ExecHeader::Raw64(h) => (
+                h.as_ref().standard.linker_major,
+                h.as_ref().standard.linker_minor,
+            ),
         }
     }
 
     /// Preferred Base of the image in memory.
     ///
     /// Coerced to u64 even on/for 32bit.
-    pub(crate) fn image_base(&self) -> u64 {
+    pub const fn image_base(&self) -> u64 {
         match self {
-            ExecHeader::Raw32(h) => h.image_base.into(),
-            ExecHeader::Raw64(h) => h.image_base,
+            ExecHeader::Raw32(h) => h.as_ref().image_base as u64,
+            ExecHeader::Raw64(h) => h.as_ref().image_base,
         }
     }
 
     /// DLL Attributes
-    pub(crate) fn dll_attributes(&self) -> ExecFlags {
+    pub const fn dll_attributes(&self) -> ExecFlags {
         match self {
-            ExecHeader::Raw32(h) => h.dll_attributes,
-            ExecHeader::Raw64(h) => h.dll_attributes,
+            ExecHeader::Raw32(h) => h.as_ref().dll_attributes,
+            ExecHeader::Raw64(h) => h.as_ref().dll_attributes,
         }
     }
 
     /// Stack (reserve, commit)
-    pub(crate) fn stack(&self) -> (u64, u64) {
+    pub const fn stack(&self) -> (u64, u64) {
         match self {
-            ExecHeader::Raw32(h) => (h.stack_reserve.into(), h.stack_commit.into()),
-            ExecHeader::Raw64(h) => (h.stack_reserve, h.stack_commit),
+            ExecHeader::Raw32(h) => (
+                h.as_ref().stack_reserve as u64,
+                h.as_ref().stack_commit as u64,
+            ),
+            ExecHeader::Raw64(h) => (h.as_ref().stack_reserve, h.as_ref().stack_commit),
         }
     }
 
     /// Heap (reserve, commit)
-    pub(crate) fn heap(&self) -> (u64, u64) {
+    pub const fn heap(&self) -> (u64, u64) {
         match self {
-            ExecHeader::Raw32(h) => (h.heap_reserve.into(), h.heap_commit.into()),
-            ExecHeader::Raw64(h) => (h.heap_reserve, h.heap_commit),
+            ExecHeader::Raw32(h) => (
+                h.as_ref().heap_reserve as u64,
+                h.as_ref().heap_commit as u64,
+            ),
+            ExecHeader::Raw64(h) => (h.as_ref().heap_reserve, h.as_ref().heap_commit),
         }
     }
 
     /// File alignment
-    pub(crate) fn file_align(&self) -> u32 {
+    pub const fn file_align(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => h.disk_align,
-            ExecHeader::Raw64(h) => h.disk_align,
+            ExecHeader::Raw32(h) => h.as_ref().disk_align,
+            ExecHeader::Raw64(h) => h.as_ref().disk_align,
         }
     }
 
     /// Section alignment
-    pub(crate) fn section_align(&self) -> u32 {
+    pub const fn section_align(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => h.mem_align,
-            ExecHeader::Raw64(h) => h.mem_align,
+            ExecHeader::Raw32(h) => h.as_ref().mem_align,
+            ExecHeader::Raw64(h) => h.as_ref().mem_align,
         }
     }
 
     /// Image size
-    pub(crate) fn image_size(&self) -> u32 {
+    pub const fn image_size(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => h.image_size,
-            ExecHeader::Raw64(h) => h.image_size,
+            ExecHeader::Raw32(h) => h.as_ref().image_size,
+            ExecHeader::Raw64(h) => h.as_ref().image_size,
         }
     }
 
     /// Headers size
-    pub(crate) fn headers_size(&self) -> u32 {
+    pub const fn headers_size(&self) -> u32 {
         match self {
-            ExecHeader::Raw32(h) => h.headers_size,
-            ExecHeader::Raw64(h) => h.headers_size,
+            ExecHeader::Raw32(h) => h.as_ref().headers_size,
+            ExecHeader::Raw64(h) => h.as_ref().headers_size,
         }
     }
 }
 
 /// Public Serialization API
-impl<'data> ExecHeader<'data> {
-    /// Wrapper around [`RawExec32::new`] and [`RawExec64::new`]
-    ///
-    /// Always takes arguments in 64-bit, errors if out of bounds
-    ///
-    /// if `plus` is true then the PE32+ / 64-bit header is used
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
-        plus: bool,
-        standard: RawExec,
-        data_ptr: u32,
-        image_ptr: u64,
-        mem_align: u32,
-        disk_align: u32,
-        os_major: u16,
-        os_minor: u16,
-        image_major: u16,
-        image_minor: u16,
-        subsystem_major: u16,
-        subsystem_minor: u16,
-        image_size: u32,
-        headers_size: u32,
-        subsystem: Subsystem,
-        dll_attributes: ExecFlags,
-        stack_reserve: u64,
-        stack_commit: u64,
-        heap_reserve: u64,
-        heap_commit: u64,
-        data_dirs: u32,
-    ) -> Result<Self> {
-        if plus {
-            Ok(ExecHeader::Raw64(OwnedOrRef::Owned(RawExec64::new(
-                standard,
-                image_ptr,
-                mem_align,
-                disk_align,
-                os_major,
-                os_minor,
-                image_major,
-                image_minor,
-                subsystem_major,
-                subsystem_minor,
-                image_size,
-                headers_size,
-                subsystem,
-                dll_attributes,
-                stack_reserve,
-                stack_commit,
-                heap_reserve,
-                heap_commit,
-                data_dirs,
-            ))))
-        } else {
-            Ok(ExecHeader::Raw32(OwnedOrRef::Owned(RawExec32::new(
-                standard,
-                data_ptr,
-                image_ptr.try_into().map_err(|_| Error::TooMuchData)?,
-                mem_align,
-                disk_align,
-                os_major,
-                os_minor,
-                image_major,
-                image_minor,
-                subsystem_major,
-                subsystem_minor,
-                image_size,
-                headers_size,
-                subsystem,
-                dll_attributes,
-                stack_reserve.try_into().map_err(|_| Error::TooMuchData)?,
-                stack_commit.try_into().map_err(|_| Error::TooMuchData)?,
-                heap_reserve.try_into().map_err(|_| Error::TooMuchData)?,
-                heap_commit.try_into().map_err(|_| Error::TooMuchData)?,
-                data_dirs,
-            ))))
-        }
-    }
-}
+impl<'data> ExecHeader<'data> {}
 
 /// Public Deserialization API
 impl<'data> ExecHeader<'data> {
@@ -290,7 +219,7 @@ impl<'data> ExecHeader<'data> {
     ///
     /// - [`Error::NotEnoughData`] If `size` is not enough to fit a
     ///   [`RawExec64`] or [`RawExec64`]
-    /// - [`Error::MissingDOS`] If the DOS header or its stub code is missing
+    /// - [`Error::InvalidPeMagic`] If the PE magic is not PE32 or PE32+
     ///
     /// # Safety
     ///
@@ -302,16 +231,19 @@ impl<'data> ExecHeader<'data> {
     ///
     /// - Only the documented errors will ever be returned.
     pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
-        debug_assert!(!data.is_null(), "`data` was null in RawPe::from_ptr");
+        debug_assert!(!data.is_null(), "`data` was null in ExecHeader::from_ptr");
 
         // Safety: Caller
-        let magic = RawExec::from_ptr(data, size)?.magic;
+        let exec = RawExec::from_ptr(data, size)?;
+        let magic = exec.magic;
 
         if magic == PE32_64_MAGIC {
+            // Safety: Caller
             let opt = RawExec64::from_ptr(data, size)?;
 
             Ok(ExecHeader::Raw64(OwnedOrRef::Ref(opt)))
         } else if magic == PE32_MAGIC {
+            // Safety: Caller
             let opt = RawExec32::from_ptr(data, size)?;
 
             Ok(ExecHeader::Raw32(OwnedOrRef::Ref(opt)))
@@ -335,15 +267,19 @@ mod fuzz {
             let len = bytes.len();
             let ptr = bytes.as_ptr();
 
-            let d = unsafe { RawExec::from_ptr(ptr, len) };
+            let d = unsafe { ExecHeader::from_ptr(ptr, len) };
 
             match d {
                 // Ensure the `Ok` branch is hit
                 Ok(d) => {
                     kani::cover!(true, "Ok");
+                    let magic = d.raw_exec().magic;
 
-                    // Should only be `Ok` if `len` is this
-                    assert!(len >= size_of::<RawExec>(), "Invalid `Ok` len");
+                    // Magic must be known
+                    assert!(magic == PE32_MAGIC || magic == PE32_64_MAGIC);
+
+                    // Should only be `Ok` if `len` is at least this
+                    assert!(len >= size_of::<RawExec32>(), "Invalid `Ok` len");
                 }
 
                 // Ensure `NotEnoughData` error happens
@@ -351,7 +287,15 @@ mod fuzz {
                     kani::cover!(true, "NotEnoughData");
 
                     // Should only get this when `len` is too small
-                    assert!(len < size_of::<RawExec>());
+                    assert!(len < size_of::<RawExec64>());
+                }
+
+                // Ensure `InvalidPeMagic` error happens
+                Err(Error::InvalidPeMagic) => {
+                    kani::cover!(true, "InvalidPeMagic");
+
+                    // Should have gotten NotEnoughData otherwise
+                    assert!(len >= size_of::<RawExec>());
                 }
 
                 // Ensure no other errors happen
