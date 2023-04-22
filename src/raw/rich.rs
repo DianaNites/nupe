@@ -463,6 +463,9 @@ impl RawRichArray {
         let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
         let magic_xor = magic_xor.to_ne_bytes();
 
+        // FIXME: Technically this can be "fooled"? because it searches from the end
+        // but the signature is supposed to be at the start
+        // so it could think its an entry.
         let offset = find_rich_helper(from_raw_parts(data, size), magic_xor);
         let offset = match offset {
             Some(o) => o,
