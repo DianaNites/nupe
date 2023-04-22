@@ -259,7 +259,6 @@ mod fuzz {
     use crate::internal::test_util::kani;
 
     /// Test, fuzz, and model [`ExecHeader::from_ptr`]
-    // #[cfg(no)]
     #[test]
     #[cfg_attr(kani, kani::proof)]
     fn exec_from_ptr() {
