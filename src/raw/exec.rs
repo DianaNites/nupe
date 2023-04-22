@@ -539,7 +539,7 @@ impl RawExec32 {
 
     /// Get a [`RawExec32`] from `bytes`. Checks for the magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        unsafe { RawExec32::from_ptr(bytes.as_ptr(), bytes.len()) }
+        unsafe { Self::from_ptr(bytes.as_ptr(), bytes.len()) }
     }
 }
 
@@ -731,7 +731,7 @@ impl RawExec64 {
 
     /// Get a [`RawExec64`] from `bytes`. Checks for the magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
-        unsafe { RawExec64::from_ptr(bytes.as_ptr(), bytes.len()) }
+        unsafe { Self::from_ptr(bytes.as_ptr(), bytes.len()) }
     }
 }
 
