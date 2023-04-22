@@ -759,6 +759,32 @@ impl RawExec64 {
 }
 
 #[cfg(test)]
+mod r_tests {
+    use core::mem::{align_of, size_of};
+
+    use super::*;
+
+    /// Ensure expected ABI
+    #[test]
+    fn abi() {
+        assert!(size_of::<RawExec>() == 24);
+        assert!(align_of::<RawExec>() == 1);
+
+        assert!(size_of::<RawExec32>() == 96);
+        assert!(align_of::<RawExec32>() == 1);
+
+        assert!(size_of::<RawExec64>() == 112);
+        assert!(align_of::<RawExec64>() == 1);
+
+        assert!(size_of::<Subsystem>() == size_of::<u16>());
+        assert!(align_of::<Subsystem>() == align_of::<u16>());
+
+        assert!(size_of::<ExecFlags>() == size_of::<u16>());
+        assert!(align_of::<ExecFlags>() == align_of::<u16>());
+    }
+}
+
+#[cfg(test)]
 mod fuzz {
     use super::*;
     use crate::internal::test_util::kani;
