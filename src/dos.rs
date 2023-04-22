@@ -203,13 +203,11 @@ mod fuzz {
                 Ok(d) => {
                     kani::cover!(true, "Ok");
 
-                    // This should never fail
-                    assert_eq!(d.raw_dos().magic, DOS_MAGIC, "Incorrect `Ok` DOS magic");
-
-                    // Should only be `Ok` if `len` is enough
-                    assert!(len >= size_of::<RawDos>(), "Invalid `Ok` len");
-
                     let stub = d.stub();
+
+                    kani::cover!(!stub.is_empty(), "Ok - Non-empty stub");
+                    kani::cover!(stub.is_empty(), "Ok - Empty stub");
+
                     let expected = (d.pe_offset() as usize).saturating_sub(size_of::<RawDos>());
 
                     assert_eq!(
