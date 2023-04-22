@@ -363,6 +363,7 @@ impl RawRichArray {
     ///
     /// - [`Error::NotEnoughData`] If `size` is not enough to fit a
     ///   [`RawRichArray`]
+    /// - [`Error::InvalidData`] If the initial padding isn't all zero
     ///
     /// # Safety
     ///
@@ -477,6 +478,7 @@ impl RawRichArray {
         match Self::from_ptr_internal(ptr, size - offset, Some(key)) {
             Ok(p) => Ok(Some((p, offset))),
             Err(e @ Error::NotEnoughData) => Err(e),
+            Err(e @ Error::InvalidData) => Err(e),
 
             // `rfind` guarantees the magic, at least, is valid
             Err(Error::InvalidRichArrayMagic) => unreachable!(),
