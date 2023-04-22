@@ -3,6 +3,7 @@ use core::{fmt, mem::size_of};
 
 use crate::{
     error::{Error, Result},
+    internal::miri_helper,
     raw::coff::RawCoff,
 };
 
@@ -70,6 +71,8 @@ impl RawPe {
     /// See [`RawPE::from_ptr`]
     pub unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
         debug_assert!(!data.is_null(), "`data` was null in RawPe::from_ptr");
+
+        miri_helper!(data, size);
 
         // Ensure that size is enough
         size.checked_sub(size_of::<RawPe>())
