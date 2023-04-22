@@ -101,9 +101,11 @@ impl<'data> Rich<'data> {
         let entry_offset = array_header_offset + size_of::<RawRichArray>();
         let array_size = rich_offset.saturating_sub(entry_offset);
 
+        // TODO: Error if array_size not % 8?
+
         // Safety:
         // - `entry_offset` is guaranteed to be valid via `find_array`
-        // - If `array_size` is not a multiple of 8, it gets rounded down.
+        // - If `array_size` is not a multiple of `RawRichEntry`, it gets rounded down.
         let entries = from_raw_parts(
             stub_ptr.add(entry_offset) as *const RawRichEntry,
             array_size / size_of::<RawRichEntry>(),
