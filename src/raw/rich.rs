@@ -315,6 +315,7 @@ impl RawRichArray {
     /// - [`Error::NotEnoughData`] If `size` is not enough to fit a
     ///   [`RawRichArray`]
     /// - [`Error::InvalidRichArrayMagic`] If the rich magic is incorrect
+    /// - [`Error::InvalidData`] If the initial padding isn't all zero
     ///
     /// # Safety
     ///
