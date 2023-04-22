@@ -114,3 +114,55 @@ impl fmt::Debug for RawPe {
         s.field("coff", &self.coff).finish()
     }
 }
+
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+    use crate::internal::test_util::kani;
+
+    /// Test, fuzz, and model [`RawPe::from_ptr`]
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn raw_pe_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+
+            let d = unsafe { RawPe::from_ptr(ptr, len) };
+
+            match d {
+                // Ensure the `Ok` branch is hit
+                Ok(d) => {
+                    kani::cover!(true, "Ok");
+
+                    assert_eq!(d.sig, PE_MAGIC, "Incorrect `Ok` PE magic");
+
+                    // Should only be `Ok` if `len` is this
+                    assert!(len >= size_of::<RawPe>(), "Invalid `Ok` len");
+                }
+
+                // Ensure `InvalidPeMagic` error happens
+                Err(Error::InvalidPeMagic) => {
+                    kani::cover!(true, "InvalidPeMagic");
+
+                    // Should have gotten NotEnoughData if there wasn't enough
+                    assert!(len >= size_of::<RawPe>(), "Invalid InvalidPeMagic len");
+                }
+
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
+
+                    // Should only get this when `len` is too small
+                    assert!(len < size_of::<RawPe>());
+                }
+
+                // Ensure no other errors happen
+                Err(e) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!("{e:#?}");
+                }
+            };
+        });
+    }
+}
