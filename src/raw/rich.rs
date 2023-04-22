@@ -451,6 +451,7 @@ impl RawRichArray {
         key: Option<u32>,
     ) -> Result<Option<(*const Self, usize)>> {
         let key = key.unwrap_or(0);
+
         // Ensure that size is enough
         size.checked_sub(size_of::<RawRichArray>())
             .ok_or(Error::NotEnoughData)?;
@@ -461,7 +462,7 @@ impl RawRichArray {
         let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
         let magic_xor = magic_xor.to_ne_bytes();
 
-        let offset = b.rfind(magic_xor);
+        let offset = find_rich_helper(from_raw_parts(data, size), magic_xor);
         let offset = match offset {
             Some(o) => o,
             None => return Ok(None),
