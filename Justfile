@@ -42,7 +42,7 @@ RUSTC_WRAPPER= cargo kani --tests --enable-unstable \
 # Visualize failing Kani model tests
 @kani_v *args='':
     # {{kani_flags}} {{args}} --concrete-playback=print
-    {{kani_flags}} {{args}} --visualize
+    {{kani_flags}} --visualize --harness={{args}}
 
 # Run bolero fuzz tests
 @fuzz *args='':
