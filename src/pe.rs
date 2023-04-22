@@ -152,124 +152,6 @@ pub struct Pe<'data> {
     _phantom: PhantomData<&'data u8>,
 }
 
-/// Internal base API
-impl<'data> Pe<'data> {
-    /// See [`Pe::from_ptr`] for safety and error details
-    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> {
-        // Safety: Caller
-        let dos = Dos::from_ptr(data, input_size).map_err(|e| match e {
-            Error::NotEnoughData => Error::MissingDOS,
-            _ => e,
-        })?;
-        let stub = dos.stub();
-
-        // Safety: slice is trivially valid
-        let rich = match Rich::from_ptr(stub.as_ptr(), stub.len()) {
-            Ok(it) => Some(it),
-            Err(_) => None,
-        };
-
-        // Pointer to the PE signature, and the size of the remainder of the input after
-        // the DOS stub.
-        let (pe_ptr, pe_size) = read_sig(dos.raw_dos(), data, input_size).map_err(|e| match e {
-            Error::NotEnoughData => Error::MissingPE,
-            _ => e,
-        })?;
-
-        // PE signature and COFF header
-        let pe = RawPe::from_ptr(pe_ptr, pe_size).map_err(|e| match e {
-            Error::NotEnoughData => Error::MissingPE,
-            _ => e,
-        })?;
-
-        // Pointer to the exec header, and its size.
-        let (exec_ptr, exec_size) = read_exec(&pe.coff, pe_ptr, pe_size)?;
-
-        // Pointer to section table, and its size in elements.
-        let (section_ptr, section_size) = {
-            // Size of the section table in bytes
-            let section_size = size_of::<RawSectionHeader>()
-                .checked_mul(pe.coff.sections.into())
-                .ok_or(Error::TooMuchData)?;
-
-            let off = size_of::<RawPe>()
-                .checked_add(section_size)
-                .ok_or(Error::NotEnoughData)?;
-
-            // Ensure `section_size` is within `pe_size`
-            pe_size.checked_sub(off).ok_or(Error::MissingSectionTable)?;
-
-            // Section table appears directly after the exec header
-            //
-            // Safety:
-            // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
-            let section_ptr = exec_ptr.add(exec_size) as *const RawSectionHeader;
-
-            (section_ptr, pe.coff.sections.into())
-        };
-
-        let exec = ExecHeader::from_ptr(exec_ptr, exec_size).map_err(|e| match e {
-            Error::NotEnoughData => Error::MissingExecHeader,
-            _ => e,
-        })?;
-
-        // Pointer to data directory, and its size in elements.
-        let (data_ptr, data_size) = {
-            let elems = exec
-                .data_dirs()
-                .try_into()
-                .map_err(|_| Error::TooMuchData)?;
-
-            // Size in bytes of the data directories
-            let data_size = size_of::<RawDataDirectory>()
-                .checked_mul(elems)
-                .ok_or(Error::NotEnoughData)?;
-
-            // Ensure the data directories all fit within `exec_size`
-            exec_size
-                .checked_sub(
-                    exec.size_of()
-                        .checked_add(data_size)
-                        .ok_or(Error::NotEnoughData)?,
-                )
-                .ok_or(Error::NotEnoughData)?;
-
-            // Data dirs appear directly after the exec header
-            //
-            // Safety:
-            // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
-            let data_ptr = exec_ptr.add(exec.size_of()) as *const RawDataDirectory;
-
-            (data_ptr, elems)
-        };
-
-        let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
-        let sections = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
-
-        Ok(Self {
-            dos,
-            rich,
-            coff: OwnedOrRef::Ref(&pe.coff),
-            exec,
-            data_dirs: VecOrSlice::Slice(data_dirs),
-            sections: VecOrSlice::Slice(sections),
-            _phantom: PhantomData,
-        })
-    }
-
-    /// Create a [`Pe`] with a mutable pointer
-    ///
-    /// See [`Pe::from_ptr_internal`] for additional safety and error details.
-    ///
-    /// # Safety
-    ///
-    /// - See [`Pe::from_ptr_internal`]
-    /// - `data` MUST be a legitimate mutable pointer
-    unsafe fn from_ptr_internal_mut(data: *mut u8, size: usize) -> Result<Self> {
-        Self::from_ptr_internal(data.cast_const(), size)
-    }
-}
-
 /// Public deserialization API
 impl<'data> Pe<'data> {
     /// Get a [`Pe`] from a pointer to a PE, while ensuring its validity.
@@ -513,6 +395,127 @@ impl<'data> Pe<'data> {
     /// If `index` is out of bounds
     pub fn remove_section_index(&mut self, index: usize) {
         self.sections[index] = RawSectionHeader::zeroed();
+    }
+}
+
+/// Internal base API
+impl<'data> Pe<'data> {
+    /// See [`Pe::from_ptr`] for safety and error details
+    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> {
+        // Safety: Caller
+        let dos = Dos::from_ptr(data, input_size).map_err(|e| match e {
+            Error::NotEnoughData => Error::MissingDOS,
+            _ => e,
+        })?;
+        let stub = dos.stub();
+
+        // dbg!(&dos);
+        // panic!();
+
+        // Safety: slice is trivially valid
+        let rich = match Rich::from_ptr(stub.as_ptr(), stub.len()) {
+            Ok(it) => Some(it),
+            Err(_) => None,
+        };
+
+        // Pointer to the PE signature, and the size of the remainder of the input after
+        // the DOS stub.
+        let (pe_ptr, pe_size) = read_sig(dos.raw_dos(), data, input_size).map_err(|e| match e {
+            Error::NotEnoughData => Error::MissingPE,
+            _ => e,
+        })?;
+
+        // PE signature and COFF header
+        let pe = RawPe::from_ptr(pe_ptr, pe_size).map_err(|e| match e {
+            Error::NotEnoughData => Error::MissingPE,
+            _ => e,
+        })?;
+
+        // Pointer to the exec header, and its size.
+        let (exec_ptr, exec_size) = read_exec(&pe.coff, pe_ptr, pe_size)?;
+
+        // Pointer to section table, and its size in elements.
+        let (section_ptr, section_size) = {
+            // Size of the section table in bytes
+            let section_size = size_of::<RawSectionHeader>()
+                .checked_mul(pe.coff.sections.into())
+                .ok_or(Error::TooMuchData)?;
+
+            let off = size_of::<RawPe>()
+                .checked_add(section_size)
+                .ok_or(Error::NotEnoughData)?;
+
+            // Ensure `section_size` is within `pe_size`
+            pe_size.checked_sub(off).ok_or(Error::MissingSectionTable)?;
+
+            // Section table appears directly after the exec header
+            //
+            // Safety:
+            // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
+            let section_ptr = exec_ptr.add(exec_size) as *const RawSectionHeader;
+
+            (section_ptr, pe.coff.sections.into())
+        };
+
+        let exec = ExecHeader::from_ptr(exec_ptr, exec_size).map_err(|e| match e {
+            Error::NotEnoughData => Error::MissingExecHeader,
+            _ => e,
+        })?;
+
+        // Pointer to data directory, and its size in elements.
+        let (data_ptr, data_size) = {
+            let elems = exec
+                .data_dirs()
+                .try_into()
+                .map_err(|_| Error::TooMuchData)?;
+
+            // Size in bytes of the data directories
+            let data_size = size_of::<RawDataDirectory>()
+                .checked_mul(elems)
+                .ok_or(Error::NotEnoughData)?;
+
+            // Ensure the data directories all fit within `exec_size`
+            exec_size
+                .checked_sub(
+                    exec.size_of()
+                        .checked_add(data_size)
+                        .ok_or(Error::NotEnoughData)?,
+                )
+                .ok_or(Error::NotEnoughData)?;
+
+            // Data dirs appear directly after the exec header
+            //
+            // Safety:
+            // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
+            let data_ptr = exec_ptr.add(exec.size_of()) as *const RawDataDirectory;
+
+            (data_ptr, elems)
+        };
+
+        let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
+        let sections = unsafe { core::slice::from_raw_parts(section_ptr, section_size) };
+
+        Ok(Self {
+            dos,
+            rich,
+            coff: OwnedOrRef::Ref(&pe.coff),
+            exec,
+            data_dirs: VecOrSlice::Slice(data_dirs),
+            sections: VecOrSlice::Slice(sections),
+            _phantom: PhantomData,
+        })
+    }
+
+    /// Create a [`Pe`] with a mutable pointer
+    ///
+    /// See [`Pe::from_ptr_internal`] for additional safety and error details.
+    ///
+    /// # Safety
+    ///
+    /// - See [`Pe::from_ptr_internal`]
+    /// - `data` MUST be a legitimate mutable pointer
+    unsafe fn from_ptr_internal_mut(data: *mut u8, size: usize) -> Result<Self> {
+        Self::from_ptr_internal(data.cast_const(), size)
     }
 }
 
