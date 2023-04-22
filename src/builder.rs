@@ -59,10 +59,10 @@ pub struct PeBuilder<'data, State> {
     image_base: u64,
 
     /// Defaults to 4096
-    section_align: u64,
+    section_align: u32,
 
     /// Defaults to 512
-    disk_align: u64,
+    disk_align: u32,
 
     /// Defaults to 0
     entry: u32,
@@ -245,12 +245,12 @@ impl<'data> PeBuilder<'data, states::Machine> {
         let header = section.to_raw_section(
             self.next_mem_ptr(),
             self.next_disk_offset(),
-            self.disk_align as u32,
+            self.disk_align,
         );
 
         match &mut self.sections {
             VecOrSlice::Vec(v) => v.push((
-                Section::new(OwnedOrRef::Owned(header), self.disk_align as u32, None),
+                Section::new(OwnedOrRef::Owned(header), self.disk_align, None),
                 // FIXME: to_vec
                 VecOrSlice::Vec(section.data.to_vec()),
                 // VecOrSlice::Slice(&section.data),
@@ -390,8 +390,9 @@ impl<'data> PeBuilder<'data, states::Machine> {
             + size_of::<RawPe>()
             + ((img_hdr_size + data_size) as usize)
             + sections_size) as u64;
+        let da: u64 = self.disk_align.into();
         // FIXME: Check alignment first?
-        let headers_size: u64 = headers_size + (self.disk_align - (headers_size % self.disk_align));
+        let headers_size: u64 = headers_size + (da - (headers_size % da));
         let headers_size: u32 = headers_size.try_into().map_err(|_| Error::TooMuchData)?;
 
         let exec = RawExec::new(
@@ -406,13 +407,11 @@ impl<'data> PeBuilder<'data, states::Machine> {
             self.entry,
             code_ptr,
         );
-        let exec = ExecHeader::new(
-            true,
+        let exec = ExecHeader::Raw64(OwnedOrRef::Owned(RawExec64::new(
             exec,
-            data_ptr,
             self.image_base,
-            self.section_align as u32,
-            self.disk_align as u32,
+            self.section_align,
+            self.disk_align,
             self.os_ver.0,
             self.os_ver.1,
             self.image_ver.0,
@@ -431,7 +430,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
                 .len()
                 .try_into()
                 .map_err(|_| Error::InvalidData)?,
-        )?;
+        )));
 
         // FIXME: Account for padding and alignment between areas
         let min_size: usize = size_of::<RawDos>()
@@ -528,15 +527,15 @@ impl<'data> PeBuilder<'data, states::Machine> {
     /// as a default.
     fn next_mem_ptr(&self) -> u32 {
         // Highest VA seen, and its size
-        let mut max_va = (self.section_align as u32, 0);
+        let mut max_va = (self.section_align, 0);
         for (section, _) in self.sections.iter() {
             let va = max_va.0.max(section.mem_ptr());
             let size = section.mem_size();
             max_va = (va, size);
         }
         let ret = max_va.0 + max_va.1;
-        if ret % self.section_align as u32 != 0 {
-            ret + (self.section_align as u32 - (ret % self.section_align as u32))
+        if ret % self.section_align != 0 {
+            ret + (self.section_align - (ret % self.section_align))
         } else {
             ret
         }
@@ -547,7 +546,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     fn next_disk_offset(&self) -> u32 {
         // FIXME: Account for header size, don't collide with headers.
         // Highest offset seen, and its size
-        let mut max_off = (self.disk_align as u32, 0);
+        let mut max_off = (self.disk_align, 0);
         for (section, _) in self.sections.iter() {
             // FIXME: Am I just high or is this wrong
             // size will be wrong????
@@ -557,8 +556,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
         }
 
         let ret = max_off.0 + max_off.1;
-        if ret % self.disk_align as u32 != 0 {
-            ret + (self.disk_align as u32 - (ret % self.disk_align as u32))
+        if ret % self.disk_align != 0 {
+            ret + (self.disk_align - (ret % self.disk_align))
         } else {
             ret
         }
@@ -592,8 +591,8 @@ impl<'data> PeBuilder<'data, states::Machine> {
             machine: pe.machine_type(),
             timestamp: pe.timestamp(),
             image_base: pe.image_base(),
-            section_align: pe.section_align().into(),
-            disk_align: pe.file_align().into(),
+            section_align: pe.section_align(),
+            disk_align: pe.file_align(),
             entry: pe.entry(),
             dos: Some((*pe.dos(), VecOrSlice::Vec(pe.dos_stub().into()))),
             attributes: pe.attributes(),
