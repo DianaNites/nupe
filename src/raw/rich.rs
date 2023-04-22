@@ -479,7 +479,7 @@ impl RawRichArray {
             Err(e @ Error::NotEnoughData) => Err(e),
 
             // `rfind` guarantees the magic, at least, is valid
-            Err(Error::InvalidRichMagic) => unreachable!(),
+            Err(Error::InvalidRichArrayMagic) => unreachable!(),
 
             // No other errors are ever returned
             Err(_) => unreachable!(),
