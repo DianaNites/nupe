@@ -170,7 +170,6 @@ mod r_tests {
 
     /// Test, fuzz, and model [`Rich::from_ptr`]
     #[test]
-    // #[ignore]
     #[cfg_attr(kani, kani::proof)]
     fn rich_from_ptr() {
         bolero::check!().for_each(|bytes: &[u8]| {
