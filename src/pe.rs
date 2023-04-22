@@ -535,7 +535,6 @@ impl<'data> fmt::Debug for Pe<'data> {
 
 #[cfg(test)]
 mod tests {
-
     use core::slice::from_raw_parts;
 
     use super::*;
