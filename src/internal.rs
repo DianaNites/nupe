@@ -631,7 +631,8 @@ pub mod test_util {
 macro_rules! miri_helper {
     ($data:expr, $size:expr) => {
         #[cfg(any(miri, test))]
-        let _ = ::core::slice::from_raw_parts($data, $size);
+        // Safety: miri
+        let _ = unsafe { ::core::slice::from_raw_parts($data, $size) };
     };
 }
 pub(crate) use miri_helper;
