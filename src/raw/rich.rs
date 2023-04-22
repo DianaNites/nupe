@@ -41,7 +41,7 @@ pub const ARRAY_MAGIC: [u8; 4] = *b"DanS";
 ///
 /// Should be [`RICH_MAGIC`] or [`ARRAY_MAGIC`]
 ///
-/// Returns the index of the magic, or [`None`].
+/// Returns the index of `search`, or [`None`].
 fn find_rich_helper(bytes: &[u8], search: [u8; 4]) -> Option<usize> {
     #[cfg(test)]
     use crate::internal::test_util::kani;
