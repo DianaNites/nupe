@@ -166,7 +166,42 @@ mod debug {
 #[cfg(test)]
 mod r_tests {
     use super::*;
-    use crate::{dos::Dos, internal::test_util::*, raw::rich::RICH_MAGIC};
+    use crate::{dos::Dos, internal::test_util::RUSTUP_IMAGE};
+
+    #[test]
+    fn rich() -> Result<()> {
+        let data = RUSTUP_IMAGE.as_ptr();
+        let size = RUSTUP_IMAGE.len();
+
+        // Safety: slice is trivially valid
+        let dos = unsafe { Dos::from_ptr(data, size)? };
+        let stub = dos.stub();
+
+        // Safety: slice is trivially valid
+        let rich = unsafe { Rich::from_ptr(stub.as_ptr(), stub.len())? };
+        dbg!(&rich);
+
+        let key = rich.key();
+        let entry = rich.entries()[0];
+        let (product_id, build_id) = entry.id_with_key(key);
+
+        assert_eq!(build_id, 30795, "");
+        assert_eq!(product_id, 259, "");
+        assert_eq!(entry.count ^ key, 9, "");
+
+        assert!(
+            rich.validate_checksum(&dos, stub),
+            "Rich header checksum mismatch"
+        );
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+    use crate::{internal::test_util::*, raw::rich::RICH_MAGIC};
 
     /// Test, fuzz, and model [`Rich::from_ptr`]
     #[test]
@@ -213,35 +248,5 @@ mod r_tests {
                 }
             };
         });
-    }
-
-    #[test]
-    fn rich() -> Result<()> {
-        let data = RUSTUP_IMAGE.as_ptr();
-        let size = RUSTUP_IMAGE.len();
-
-        // Safety: slice is trivially valid
-        let dos = unsafe { Dos::from_ptr(data, size)? };
-        let stub = dos.stub();
-
-        // Safety: slice is trivially valid
-        let rich = unsafe { Rich::from_ptr(stub.as_ptr(), stub.len())? };
-        dbg!(&rich);
-
-        let key = rich.key();
-        let entry = rich.entries()[0];
-        let (product_id, build_id) = entry.id_with_key(key);
-
-        assert_eq!(build_id, 30795, "");
-        assert_eq!(product_id, 259, "");
-        assert_eq!(entry.count ^ key, 9, "");
-
-        assert!(
-            rich.validate_checksum(&dos, stub),
-            "Rich header checksum mismatch"
-        );
-
-        // panic!();
-        Ok(())
     }
 }
