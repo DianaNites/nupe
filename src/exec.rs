@@ -19,83 +19,6 @@ pub enum ExecHeader<'data> {
 }
 
 impl<'data> ExecHeader<'data> {
-    /// Wrapper around [`RawExec32::new`] and [`RawExec64::new`]
-    ///
-    /// Always takes arguments in 64-bit, errors if out of bounds
-    ///
-    /// if `plus` is true then the PE32+ / 64-bit header is used
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
-        plus: bool,
-        standard: RawExec,
-        data_ptr: u32,
-        image_ptr: u64,
-        mem_align: u32,
-        disk_align: u32,
-        os_major: u16,
-        os_minor: u16,
-        image_major: u16,
-        image_minor: u16,
-        subsystem_major: u16,
-        subsystem_minor: u16,
-        image_size: u32,
-        headers_size: u32,
-        subsystem: Subsystem,
-        dll_attributes: ExecFlags,
-        stack_reserve: u64,
-        stack_commit: u64,
-        heap_reserve: u64,
-        heap_commit: u64,
-        data_dirs: u32,
-    ) -> Result<Self> {
-        if plus {
-            Ok(ExecHeader::Raw64(OwnedOrRef::Owned(RawExec64::new(
-                standard,
-                image_ptr,
-                mem_align,
-                disk_align,
-                os_major,
-                os_minor,
-                image_major,
-                image_minor,
-                subsystem_major,
-                subsystem_minor,
-                image_size,
-                headers_size,
-                subsystem,
-                dll_attributes,
-                stack_reserve,
-                stack_commit,
-                heap_reserve,
-                heap_commit,
-                data_dirs,
-            ))))
-        } else {
-            Ok(ExecHeader::Raw32(OwnedOrRef::Owned(RawExec32::new(
-                standard,
-                data_ptr,
-                image_ptr.try_into().map_err(|_| Error::TooMuchData)?,
-                mem_align,
-                disk_align,
-                os_major,
-                os_minor,
-                image_major,
-                image_minor,
-                subsystem_major,
-                subsystem_minor,
-                image_size,
-                headers_size,
-                subsystem,
-                dll_attributes,
-                stack_reserve.try_into().map_err(|_| Error::TooMuchData)?,
-                stack_commit.try_into().map_err(|_| Error::TooMuchData)?,
-                heap_reserve.try_into().map_err(|_| Error::TooMuchData)?,
-                heap_commit.try_into().map_err(|_| Error::TooMuchData)?,
-                data_dirs,
-            ))))
-        }
-    }
-
     /// Get header as a byte slice
     pub(crate) const fn as_slice(&self) -> &[u8] {
         match self {
@@ -148,7 +71,7 @@ impl<'data> ExecHeader<'data> {
     }
 }
 
-#[doc(hidden)]
+/// Public Data API
 impl<'data> ExecHeader<'data> {
     /// How many data directories
     pub(crate) const fn data_dirs(&self) -> u32 {
@@ -279,28 +202,110 @@ impl<'data> ExecHeader<'data> {
     }
 }
 
-#[doc(hidden)]
+/// Public Serialization API
+impl<'data> ExecHeader<'data> {
+    /// Wrapper around [`RawExec32::new`] and [`RawExec64::new`]
+    ///
+    /// Always takes arguments in 64-bit, errors if out of bounds
+    ///
+    /// if `plus` is true then the PE32+ / 64-bit header is used
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new(
+        plus: bool,
+        standard: RawExec,
+        data_ptr: u32,
+        image_ptr: u64,
+        mem_align: u32,
+        disk_align: u32,
+        os_major: u16,
+        os_minor: u16,
+        image_major: u16,
+        image_minor: u16,
+        subsystem_major: u16,
+        subsystem_minor: u16,
+        image_size: u32,
+        headers_size: u32,
+        subsystem: Subsystem,
+        dll_attributes: ExecFlags,
+        stack_reserve: u64,
+        stack_commit: u64,
+        heap_reserve: u64,
+        heap_commit: u64,
+        data_dirs: u32,
+    ) -> Result<Self> {
+        if plus {
+            Ok(ExecHeader::Raw64(OwnedOrRef::Owned(RawExec64::new(
+                standard,
+                image_ptr,
+                mem_align,
+                disk_align,
+                os_major,
+                os_minor,
+                image_major,
+                image_minor,
+                subsystem_major,
+                subsystem_minor,
+                image_size,
+                headers_size,
+                subsystem,
+                dll_attributes,
+                stack_reserve,
+                stack_commit,
+                heap_reserve,
+                heap_commit,
+                data_dirs,
+            ))))
+        } else {
+            Ok(ExecHeader::Raw32(OwnedOrRef::Owned(RawExec32::new(
+                standard,
+                data_ptr,
+                image_ptr.try_into().map_err(|_| Error::TooMuchData)?,
+                mem_align,
+                disk_align,
+                os_major,
+                os_minor,
+                image_major,
+                image_minor,
+                subsystem_major,
+                subsystem_minor,
+                image_size,
+                headers_size,
+                subsystem,
+                dll_attributes,
+                stack_reserve.try_into().map_err(|_| Error::TooMuchData)?,
+                stack_commit.try_into().map_err(|_| Error::TooMuchData)?,
+                heap_reserve.try_into().map_err(|_| Error::TooMuchData)?,
+                heap_commit.try_into().map_err(|_| Error::TooMuchData)?,
+                data_dirs,
+            ))))
+        }
+    }
+}
+
+/// Public Deserialization API
 impl<'data> ExecHeader<'data> {
     /// Get a [`ExecHeader`] from a pointer to an exec header.
     ///
-    /// This function validates that `size` is enough to contain this header,
-    /// and that the magic is correct.
+    /// # Errors
+    ///
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a
+    ///   [`RawExec64`] or [`RawExec64`]
+    /// - [`Error::MissingDOS`] If the DOS header or its stub code is missing
     ///
     /// # Safety
     ///
-    /// - `data` MUST be valid for `size` bytes.
-    /// - You must ensure the returned reference does not outlive `data`, and is
-    ///   not mutated for the duration of lifetime `'data`.
-    pub(crate) unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
-        if data.is_null() {
-            return Err(Error::InvalidData);
-        }
-        // Ensure that `size` is enough for the common header
-        size.checked_sub(size_of::<RawExec>())
-            .ok_or(Error::NotEnoughData)?;
+    /// ## Pre-conditions
+    ///
+    /// - `data` MUST be valid for reads of `size` bytes.
+    ///
+    /// ## Post-conditions
+    ///
+    /// - Only the documented errors will ever be returned.
+    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
+        debug_assert!(!data.is_null(), "`data` was null in RawPe::from_ptr");
 
-        // Safety: Have just verified theres enough `size`, so read the magic.
-        let magic = addr_of!((*(data as *const RawExec)).magic).read_unaligned();
+        // Safety: Caller
+        let magic = RawExec::from_ptr(data, size)?.magic;
 
         if magic == PE32_64_MAGIC {
             let opt = RawExec64::from_ptr(data, size)?;
@@ -313,5 +318,48 @@ impl<'data> ExecHeader<'data> {
         } else {
             Err(Error::InvalidPeMagic)
         }
+    }
+}
+
+#[cfg(test)]
+mod fuzz {
+    use super::*;
+    use crate::internal::test_util::kani;
+
+    /// Test, fuzz, and model [`ExecHeader::from_ptr`]
+    // #[cfg(no)]
+    #[test]
+    #[cfg_attr(kani, kani::proof)]
+    fn exec_from_ptr() {
+        bolero::check!().for_each(|bytes: &[u8]| {
+            let len = bytes.len();
+            let ptr = bytes.as_ptr();
+
+            let d = unsafe { RawExec::from_ptr(ptr, len) };
+
+            match d {
+                // Ensure the `Ok` branch is hit
+                Ok(d) => {
+                    kani::cover!(true, "Ok");
+
+                    // Should only be `Ok` if `len` is this
+                    assert!(len >= size_of::<RawExec>(), "Invalid `Ok` len");
+                }
+
+                // Ensure `NotEnoughData` error happens
+                Err(Error::NotEnoughData) => {
+                    kani::cover!(true, "NotEnoughData");
+
+                    // Should only get this when `len` is too small
+                    assert!(len < size_of::<RawExec>());
+                }
+
+                // Ensure no other errors happen
+                Err(e) => {
+                    kani::cover!(false, "Unexpected Error");
+                    unreachable!("{e:#?}");
+                }
+            };
+        });
     }
 }
