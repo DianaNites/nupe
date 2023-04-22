@@ -432,7 +432,11 @@ impl RawRichArray {
         if arr.magic != magic_xor {
             return Err(Error::InvalidRichArrayMagic);
         }
-        if (arr.padding1 ^ key) + (arr.padding2 ^ key) + (arr.padding3 ^ key) != 0 {
+        if (arr.padding1 ^ key)
+            .saturating_add(arr.padding2 ^ key)
+            .saturating_add(arr.padding3 ^ key)
+            != 0
+        {
             // TODO: More specific error?
             return Err(Error::InvalidData);
         }
