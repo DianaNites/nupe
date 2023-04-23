@@ -360,6 +360,37 @@ mod tests {
         let smallest_sections = Pe::from_bytes(SMALLEST_SECTIONS)?;
         let smallest_no_overlap = Pe::from_bytes(SMALLEST_NO_OVERLAP)?;
 
+        let mut pe_out: Vec<u8> = Vec::new();
+        let mut small_pe_out: Vec<u8> = Vec::new();
+        let mut nothing_out: Vec<u8> = Vec::new();
+        let mut smallest_sections_out: Vec<u8> = Vec::new();
+        let mut smallest_no_overlap_out: Vec<u8> = Vec::new();
+
+        let pe_build = PeBuilder::from_pe(&pe, RUSTUP_IMAGE);
+        let small_pe_build = PeBuilder::from_pe(&small_pe, SMALLEST_PE);
+        let nothing_build = PeBuilder::from_pe(&nothing, NOTHING);
+        let smallest_sections_build = PeBuilder::from_pe(&smallest_sections, SMALLEST_SECTIONS);
+        let smallest_no_overlap_build =
+            PeBuilder::from_pe(&smallest_no_overlap, SMALLEST_NO_OVERLAP);
+
+        pe_build.write(&mut pe_out)?;
+        // small_pe_build.write(&mut small_pe_out)?;
+        // nothing_build.write(&mut nothing_out)?;
+        // smallest_sections_build.write(&mut smallest_sections_out)?;
+        // smallest_no_overlap_build.write(&mut smallest_no_overlap_out)?;
+
+        let pe_ = Pe::from_bytes(&pe_out)?;
+        // let small_pe_ = Pe::from_bytes(&small_pe_out)?;
+        // let nothing_ = Pe::from_bytes(&nothing_out)?;
+        // let smallest_sections_ = Pe::from_bytes(&smallest_sections_out)?;
+        // let smallest_no_overlap_ = Pe::from_bytes(&smallest_no_overlap_out)?;
+
+        assert_eq!(pe, pe_);
+        // assert_eq!(small_pe, small_pe_);
+        // assert_eq!(nothing, nothing_);
+        // assert_eq!(smallest_sections, smallest_sections_);
+        // assert_eq!(smallest_no_overlap, smallest_no_overlap_);
+
         // Miri and insta don't work well together
         // But we only care about UB, which can only happen above.
         #[cfg(not(miri))]
