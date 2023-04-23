@@ -13,7 +13,7 @@ pub type DosArg<'data> = OwnedOrRef<'data, RawDos>;
 
 pub type DosStubArg<'data> = VecOrSlice<'data, u8>;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Dos<'data> {
     /// DOS header
     dos: DosArg<'data>,

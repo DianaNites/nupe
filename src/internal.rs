@@ -8,7 +8,7 @@ use core::{
 use bitflags::bitflags;
 
 /// Helper enum for a reference to a type, or owning it
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OwnedOrRef<'data, T> {
     Owned(T),
     Ref(&'data T),
@@ -76,7 +76,7 @@ impl<'data, T> AsMut<T> for OwnedOrRef<'data, T> {
 }
 
 /// Helper enum for a reference to a slice of type, or a vec of it
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VecOrSlice<'data, T> {
     Vec(Vec<T>),
     Slice(&'data [T]),
