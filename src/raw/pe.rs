@@ -75,7 +75,7 @@ impl RawPe {
 /// Internal base API
 impl RawPe {
     /// # Safety
-    /// See [`RawPE::from_ptr`]
+    /// See [`RawPe::from_ptr`]
     pub unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
         debug_assert!(!data.is_null(), "`data` was null in RawPe::from_ptr");
 

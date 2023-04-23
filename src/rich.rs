@@ -39,28 +39,31 @@ impl<'data> Rich<'data> {
 
 /// Public Deserialization API
 impl<'data> Rich<'data> {
-    /// Get a [`Rich`] from a pointer to the [DOS stub][Dos]
+    /// Get a [`Rich`] from a pointer to the [DOS stub][`Dos`]
     ///
-    /// `size` *should* be *at least* [`RawDos::pe_offset`][RawDos] to be able
+    /// `size` *should* be *at least* [`RawDos::pe_offset`][`RawDos`] to be able
     /// to fully parse the header.
     ///
     /// Higher values may lead to confusion with data in the stub.
     ///
     /// `count` must be the number of elements in the
-    /// [Rich Header Array][RawRichEntry]
+    /// [Rich Header Array][`RawRichEntry`]
     ///
     /// # Errors
     ///
     /// - [`Error::MissingRich`] If the rich header is missing
     /// - [`Error::MissingRichArray`] If the rich array is missing
-    /// - See [`RawRich::find_array`]
+    /// - See [`RawRichArray::find_array`]
+    /// - See [`RawRich::find_rich`]
     ///
     /// # Safety
     ///
     /// - `data` must be valid for `size` bytes
     ///
-    /// [RawDos]: crate::raw::dos::RawDos
-    /// [Dos]: crate::dos::Dos
+    /// [`RawDos`]: `crate::raw::dos::RawDos`
+    /// [`Dos`]: `crate::dos::Dos`
+    /// [`RawRich::find_rich`]: `crate::raw::rich::RawRich::find_rich`
+    /// [`RawRichArray::find_array`]: `crate::raw::rich::RawRichArray::find_array`
     pub unsafe fn from_ptr(stub_ptr: *const u8, stub_size: usize) -> Result<Self> {
         Self::from_ptr_internal(stub_ptr, stub_size)
     }
