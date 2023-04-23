@@ -330,33 +330,8 @@ impl<'data> Pe<'data> {
 
         let exec_ptr = pe_ptr.add(size_of::<RawPe>());
 
-        let exec = ExecHeader::from_ptr(exec_ptr, exec_size).map_err(|e| match e {
-            Error::NotEnoughData | Error::InvalidPeMagic => Error::MissingExecHeader,
-            _ => unreachable!(),
-        })?;
-
-        // Pointer to section table, and its size in elements.
-        let (section_ptr, section_size) = {
-            // Size of the section table in bytes
-            let section_size = size_of::<RawSectionHeader>()
-                .checked_mul(pe.coff.sections.into())
-                .ok_or(Error::TooMuchData)?;
-
-            let off = size_of::<RawPe>()
-                .checked_add(section_size)
-                .ok_or(Error::NotEnoughData)?;
-
-            // Ensure `section_size` is within `pe_size`
-            pe_size.checked_sub(off).ok_or(Error::MissingSectionTable)?;
-
-            // Section table appears directly after the exec header
-            //
-            // Safety:
-            // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
-            let section_ptr = exec_ptr.add(exec_size) as *const RawSectionHeader;
-
-            (section_ptr, pe.coff.sections.into())
-        };
+        let exec =
+            ExecHeader::from_ptr(exec_ptr, exec_size).map_err(|_| Error::MissingExecHeader)?;
 
         // Pointer to data directory, and its size in elements.
         let (data_ptr, data_size) = {
@@ -368,16 +343,14 @@ impl<'data> Pe<'data> {
             // Size in bytes of the data directories
             let data_size = size_of::<RawDataDirectory>()
                 .checked_mul(elems)
-                .ok_or(Error::NotEnoughData)?;
+                .ok_or(Error::TooMuchData)?;
 
             // Ensure the data directories all fit within `exec_size`
             exec_size
-                .checked_sub(
-                    exec.size_of()
-                        .checked_add(data_size)
-                        .ok_or(Error::NotEnoughData)?,
-                )
-                .ok_or(Error::NotEnoughData)?;
+                .checked_sub(exec.size_of())
+                .ok_or(Error::MissingExecHeader)?
+                .checked_sub(data_size)
+                .ok_or(Error::MissingExecHeader)?;
 
             // Data dirs appear directly after the exec header
             //
@@ -386,6 +359,30 @@ impl<'data> Pe<'data> {
             let data_ptr = exec_ptr.add(exec.size_of()) as *const RawDataDirectory;
 
             (data_ptr, elems)
+        };
+
+        let section_size = pe_size - exec_size;
+        let sections: usize = pe.coff.sections.into();
+
+        // Pointer to section table, and its size in elements.
+        let (section_ptr, section_size) = {
+            // Size of the section table in bytes
+            let section_size = size_of::<RawSectionHeader>() * sections;
+
+            // Ensure `section_size` is within `pe_size`
+            pe_size
+                .checked_sub(exec_size)
+                .ok_or(Error::MissingSectionTable)?
+                .checked_sub(section_size)
+                .ok_or(Error::MissingSectionTable)?;
+
+            // Section table appears directly after the exec header
+            //
+            // Safety:
+            // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
+            let section_ptr = exec_ptr.add(exec_size) as *const RawSectionHeader;
+
+            (section_ptr, sections)
         };
 
         let data_dirs = unsafe { core::slice::from_raw_parts(data_ptr, data_size) };
@@ -734,6 +731,7 @@ mod fuzz {
                 // Ensure `TooMuchData` error happens on 16-bit platforms
                 #[cfg(target_pointer_width = "4")]
                 Err(Error::TooMuchData) => {
+                    // TODO: Find 16-bit target to test on
                     kani::cover!(true, "TooMuchData (16bit)");
                 }
 
@@ -741,6 +739,7 @@ mod fuzz {
                 #[cfg(not(target_pointer_width = "4"))]
                 Err(Error::TooMuchData) => {
                     kani::cover!(false, "TooMuchData (not 16bit)");
+                    unreachable!();
                 }
 
                 // Ensure no other errors happen
