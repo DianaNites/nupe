@@ -13,7 +13,7 @@ use crate::{
 };
 
 /// Machine type, or target architecture, of the PE file.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct MachineType(u16);
 
@@ -137,7 +137,7 @@ bitflags! {
 /// Raw COFF header
 ///
 /// This is common to both executable PE images and object files.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C, packed)]
 pub struct RawCoff {
     /// Target machine type

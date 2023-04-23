@@ -28,7 +28,7 @@ pub const PE32_64_MAGIC: u16 = 0x20B;
 ///
 /// This determines a few things, such as the expected signature of the
 /// application entry point, expected existence and contents of sections, etc.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Subsystem(u16);
 
@@ -240,7 +240,7 @@ bitflags! {
 ///
 /// Parts of this structure differ depending on whether the input is
 /// 32 or 64 bit.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C, packed)]
 pub struct RawExec {
     /// Magic identifying PE32 vs PE32+
@@ -376,7 +376,7 @@ impl fmt::Debug for RawExec {
 }
 
 /// 32-bit Executable header
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C, packed)]
 pub struct RawExec32 {
     /// Standard/common subset
@@ -567,7 +567,7 @@ impl RawExec32 {
 }
 
 /// 64-bit Executable header
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C, packed)]
 pub struct RawExec64 {
     /// Standard/common subset

@@ -15,7 +15,7 @@ pub type RichHdrArg<'data> = OwnedOrRef<'data, RawRich>;
 
 pub type RichEntryArg<'data> = VecOrSlice<'data, RawRichEntry>;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Rich<'data> {
     /// Optional Rich Header
     ///

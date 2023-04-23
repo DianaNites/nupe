@@ -19,7 +19,7 @@ use crate::{
 };
 
 /// An executable PE file following Microsoft Windows conventions
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Pe<'data> {
     /// DOS header
     dos: Dos<'data>,
