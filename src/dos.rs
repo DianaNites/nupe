@@ -249,13 +249,13 @@ mod fuzz {
                 }
 
                 // Ensure `TooMuchData` error happens on 16-bit platforms
-                #[cfg(target_pointer_width = "2")]
+                #[cfg(target_pointer_width = "16")]
                 Err(Error::TooMuchData) => {
                     kani::cover!(true, "TooMuchData (16bit)");
                 }
 
                 // Ensure `TooMuchData` error doesn't happen on larger platforms
-                #[cfg(not(target_pointer_width = "2"))]
+                #[cfg(not(target_pointer_width = "16"))]
                 Err(Error::TooMuchData) => {
                     kani::cover!(false, "TooMuchData (not 16bit)");
                 }
