@@ -32,25 +32,25 @@ pub const DOS_PARAGRAPH: usize = 16;
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
 pub struct RawDos {
-    /// Constant of value [DOS_MAGIC] identifying the PE executable
+    /// Constant of value [`DOS_MAGIC`] identifying the PE executable
     pub magic: [u8; 2],
 
-    /// Number of bytes in the last [DOS_PAGE]
+    /// Number of bytes in the last [`DOS_PAGE`]
     pub last_bytes: u16,
 
-    /// Number of [DOS_PAGE]s
+    /// Number of [`DOS_PAGE`]s
     pub pages: u16,
 
     /// Number of entries in the relocations table
     pub relocations: u16,
 
-    /// Number of [DOS_PARAGRAPH] taken up by the header
+    /// Number of [`DOS_PARAGRAPH`] taken up by the header
     pub header_size: u16,
 
-    /// Min number of [DOS_PARAGRAPH]s required by the program
+    /// Min number of [`DOS_PARAGRAPH`]s required by the program
     pub min_alloc: u16,
 
-    /// Max number of [DOS_PARAGRAPH]s requested by the program
+    /// Max number of [`DOS_PARAGRAPH`]s requested by the program
     pub max_alloc: u16,
 
     /// Relocation segment
