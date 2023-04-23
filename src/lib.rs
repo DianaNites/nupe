@@ -2,6 +2,10 @@
 //!
 //! # Examples
 //!
+//! ```rust
+//! use nupe::Pe;
+//! ```
+//!
 //! // TODO: Examples
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![allow(
@@ -351,83 +355,333 @@ mod tests {
     #[test]
     fn read_rustup() -> Result<()> {
         let pe = Pe::from_bytes(RUSTUP_IMAGE)?;
-
-        assert_eq!(pe.machine_type(), MachineType::AMD64);
-        assert_eq!(pe.sections_len(), 6);
-        assert_eq!(pe.timestamp(), 1657657359);
-        assert_eq!(pe.subsystem(), Subsystem::WINDOWS_CLI);
-        assert_eq!(
-            pe.attributes(),
-            CoffFlags::IMAGE | CoffFlags::LARGE_ADDRESS_AWARE
-        );
-        assert_eq!(pe.image_base(), 5368709120);
-        assert_eq!(pe.section_align(), 4096);
-        assert_eq!(pe.file_align(), 512);
-        assert_eq!(pe.os_version(), (6, 0));
-        assert_eq!(pe.image_size(), 10096640);
-        assert_eq!(pe.headers_size(), 1024);
-        assert_eq!(
-            pe.dll_attributes(),
-            ExecFlags::HIGH_ENTROPY_VA
-                | ExecFlags::DYNAMIC_BASE
-                | ExecFlags::NX_COMPAT
-                | ExecFlags::TERMINAL_SERVER
-        );
-        assert_eq!(pe.stack(), (1048576, 4096));
-        assert_eq!(pe.heap(), (1048576, 4096));
-        assert_eq!(pe.data_dirs_len(), 16);
-
-        assert_eq!(pe.data_dirs().count(), 16);
-        assert_eq!(pe.sections().count(), 6);
-
-        assert_eq!({ pe.coff().machine }, MachineType::AMD64);
-        assert_eq!({ pe.coff().sections }, 6);
-        assert_eq!({ pe.coff().time }, 1657657359);
-        assert_eq!({ pe.coff().sym_offset }, 0);
-        assert_eq!({ pe.coff().sym_len }, 0);
-        assert_eq!({ pe.coff().exec_header_size }, 240);
-        assert_eq!(
-            { pe.coff().file_attributes },
-            CoffFlags::IMAGE | CoffFlags::LARGE_ADDRESS_AWARE
-        );
-        let opt = match pe.opt() {
-            ExecHeader::Raw64(o) => *o,
-            ExecHeader::Raw32(_) => panic!("Invalid PE Optional Header"),
-        };
-        assert_eq!({ opt.standard.linker_major }, 14);
-        assert_eq!({ opt.standard.linker_minor }, 32);
-        assert_eq!({ opt.standard.code_size }, 7170048);
-        assert_eq!({ opt.standard.init_size }, 2913792);
-        assert_eq!({ opt.standard.uninit_size }, 0);
-        assert_eq!({ opt.standard.entry_ptr }, 6895788);
-        assert_eq!({ opt.standard.code_ptr }, 4096);
-        assert_eq!({ opt.image_base }, 5368709120);
-        assert_eq!({ opt.mem_align }, 4096);
-        assert_eq!({ opt.disk_align }, 512);
-        assert_eq!({ opt.os_major }, 6);
-        assert_eq!({ opt.os_minor }, 0);
-        assert_eq!({ opt.image_major }, 0);
-        assert_eq!({ opt.image_minor }, 0);
-        assert_eq!({ opt.subsystem_major }, 6);
-        assert_eq!({ opt.subsystem_minor }, 0);
-        assert_eq!({ opt._reserved_win32 }, 0);
-        assert_eq!({ opt.image_size }, 10096640);
-        assert_eq!({ opt.headers_size }, 1024);
-        assert_eq!({ opt.checksum }, 0);
-        assert_eq!({ opt.subsystem }, Subsystem::WINDOWS_CLI);
-        assert_eq!(
-            { opt.dll_attributes },
-            ExecFlags::HIGH_ENTROPY_VA
-                | ExecFlags::DYNAMIC_BASE
-                | ExecFlags::NX_COMPAT
-                | ExecFlags::TERMINAL_SERVER
-        );
-        assert_eq!({ opt.stack_reserve }, 1048576);
-        assert_eq!({ opt.stack_commit }, 4096);
-        assert_eq!({ opt.stack_reserve }, 1048576);
-        assert_eq!({ opt.stack_commit }, 4096);
-        assert_eq!({ opt._reserved_loader_attributes }, 0);
-        assert_eq!({ opt.data_dirs }, 16);
+        insta::assert_debug_snapshot!(pe, @r###"
+        Pe {
+            dos: Dos {
+                dos: Ref(
+                    RawDos {
+                        magic: b"MZ",
+                        last_bytes: 144,
+                        pages: 3,
+                        relocations: 0,
+                        header_size: 4,
+                        min_alloc: 0,
+                        max_alloc: 65535,
+                        initial_ss: 0,
+                        initial_sp: 184,
+                        checksum: 0,
+                        initial_ip: 0,
+                        initial_cs: 0,
+                        relocation_offset: 64,
+                        overlay_num: 0,
+                        _reserved: [0u16; 4],
+                        oem_id: 0,
+                        oem_info: 0,
+                        _reserved2: [0u8; 20],
+                        pe_offset: 272,
+                    },
+                ),
+                stub: DOS code (len 208),
+            },
+            coff: Ref(
+                RawCoff {
+                    machine: MachineType::AMD64,
+                    sections: 6,
+                    time: 1657657359,
+                    sym_offset: 0,
+                    sym_len: 0,
+                    exec_header_size: 240,
+                    file_attributes: CoffFlags(
+                        IMAGE | LARGE_ADDRESS_AWARE,
+                    ),
+                },
+            ),
+            rich: Some(
+                Rich {
+                    header: Ref(
+                        RawRich {
+                            magic: b"Rich",
+                            key: 3516315803,
+                        },
+                    ),
+                    entries: [
+                        RawRichEntry {
+                            id: 17004619,
+                            - product_id: 259,
+                            - build_id: 30795,
+                            count: 9,
+                        },
+                        RawRichEntry {
+                            id: 17135691,
+                            - product_id: 261,
+                            - build_id: 30795,
+                            count: 188,
+                        },
+                        RawRichEntry {
+                            id: 17070155,
+                            - product_id: 260,
+                            - build_id: 30795,
+                            count: 12,
+                        },
+                        RawRichEntry {
+                            id: 16611936,
+                            - product_id: 253,
+                            - build_id: 31328,
+                            count: 5,
+                        },
+                        RawRichEntry {
+                            id: 17136224,
+                            - product_id: 261,
+                            - build_id: 31328,
+                            count: 41,
+                        },
+                        RawRichEntry {
+                            id: 17070688,
+                            - product_id: 260,
+                            - build_id: 31328,
+                            count: 18,
+                        },
+                        RawRichEntry {
+                            id: 17005152,
+                            - product_id: 259,
+                            - build_id: 31328,
+                            count: 10,
+                        },
+                        RawRichEntry {
+                            id: 16873857,
+                            - product_id: 257,
+                            - build_id: 31105,
+                            count: 22,
+                        },
+                        RawRichEntry {
+                            id: 16873547,
+                            - product_id: 257,
+                            - build_id: 30795,
+                            count: 5,
+                        },
+                        RawRichEntry {
+                            id: 65536,
+                            - product_id: 1,
+                            - build_id: 0,
+                            count: 283,
+                        },
+                        RawRichEntry {
+                            id: 17070692,
+                            - product_id: 260,
+                            - build_id: 31332,
+                            count: 148,
+                        },
+                        RawRichEntry {
+                            id: 0,
+                            - product_id: 0,
+                            - build_id: 0,
+                            count: 15,
+                        },
+                        RawRichEntry {
+                            id: 16939620,
+                            - product_id: 258,
+                            - build_id: 31332,
+                            count: 1,
+                        },
+                    ],
+                },
+            ),
+            exec: Raw64(
+                Ref(
+                    RawExec64 {
+                        standard: RawPeImageStandard {
+                            magic: PE32_64_MAGIC,
+                            linker_major: 14,
+                            linker_minor: 32,
+                            code_size: 7170048,
+                            init_size: 2913792,
+                            uninit_size: 0,
+                            entry_ptr: 6895788,
+                            code_ptr: 4096,
+                        },
+                        image_base: 5368709120,
+                        mem_align: 4096,
+                        disk_align: 512,
+                        os_major: 6,
+                        os_minor: 0,
+                        image_major: 0,
+                        image_minor: 0,
+                        subsystem_major: 6,
+                        subsystem_minor: 0,
+                        _reserved_win32: 0,
+                        image_size: 10096640,
+                        headers_size: 1024,
+                        checksum: 0,
+                        subsystem: Subsystem::WINDOWS_CLI,
+                        dll_attributes: ExecFlags(
+                            HIGH_ENTROPY_VA | DYNAMIC_BASE | NX_COMPAT | TERMINAL_SERVER,
+                        ),
+                        stack_reserve: 1048576,
+                        stack_commit: 4096,
+                        heap_reserve: 1048576,
+                        heap_commit: 4096,
+                        _reserved_loader_attributes: 0,
+                        data_dirs: 16,
+                    },
+                ),
+            ),
+            data_dirs: [
+                "Export Table" RawDataDirectory {
+                    address: 0,
+                    size: 0,
+                },
+                "Import Table" RawDataDirectory {
+                    address: 9719132,
+                    size: 260,
+                },
+                "Resource Table" RawDataDirectory {
+                    address: 0,
+                    size: 0,
+                },
+                "Exception Table" RawDataDirectory {
+                    address: 9752576,
+                    size: 276660,
+                },
+                "Certificate Table" RawDataDirectory {
+                    address: 0,
+                    size: 0,
+                },
+                "Base Relocations Table" RawDataDirectory {
+                    address: 10035200,
+                    size: 61240,
+                },
+                "Debug Data" RawDataDirectory {
+                    address: 8757424,
+                    size: 84,
+                },
+                "Architecture" RawDataDirectory {
+                    address: 0,
+                    size: 0,
+                },
+                "Global Ptr" RawDataDirectory {
+                    address: 0,
+                    size: 0,
+                },
+                "Thread Local Storage Table" RawDataDirectory {
+                    address: 8757632,
+                    size: 40,
+                },
+                "Load Config Table" RawDataDirectory {
+                    address: 8757104,
+                    size: 320,
+                },
+                "Bound Import Table" RawDataDirectory {
+                    address: 0,
+                    size: 0,
+                },
+                "IAT" RawDataDirectory {
+                    address: 7176192,
+                    size: 2248,
+                },
+                "Delay Import Descriptor" RawDataDirectory {
+                    address: 0,
+                    size: 0,
+                },
+                "CLR Runtime Header" RawDataDirectory {
+                    address: 0,
+                    size: 0,
+                },
+                "Reserved" RawDataDirectory {
+                    address: 0,
+                    size: 0,
+                },
+            ],
+            sections: Slice(
+                [
+                    RawSectionHeader {
+                        name(str): ".text",
+                        virtual_size: 7169808,
+                        virtual_address: 4096,
+                        raw_size: 7170048,
+                        raw_ptr: 1024,
+                        reloc_ptr: 0,
+                        line_ptr: 0,
+                        num_reloc: 0,
+                        num_lines: 0,
+                        characteristics: SectionFlags(
+                            RESERVED_0 | CODE | EXEC | READ,
+                        ),
+                    },
+                    RawSectionHeader {
+                        name(str): ".rdata",
+                        virtual_size: 2550960,
+                        virtual_address: 7176192,
+                        raw_size: 2551296,
+                        raw_ptr: 7171072,
+                        reloc_ptr: 0,
+                        line_ptr: 0,
+                        num_reloc: 0,
+                        num_lines: 0,
+                        characteristics: SectionFlags(
+                            RESERVED_0 | INITIALIZED | READ,
+                        ),
+                    },
+                    RawSectionHeader {
+                        name(str): ".data",
+                        virtual_size: 23152,
+                        virtual_address: 9728000,
+                        raw_size: 16384,
+                        raw_ptr: 9722368,
+                        reloc_ptr: 0,
+                        line_ptr: 0,
+                        num_reloc: 0,
+                        num_lines: 0,
+                        characteristics: SectionFlags(
+                            RESERVED_0 | INITIALIZED | READ | WRITE,
+                        ),
+                    },
+                    RawSectionHeader {
+                        name(str): ".pdata",
+                        virtual_size: 276660,
+                        virtual_address: 9752576,
+                        raw_size: 276992,
+                        raw_ptr: 9738752,
+                        reloc_ptr: 0,
+                        line_ptr: 0,
+                        num_reloc: 0,
+                        num_lines: 0,
+                        characteristics: SectionFlags(
+                            RESERVED_0 | INITIALIZED | READ,
+                        ),
+                    },
+                    RawSectionHeader {
+                        name(str): "_RDATA",
+                        virtual_size: 348,
+                        virtual_address: 10031104,
+                        raw_size: 512,
+                        raw_ptr: 10015744,
+                        reloc_ptr: 0,
+                        line_ptr: 0,
+                        num_reloc: 0,
+                        num_lines: 0,
+                        characteristics: SectionFlags(
+                            RESERVED_0 | INITIALIZED | READ,
+                        ),
+                    },
+                    RawSectionHeader {
+                        name(str): ".reloc",
+                        virtual_size: 61240,
+                        virtual_address: 10035200,
+                        raw_size: 61440,
+                        raw_ptr: 10016256,
+                        reloc_ptr: 0,
+                        line_ptr: 0,
+                        num_reloc: 0,
+                        num_lines: 0,
+                        characteristics: SectionFlags(
+                            RESERVED_0 | INITIALIZED | DISCARDABLE | READ,
+                        ),
+                    },
+                ],
+            ),
+            _phantom: PhantomData<&u8>,
+        }
+        "###);
 
         Ok(())
     }
