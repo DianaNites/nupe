@@ -707,6 +707,8 @@ mod fuzz {
                 // Ensure the `Ok` branch is hit
                 Ok(d) => {
                     kani::cover!(true, "Ok");
+                    kani::cover!(d.rich.is_some(), "Rich Header");
+                    kani::cover!(d.rich.is_none(), "No Rich Header");
                 }
 
                 // Ensure `MissingDOS` error happens
