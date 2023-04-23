@@ -5,17 +5,17 @@
 //!
 //! PE Files are laid out as so
 //!
-//! - [RawDos]
+//! - [`RawDos`]
 //! - DOS Stub, DOS executable code that conventionally says the program can't
 //!   be run in DOS.
 //! - Rich Header
 //!   - Optional and undocumented structure specific to the Microsoft Visual
 //!     Studio compiler
 //!   - It can only be found by searching backwards for the signature `Rich`
-//! - PE signature and [RawCoff] Header, together in [RawPe]
-//! - Executable image Header [RawExec]
+//! - PE signature and [`RawCoff`] Header, together in [`RawPe`]
+//! - Executable image Header [`RawExec`]
 //!   - This is required for executable images, but can still exist on objects.
-//! - [RawExec32] or [RawExec64]
+//! - [`RawExec32`] or [`RawExec64`]
 //!   - Which one is used depends on whether the file is 32 or 64 bit
 //!     [`RawExec::magic`]
 //! - Variable number of [RawDataDirectory]
@@ -31,6 +31,13 @@
 //! from Microsoft
 //!
 //! [pe_ref]: https://learn.microsoft.com/en-us/windows/win32/debug/pe-format
+//! [`RawDos`]: `crate::raw::dos::RawDos`
+//! [`RawCoff`]: `crate::raw::coff::RawCoff`
+//! [`RawPe`]: `crate::raw::pe::RawPe`
+//! [`RawExec`]: `crate::raw::exec::RawExec`
+//! [`RawExec::magic`]: `crate::raw::exec::RawExec::magic`
+//! [`RawExec32`]: `crate::raw::exec::RawExec32`
+//! [`RawExec64`]: `crate::raw::exec::RawExec64`
 use core::fmt;
 
 use crate::{
@@ -79,12 +86,14 @@ impl RawDataDirectory {
 ///
 /// In an image file, the virtual addresses assigned by the linker "must"
 /// be assigned in ascending and adjacent order, and they "must" be a multiple
-/// of [`RawExec{32|64}::mem_align`][`RawExec64::mem_align`].
+/// of [`RawExec{32|64}::mem_align`].
 ///
 /// An ideal file upholds this. An in the wild file may not, and yet still run.
 /// It must thus also be parsed.
 ///
-/// [`RawCoff::sections`]: coff::RawCoff::sections
+/// [`RawCoff::sections`]: `coff::RawCoff::sections`
+/// [`size_of::<RawSectionHeader>`]: `core::mem::size_of`
+/// [`RawExec{32|64}::mem_align`]: `crate::raw::exec::RawExec64::mem_align`
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C, packed)]
 pub struct RawSectionHeader {
@@ -112,17 +121,19 @@ pub struct RawSectionHeader {
     pub mem_size: u32,
 
     /// For exec files, offset of the section in memory, relative to
-    /// [`RawExec{32|64}::image_base`][`RawExec64::image_base`].
+    /// [`RawExec{32|64}::image_base`].
     ///
     /// For object files, this should be set to zero.
     /// If not, it is an arbitrary value subtracted from all offsets during
     /// relocations.
+    ///
+    /// [`RawExec{32|64}::image_base`]: `crate::raw::exec::RawExec64::image_base`
     pub mem_ptr: u32,
 
     /// Size of the initialized data of the section on disk
     ///
     /// For exec files, this "must" be a multiple of
-    /// [`RawExec{32|64}::disk_align`][`RawExec64::disk_align`].
+    /// [`RawExec{32|64}::disk_align`].
     ///
     /// If less than [`mem_size`][`RawSectionHeader::mem_size`],
     /// the section is zero-padded on disk.
@@ -131,16 +142,20 @@ pub struct RawSectionHeader {
     ///
     /// Because this is rounded to `disk_align` but `mem_size` is not,
     /// this may be larger than `mem_size`.
+    ///
+    /// [`RawExec{32|64}::image_base`]: `crate::raw::exec::RawExec64::image_base`
     pub disk_size: u32,
 
     /// Offset to the section on disk
     ///
     /// For exec files this "must" be a multiple of
-    /// [`RawExec{32|64}::disk_align`][`RawExec64::disk_align`].
+    /// [`RawExec{32|64}::disk_align`].
     ///
     /// For object files, this should be aligned to 4 bytes.
     ///
     /// When a section contains only uninitialized data, this should be zero.
+    ///
+    /// [`RawExec{32|64}::disk_align`]: `crate::raw::exec::RawExec64::disk_align`
     pub disk_offset: u32,
 
     /// Offset of the relocation entries for the section on disk
