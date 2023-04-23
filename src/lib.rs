@@ -17,6 +17,7 @@
     clippy::missing_safety_doc,
     unreachable_code
 )]
+#![allow(clippy::comparison_chain)]
 extern crate alloc;
 
 pub mod builder;
