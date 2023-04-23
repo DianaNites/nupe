@@ -452,7 +452,7 @@ pub(crate) mod debug {
     ///
     /// # Example
     ///
-    /// ```
+    /// ```ignore
     /// [
     ///     "Export Table" RawDataDirectory {
     ///         address: 0,
