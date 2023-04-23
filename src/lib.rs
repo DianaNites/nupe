@@ -690,7 +690,7 @@ mod tests {
             ),
             _phantom: PhantomData<&u8>,
         }
-        "###);
+            "###);
 
             insta::assert_debug_snapshot!(small_pe, @r###"
         Pe {
@@ -806,7 +806,7 @@ mod tests {
             ),
             _phantom: PhantomData<&u8>,
         }
-        "###);
+            "###);
 
             insta::assert_debug_snapshot!(nothing, @r###"
             Pe {
