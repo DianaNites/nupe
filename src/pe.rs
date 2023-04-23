@@ -50,8 +50,8 @@ impl<'data> Pe<'data> {
     /// # Errors
     ///
     ///
-    /// - [`Error::TooMuchData`] If any fields do not fit into [`usize`] but
-    ///   need to
+    /// - [`Error::TooMuchData`] If any fields or operations do not fit into
+    ///   [`usize`] but need to
     /// - [`Error::MissingDOS`] If the DOS stub was missing or invalid
     /// - [`Error::MissingPE`] If the PE header was missing
     /// - [`Error::MissingExecHeader`] If the Executable header was missing
