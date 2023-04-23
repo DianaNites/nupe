@@ -355,7 +355,16 @@ mod tests {
     #[test]
     fn read_rustup() -> Result<()> {
         let pe = Pe::from_bytes(RUSTUP_IMAGE)?;
-        insta::assert_debug_snapshot!(pe, @r###"
+        let small_pe = Pe::from_bytes(SMALLEST_PE)?;
+        let nothing = Pe::from_bytes(NOTHING)?;
+        let smallest_sections = Pe::from_bytes(SMALLEST_SECTIONS)?;
+        let smallest_no_overlap = Pe::from_bytes(SMALLEST_NO_OVERLAP)?;
+
+        // Miri and insta don't work well together
+        // But we only care about UB, which can only happen above.
+        #[cfg(not(miri))]
+        {
+            insta::assert_debug_snapshot!(pe, @r###"
         Pe {
             dos: Dos {
                 dos: Ref(
@@ -682,6 +691,655 @@ mod tests {
             _phantom: PhantomData<&u8>,
         }
         "###);
+
+            insta::assert_debug_snapshot!(small_pe, @r###"
+        Pe {
+            dos: Dos {
+                dos: Ref(
+                    RawDos {
+                        magic: b"MZ",
+                        last_bytes: 0,
+                        pages: 17744,
+                        relocations: 0,
+                        header_size: 332,
+                        min_alloc: 0,
+                        max_alloc: 0,
+                        initial_ss: 0,
+                        initial_sp: 0,
+                        checksum: 0,
+                        initial_ip: 0,
+                        initial_cs: 0,
+                        relocation_offset: 96,
+                        overlay_num: 259,
+                        _reserved: [
+                            267,
+                            0,
+                            3,
+                            0,
+                        ],
+                        oem_id: 0,
+                        oem_info: 0,
+                        _reserved2: [
+                            0,
+                            0,
+                            0,
+                            0,
+                            124,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            0,
+                            64,
+                            0,
+                        ],
+                        pe_offset: 4,
+                    },
+                ),
+                stub: DOS code (len 0),
+            },
+            coff: Ref(
+                RawCoff {
+                    machine: MachineType::I386,
+                    sections: 0,
+                    time: 0,
+                    sym_offset: 0,
+                    sym_len: 0,
+                    exec_header_size: 96,
+                    file_attributes: CoffFlags(
+                        RELOC_STRIPPED | IMAGE | BIT32,
+                    ),
+                },
+            ),
+            rich: None,
+            exec: Raw32(
+                Ref(
+                    RawExec32 {
+                        standard: RawPeImageStandard {
+                            magic: PE32_MAGIC,
+                            linker_major: 0,
+                            linker_minor: 0,
+                            code_size: 3,
+                            init_size: 0,
+                            uninit_size: 0,
+                            entry_ptr: 124,
+                            code_ptr: 0,
+                        },
+                        data_ptr: 0,
+                        image_base: 4194304,
+                        mem_align: 4,
+                        disk_align: 4,
+                        os_major: 0,
+                        os_minor: 0,
+                        image_major: 0,
+                        image_minor: 0,
+                        subsystem_major: 5,
+                        subsystem_minor: 0,
+                        _reserved_win32: 0,
+                        image_size: 128,
+                        headers_size: 124,
+                        checksum: 0,
+                        subsystem: Subsystem::WINDOWS_GUI,
+                        dll_attributes: ExecFlags(
+                            NO_SEH,
+                        ),
+                        stack_reserve: 1048576,
+                        stack_commit: 4096,
+                        heap_reserve: 1048576,
+                        heap_commit: 4096,
+                        _reserved_loader_attributes: 0,
+                        data_dirs: 0,
+                    },
+                ),
+            ),
+            data_dirs: [],
+            sections: Slice(
+                [],
+            ),
+            _phantom: PhantomData<&u8>,
+        }
+        "###);
+
+            insta::assert_debug_snapshot!(nothing, @r###"
+            Pe {
+                dos: Dos {
+                    dos: Ref(
+                        RawDos {
+                            magic: b"MZ",
+                            last_bytes: 144,
+                            pages: 3,
+                            relocations: 0,
+                            header_size: 4,
+                            min_alloc: 0,
+                            max_alloc: 65535,
+                            initial_ss: 0,
+                            initial_sp: 184,
+                            checksum: 0,
+                            initial_ip: 0,
+                            initial_cs: 0,
+                            relocation_offset: 64,
+                            overlay_num: 0,
+                            _reserved: [0u16; 4],
+                            oem_id: 0,
+                            oem_info: 0,
+                            _reserved2: [0u8; 20],
+                            pe_offset: 176,
+                        },
+                    ),
+                    stub: DOS code (len 112),
+                },
+                coff: Ref(
+                    RawCoff {
+                        machine: MachineType::I386,
+                        sections: 2,
+                        time: 1546627702,
+                        sym_offset: 0,
+                        sym_len: 0,
+                        exec_header_size: 224,
+                        file_attributes: CoffFlags(
+                            IMAGE | BIT32,
+                        ),
+                    },
+                ),
+                rich: Some(
+                    Rich {
+                        header: Ref(
+                            RawRich {
+                                magic: b"Rich",
+                                key: 2320755653,
+                            },
+                        ),
+                        entries: [
+                            RawRichEntry {
+                                id: 0,
+                                - product_id: 0,
+                                - build_id: 0,
+                                count: 1,
+                            },
+                            RawRichEntry {
+                                id: 16931794,
+                                - product_id: 258,
+                                - build_id: 23506,
+                                count: 1,
+                            },
+                        ],
+                    },
+                ),
+                exec: Raw32(
+                    Ref(
+                        RawExec32 {
+                            standard: RawPeImageStandard {
+                                magic: PE32_MAGIC,
+                                linker_major: 14,
+                                linker_minor: 0,
+                                code_size: 512,
+                                init_size: 512,
+                                uninit_size: 0,
+                                entry_ptr: 4096,
+                                code_ptr: 4096,
+                            },
+                            data_ptr: 8192,
+                            image_base: 4194304,
+                            mem_align: 4096,
+                            disk_align: 512,
+                            os_major: 6,
+                            os_minor: 0,
+                            image_major: 0,
+                            image_minor: 0,
+                            subsystem_major: 6,
+                            subsystem_minor: 0,
+                            _reserved_win32: 0,
+                            image_size: 12288,
+                            headers_size: 512,
+                            checksum: 0,
+                            subsystem: Subsystem::WINDOWS_GUI,
+                            dll_attributes: ExecFlags(
+                                DYNAMIC_BASE | NX_COMPAT | NO_SEH | TERMINAL_SERVER,
+                            ),
+                            stack_reserve: 1048576,
+                            stack_commit: 4096,
+                            heap_reserve: 1048576,
+                            heap_commit: 4096,
+                            _reserved_loader_attributes: 0,
+                            data_dirs: 16,
+                        },
+                    ),
+                ),
+                data_dirs: [
+                    "Export Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Import Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Resource Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Exception Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Certificate Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Base Relocations Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Debug Data" RawDataDirectory {
+                        address: 8192,
+                        size: 28,
+                    },
+                    "Architecture" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Global Ptr" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Thread Local Storage Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Load Config Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Bound Import Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "IAT" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Delay Import Descriptor" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "CLR Runtime Header" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Reserved" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                ],
+                sections: Slice(
+                    [
+                        RawSectionHeader {
+                            name(str): ".text",
+                            virtual_size: 3,
+                            virtual_address: 4096,
+                            raw_size: 512,
+                            raw_ptr: 512,
+                            reloc_ptr: 0,
+                            line_ptr: 0,
+                            num_reloc: 0,
+                            num_lines: 0,
+                            characteristics: SectionFlags(
+                                RESERVED_0 | CODE | EXEC | READ,
+                            ),
+                        },
+                        RawSectionHeader {
+                            name(str): ".rdata",
+                            virtual_size: 88,
+                            virtual_address: 8192,
+                            raw_size: 512,
+                            raw_ptr: 1024,
+                            reloc_ptr: 0,
+                            line_ptr: 0,
+                            num_reloc: 0,
+                            num_lines: 0,
+                            characteristics: SectionFlags(
+                                RESERVED_0 | INITIALIZED | READ,
+                            ),
+                        },
+                    ],
+                ),
+                _phantom: PhantomData<&u8>,
+            }
+            "###);
+
+            insta::assert_debug_snapshot!(smallest_sections, @r###"
+            Pe {
+                dos: Dos {
+                    dos: Ref(
+                        RawDos {
+                            magic: b"MZ",
+                            last_bytes: 0,
+                            pages: 0,
+                            relocations: 0,
+                            header_size: 0,
+                            min_alloc: 0,
+                            max_alloc: 0,
+                            initial_ss: 0,
+                            initial_sp: 0,
+                            checksum: 0,
+                            initial_ip: 0,
+                            initial_cs: 0,
+                            relocation_offset: 0,
+                            overlay_num: 0,
+                            _reserved: [0u16; 4],
+                            oem_id: 0,
+                            oem_info: 0,
+                            _reserved2: [0u8; 20],
+                            pe_offset: 64,
+                        },
+                    ),
+                    stub: DOS code (len 0),
+                },
+                coff: Ref(
+                    RawCoff {
+                        machine: MachineType::I386,
+                        sections: 1,
+                        time: 0,
+                        sym_offset: 0,
+                        sym_len: 0,
+                        exec_header_size: 224,
+                        file_attributes: CoffFlags(
+                            RELOC_STRIPPED | IMAGE | BIT32,
+                        ),
+                    },
+                ),
+                rich: None,
+                exec: Raw32(
+                    Ref(
+                        RawExec32 {
+                            standard: RawPeImageStandard {
+                                magic: PE32_MAGIC,
+                                linker_major: 14,
+                                linker_minor: 0,
+                                code_size: 512,
+                                init_size: 0,
+                                uninit_size: 0,
+                                entry_ptr: 4096,
+                                code_ptr: 0,
+                            },
+                            data_ptr: 0,
+                            image_base: 4194304,
+                            mem_align: 4096,
+                            disk_align: 512,
+                            os_major: 5,
+                            os_minor: 1,
+                            image_major: 0,
+                            image_minor: 0,
+                            subsystem_major: 5,
+                            subsystem_minor: 1,
+                            _reserved_win32: 0,
+                            image_size: 8192,
+                            headers_size: 512,
+                            checksum: 0,
+                            subsystem: Subsystem::WINDOWS_GUI,
+                            dll_attributes: ExecFlags(
+                                NO_SEH,
+                            ),
+                            stack_reserve: 1048576,
+                            stack_commit: 4096,
+                            heap_reserve: 1048576,
+                            heap_commit: 4096,
+                            _reserved_loader_attributes: 0,
+                            data_dirs: 16,
+                        },
+                    ),
+                ),
+                data_dirs: [
+                    "Export Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Import Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Resource Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Exception Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Certificate Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Base Relocations Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Debug Data" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Architecture" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Global Ptr" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Thread Local Storage Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Load Config Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Bound Import Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "IAT" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Delay Import Descriptor" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "CLR Runtime Header" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Reserved" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                ],
+                sections: Slice(
+                    [
+                        RawSectionHeader {
+                            name(str): ".text",
+                            virtual_size: 3,
+                            virtual_address: 4096,
+                            raw_size: 512,
+                            raw_ptr: 512,
+                            reloc_ptr: 0,
+                            line_ptr: 0,
+                            num_reloc: 0,
+                            num_lines: 0,
+                            characteristics: SectionFlags(
+                                RESERVED_0 | CODE | EXEC | READ,
+                            ),
+                        },
+                    ],
+                ),
+                _phantom: PhantomData<&u8>,
+            }
+            "###);
+
+            insta::assert_debug_snapshot!(smallest_no_overlap, @r###"
+            Pe {
+                dos: Dos {
+                    dos: Ref(
+                        RawDos {
+                            magic: b"MZ",
+                            last_bytes: 0,
+                            pages: 0,
+                            relocations: 0,
+                            header_size: 0,
+                            min_alloc: 0,
+                            max_alloc: 0,
+                            initial_ss: 0,
+                            initial_sp: 0,
+                            checksum: 0,
+                            initial_ip: 0,
+                            initial_cs: 0,
+                            relocation_offset: 0,
+                            overlay_num: 0,
+                            _reserved: [0u16; 4],
+                            oem_id: 0,
+                            oem_info: 0,
+                            _reserved2: [0u8; 20],
+                            pe_offset: 64,
+                        },
+                    ),
+                    stub: DOS code (len 0),
+                },
+                coff: Ref(
+                    RawCoff {
+                        machine: MachineType::I386,
+                        sections: 0,
+                        time: 0,
+                        sym_offset: 0,
+                        sym_len: 0,
+                        exec_header_size: 224,
+                        file_attributes: CoffFlags(
+                            RELOC_STRIPPED | IMAGE | BIT32,
+                        ),
+                    },
+                ),
+                rich: None,
+                exec: Raw32(
+                    Ref(
+                        RawExec32 {
+                            standard: RawPeImageStandard {
+                                magic: PE32_MAGIC,
+                                linker_major: 0,
+                                linker_minor: 0,
+                                code_size: 8,
+                                init_size: 0,
+                                uninit_size: 0,
+                                entry_ptr: 312,
+                                code_ptr: 0,
+                            },
+                            data_ptr: 0,
+                            image_base: 4194304,
+                            mem_align: 1,
+                            disk_align: 1,
+                            os_major: 0,
+                            os_minor: 0,
+                            image_major: 0,
+                            image_minor: 0,
+                            subsystem_major: 5,
+                            subsystem_minor: 0,
+                            _reserved_win32: 0,
+                            image_size: 320,
+                            headers_size: 312,
+                            checksum: 0,
+                            subsystem: Subsystem::WINDOWS_GUI,
+                            dll_attributes: ExecFlags(
+                                NO_SEH,
+                            ),
+                            stack_reserve: 1048576,
+                            stack_commit: 4096,
+                            heap_reserve: 1048576,
+                            heap_commit: 4096,
+                            _reserved_loader_attributes: 0,
+                            data_dirs: 16,
+                        },
+                    ),
+                ),
+                data_dirs: [
+                    "Export Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Import Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Resource Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Exception Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Certificate Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Base Relocations Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Debug Data" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Architecture" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Global Ptr" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Thread Local Storage Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Load Config Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Bound Import Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "IAT" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Delay Import Descriptor" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "CLR Runtime Header" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Reserved" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                ],
+                sections: Slice(
+                    [],
+                ),
+                _phantom: PhantomData<&u8>,
+            }
+            "###);
+        }
 
         Ok(())
     }

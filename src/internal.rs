@@ -488,6 +488,12 @@ pub mod test_util {
     use crate::raw::dos::RawDos;
 
     pub static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
+    pub static SMALLEST_PE: &[u8] = include_bytes!("../tests/data/tinyPE/smallest-pe.exe");
+    pub static NOTHING: &[u8] = include_bytes!("../tests/data/tinyPE/nothing.exe");
+    pub static SMALLEST_SECTIONS: &[u8] =
+        include_bytes!("../tests/data/tinyPE/smallest-pe-with-sections.exe");
+    pub static SMALLEST_NO_OVERLAP: &[u8] =
+        include_bytes!("../tests/data/tinyPE/smallest-pe-without-overlap.exe");
 
     #[cfg(not(kani))]
     pub mod kani {
