@@ -585,6 +585,19 @@ impl RawRichEntry {
         }
         Helper(self, key)
     }
+
+    /// Allow [`fmt::Debug`] printing this type with XOR `key`
+    pub fn debug_fmt(&self, f: &mut fmt::Formatter<'_>, key: u32) -> fmt::Result {
+        let mut s = f.debug_struct("RawRichEntry");
+
+        let (product_id, build_id) = self.id_with_key(key);
+
+        s.field("id", &{ self.id ^ key });
+        s.field("- product_id", &product_id);
+        s.field("- build_id", &build_id);
+        s.field("count", &{ self.count ^ key });
+        s.finish()
+    }
 }
 
 /// Internal base API
@@ -620,18 +633,6 @@ impl RawRichEntry {
         }
 
         Ok(data.cast())
-    }
-
-    fn debug_fmt(&self, f: &mut fmt::Formatter<'_>, key: u32) -> fmt::Result {
-        let mut s = f.debug_struct("RawRichEntry");
-
-        let (product_id, build_id) = self.id_with_key(key);
-
-        s.field("id", &{ self.id ^ key });
-        s.field("product_id", &product_id);
-        s.field("build_id", &build_id);
-        s.field("count", &{ self.count ^ key });
-        s.finish()
     }
 }
 
