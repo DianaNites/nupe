@@ -417,7 +417,8 @@ impl<'data> fmt::Debug for Pe<'data> {
         let mut s = f.debug_struct("Pe");
         s.field("dos", &self.dos)
             .field("coff", &self.coff)
-            .field("opt", &self.exec);
+            .field("rich", &&self.rich)
+            .field("exec", &self.exec);
 
         s.field("data_dirs", &{
             RawDataDirectoryHelper::new(&self.data_dirs)
