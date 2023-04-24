@@ -35,37 +35,47 @@ pub struct RawDos {
     /// Constant of value [`DOS_MAGIC`] identifying the PE executable
     pub magic: [u8; 2],
 
-    /// Number of bytes in the last [`DOS_PAGE`]
+    /// Number of bytes in the last [`DOS_PAGE`] in the file
     pub last_bytes: u16,
 
-    /// Number of [`DOS_PAGE`]s
+    /// Number of [`DOS_PAGE`]s in the DOS file
     pub pages: u16,
 
     /// Number of entries in the relocations table
     pub relocations: u16,
 
-    /// Number of [`DOS_PARAGRAPH`] taken up by the header
+    /// Number of [`DOS_PARAGRAPH`]s taken up by the header
     pub header_size: u16,
 
     /// Min number of [`DOS_PARAGRAPH`]s required by the program
     pub min_alloc: u16,
 
     /// Max number of [`DOS_PARAGRAPH`]s requested by the program
+    ///
+    /// Should be at least `1`
     pub max_alloc: u16,
 
-    /// Relocation segment
+    /// Relocatable Stack Segment address
     pub initial_ss: u16,
 
     /// Initial stack pointer
     pub initial_sp: u16,
 
     /// Checksum
+    ///
+    /// One's compliment of every 16-bit word in the file.
+    ///
+    /// If there is an odd number of bytes, pretend there is an additional `0`
+    /// byte.
+    ///
+    /// A valid checksum is determined by calculating the checksum
+    /// with this set, and seeing if it equals `0xFFFF`
     pub checksum: u16,
 
     /// Initial IP
     pub initial_ip: u16,
 
-    /// Relocatable CS segment address
+    /// Relocatable Code Segment address
     pub initial_cs: u16,
 
     /// Absolute offset to relocation table
