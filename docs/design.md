@@ -34,7 +34,7 @@ possibly using unsafe.
 The `Easy` layer is the highest layer, and should be completely safe.
 
 Using the public APIs from the `Raw` and `Advanced` layers,
-it should describe a safe interface fo working with [PE Format][pe_ref] files.
+it should describe a safe interface to working with [PE Format][pe_ref] files.
 
 As the highest and safest layer, it will also be the least flexible,
 potentially being unsuitable for advanced usage and requirements.
