@@ -19,7 +19,7 @@ pub static DEFAULT_STUB: &[u8] = &[
     0xB4, 0x09, 0xBA, 0x0B, 0x01, 0xCD, 0x21, 0xB4, 0x4C, 0xCD, 0x21, 0x54, 0x68, 0x69, 0x73, 0x20,
     0x70, 0x72, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x20, 0x63, 0x61, 0x6E, 0x6E, 0x6F, 0x74, 0x20, 0x62,
     0x65, 0x20, 0x72, 0x75, 0x6E, 0x20, 0x69, 0x6E, 0x20, 0x44, 0x4F, 0x53, 0x20, 0x6D, 0x6F, 0x64,
-    0x65, 0x2E, 0x24,
+    0x65, 0x2E, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
 /// Calculate the [DOS checksum][`RawDos::checksum`]
@@ -86,11 +86,22 @@ fn generate_stub() {
     }
 
     #[cfg(not(miri))]
-    let stub = a.assemble(0).unwrap();
+    let mut stub = a.assemble(0).unwrap();
     #[cfg(miri)]
     let stub = &DEFAULT_STUB[size_of::<RawDos>()..];
 
     let s = size_of::<RawDos>() + stub.len();
+    dbg!(s);
+
+    // Pad stub to 8 bytes;
+    #[cfg(not(miri))]
+    {
+        stub.push(0);
+        stub.push(0);
+        stub.push(0);
+        stub.push(0);
+        stub.push(0);
+    }
 
     let lb = ((s) % 512) as u16;
 
@@ -99,6 +110,7 @@ fn generate_stub() {
 
     // Align PE offset to 8 bytes
     let po = s + (8 - (s % 8));
+    let po = if s % 8 == 0 { s } else { po };
     let po = po as u32;
 
     let mut dos = RawDos {
@@ -171,6 +183,30 @@ impl<'data> Dos<'data> {
     }
 }
 
+/// Public Serialization API
+impl Dos<'static> {
+    /// Create a new [`Dos`] with a DOS stub that will print
+    /// "This program cannot be run in DOS mode."
+    ///
+    /// The stub:
+    ///
+    /// - Indicates the PE offset is at 120 bytes
+    /// - Is 120 bytes
+    /// - Has a valid DOS checksum
+    pub fn new_stub() -> Self {
+        // generate_stub();
+        // todo!();
+        let dos = &DEFAULT_STUB[..size_of::<RawDos>()];
+        let stub = &DEFAULT_STUB[size_of::<RawDos>()..];
+        unsafe {
+            Self {
+                dos: DosArg::Ref(RawDos::from_ptr(dos.as_ptr(), dos.len()).unwrap_unchecked()),
+                stub: DosStubArg::Slice(stub),
+            }
+        }
+    }
+}
+
 /// Public Deserialization API
 impl<'data> Dos<'data> {
     /// Get a [`Dos`] from a pointer to the [DOS Header][`RawDos`]
@@ -226,10 +262,27 @@ impl<'data> Dos<'data> {
         self.dos.as_ref().pe_offset
     }
 
-    /// Reference to the [Raw DOS header][RawDos]
+    /// Reference to the [Raw DOS header][`RawDos`]
     #[inline]
     pub const fn raw_dos(&self) -> &RawDos {
         self.dos.as_ref()
+    }
+
+    /// Calculate the [DOS checksum][`RawDos::checksum`]
+    ///
+    /// If the checksum in the header is `0`, this will calculate the checksum.
+    ///
+    /// If the checksum in the header is set, and the checksum is valid,
+    /// this should be equal to `0xFFFF`
+    pub fn calculate_checksum(&self) -> u16 {
+        calculate_checksum(&self.dos, &self.stub)
+    }
+
+    /// Validate the DOS checksum.
+    ///
+    /// Returns true if the DOS checksum is valid
+    pub fn validate_checksum(&self) -> bool {
+        self.calculate_checksum() == 0
     }
 }
 
