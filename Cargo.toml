@@ -8,6 +8,10 @@ description = "reserved"
 [dependencies]
 bitflags = "2.1.0"
 bstr = { version = "1.4.0", default-features = false }
+# iced-x86 = { version = "1.18.0", default-features = false, features = [
+#     "no_std",
+#     "code_asm",
+# ] }
 
 [features]
 default = ["std"]
