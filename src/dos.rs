@@ -9,6 +9,147 @@ use crate::{
     VecOrSlice,
 };
 
+/// Default DOS Stub, header and code, for prepending to PE files.
+// See `generate_stub` for how this is made
+pub static DEFAULT_STUB: &[u8] = &[
+    0x4D, 0x5A, 0x73, 0x00, 0x01, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x96, 0xA4, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78, 0x00, 0x00, 0x00,
+    0xB4, 0x09, 0xBA, 0x0B, 0x01, 0xCD, 0x21, 0xB4, 0x4C, 0xCD, 0x21, 0x54, 0x68, 0x69, 0x73, 0x20,
+    0x70, 0x72, 0x6F, 0x67, 0x72, 0x61, 0x6D, 0x20, 0x63, 0x61, 0x6E, 0x6E, 0x6F, 0x74, 0x20, 0x62,
+    0x65, 0x20, 0x72, 0x75, 0x6E, 0x20, 0x69, 0x6E, 0x20, 0x44, 0x4F, 0x53, 0x20, 0x6D, 0x6F, 0x64,
+    0x65, 0x2E, 0x24,
+];
+
+/// Calculate the [DOS checksum][`RawDos::checksum`]
+///
+/// If the checksum in the header is `0`, this will calculate the checksum.
+///
+/// If the checksum in the header is set, and the checksum is valid,
+/// this will be equal to `0`/`!0xFFFF`
+pub fn calculate_checksum(dos: &RawDos, stub: &[u8]) -> u16 {
+    let mut chk: u16 = 0;
+
+    // Safety: RawDos as byte slice is trivially valid
+    let db = unsafe { from_raw_parts(dos as *const RawDos as *const u8, size_of::<RawDos>()) };
+
+    db.chunks_exact(2)
+        .map(|b| u16::from_ne_bytes([b[0], b[1]]))
+        .for_each(|b| {
+            chk = chk.wrapping_add(b);
+        });
+
+    let mut stub_iter = stub.chunks_exact(2);
+
+    stub_iter
+        .by_ref()
+        .map(|b| u16::from_ne_bytes([b[0], b[1]]))
+        .for_each(|b| {
+            chk = chk.wrapping_add(b);
+        });
+
+    if let Some(b) = stub_iter.remainder().first() {
+        chk = chk.wrapping_add(u16::from_ne_bytes([*b, 0]));
+    }
+
+    !chk
+}
+
+#[cfg(no)]
+fn generate_stub() {
+    use std::{fs, io::Write, slice::from_raw_parts};
+
+    use iced_x86::code_asm::*;
+
+    const MSG: &[u8] = b"This program cannot be run in DOS mode.$";
+
+    let mut a = CodeAssembler::new(16).unwrap();
+
+    #[cfg(not(miri))]
+    {
+        // Print string
+        // https://stanislavs.org/helppc/int_21-9.html
+        a.mov(ah, 9).unwrap();
+        // Code starts at 0x100 relative to DS? DOS PSP?
+        // Our code is 11 bytes, so theres our string.
+        a.mov(dx, 0x100 + 11).unwrap();
+        a.int(0x21).unwrap();
+
+        // Program Terminate
+        // https://stanislavs.org/helppc/int_21-4c.html
+        a.mov(ah, 0x4C).unwrap();
+        a.int(0x21).unwrap();
+
+        // String
+        a.db(MSG).unwrap();
+    }
+
+    #[cfg(not(miri))]
+    let stub = a.assemble(0).unwrap();
+    #[cfg(miri)]
+    let stub = &DEFAULT_STUB[size_of::<RawDos>()..];
+
+    let s = size_of::<RawDos>() + stub.len();
+
+    let lb = ((s) % 512) as u16;
+
+    let p = ((s) / 512) + 1;
+    let p = p as u16;
+
+    // Align PE offset to 8 bytes
+    let po = s + (8 - (s % 8));
+    let po = po as u32;
+
+    let mut dos = RawDos {
+        // One page
+        pages: p,
+
+        // With X bytes
+        last_bytes: lb,
+
+        // Entry point
+        // DOS starts executing at 0, relative to CS
+        // <https://en.wikipedia.org/wiki/DOS_MZ_executable>
+        initial_ip: 0,
+
+        // Need to allow allocation of at least one paragraph
+        max_alloc: 1,
+
+        // Header takes 4 paragraphs, 64 / 16
+        header_size: 4,
+
+        // PE offset will start after header and code
+        pe_offset: po,
+
+        ..RawDos::new()
+    };
+
+    dos.checksum = calculate_checksum(&dos, &stub);
+    dbg!(&dos);
+
+    let db = unsafe { from_raw_parts(&dos as *const _ as *const u8, size_of::<RawDos>()) };
+    dbg!(calculate_checksum(&dos, &stub));
+
+    #[cfg(no)]
+    // #[cfg(not(miri))]
+    {
+        let mut f = fs::File::create("hi.exe").unwrap();
+        f.write_all(db).unwrap();
+        f.write_all(&stub).unwrap();
+    }
+
+    // eprintln!("Header");
+    eprint!("[");
+    db.iter().for_each(|b| eprint!("0x{b:02X},"));
+    // eprintln!("]\n");
+
+    // eprintln!("Stub");
+    // eprint!("[");
+    stub.iter().for_each(|b| eprint!("0x{b:02X},"));
+    eprintln!("]\n");
+}
+
 pub type DosArg<'data> = OwnedOrRef<'data, RawDos>;
 
 pub type DosStubArg<'data> = VecOrSlice<'data, u8>;
