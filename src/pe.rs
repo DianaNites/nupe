@@ -246,22 +246,16 @@ impl<'data> Pe<'data> {
 /// Public advanced API
 impl<'data> Pe<'data> {
     /// Raw COFF header for this PE file
-    ///
-    /// This is only for advanced users.
     pub fn coff(&self) -> &RawCoff {
         &self.coff
     }
 
-    /// Raw Optional header for this PE file
-    ///
-    /// This is only for advanced users.
+    /// Raw Executable header for this PE file
     pub fn opt(&self) -> &'data ExecHeader {
         &self.exec
     }
 
     /// Raw DOS header for this PE file
-    ///
-    /// This is only for advanced users.
     pub fn dos(&self) -> &RawDos {
         self.dos.raw_dos()
     }
