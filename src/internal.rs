@@ -8,10 +8,19 @@ use core::{
 use bitflags::bitflags;
 
 /// Helper enum for a reference to a type, or owning it
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum OwnedOrRef<'data, T> {
     Owned(T),
     Ref(&'data T),
+}
+
+impl<'data, T: Clone> Clone for OwnedOrRef<'data, T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Owned(arg0) => Self::Owned(arg0.clone()),
+            Self::Ref(arg0) => Self::Owned((*arg0).clone()),
+        }
+    }
 }
 
 impl<'data, T> OwnedOrRef<'data, T> {
@@ -76,10 +85,19 @@ impl<'data, T> AsMut<T> for OwnedOrRef<'data, T> {
 }
 
 /// Helper enum for a reference to a slice of type, or a vec of it
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VecOrSlice<'data, T> {
     Vec(Vec<T>),
     Slice(&'data [T]),
+}
+
+impl<'data, T: Clone> Clone for VecOrSlice<'data, T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Vec(arg0) => Self::Vec(arg0.clone()),
+            Self::Slice(arg0) => Self::Vec(arg0.to_vec()),
+        }
+    }
 }
 
 impl<'data, T> VecOrSlice<'data, T> {
