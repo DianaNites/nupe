@@ -267,7 +267,7 @@ impl fmt::Display for DataDirIdent {
             DataDirIdent::ThreadLocalStorage => write!(f, "Thread Local Storage Table"),
             DataDirIdent::LoadConfig => write!(f, "Load Config Table"),
             DataDirIdent::BoundImport => write!(f, "Bound Import Table"),
-            DataDirIdent::Iat => write!(f, "IAT"),
+            DataDirIdent::Iat => write!(f, "Import Address Table"),
             DataDirIdent::DelayImport => write!(f, "Delay Import Descriptor"),
             DataDirIdent::ClrRuntime => write!(f, "CLR Runtime Header"),
             DataDirIdent::Reserved => write!(f, "Reserved"),
