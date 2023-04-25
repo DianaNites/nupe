@@ -687,7 +687,6 @@ mod fuzz {
 
     /// Test, fuzz, and model [`Pe::from_ptr`]
     #[test]
-    // #[ignore]
     #[cfg_attr(kani, kani::proof)]
     fn pe_from_ptr() {
         bolero::check!().for_each(|bytes: &[u8]| {
