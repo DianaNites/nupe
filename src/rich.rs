@@ -131,9 +131,12 @@ impl<'data> fmt::Debug for Rich<'data> {
         let mut s = f.debug_struct("Rich");
         s.field("header", &self.header);
 
-        // FIXME: hides Vec vs Slice
         s.field(
-            "entries",
+            if matches!(self.entries, VecOrSlice::Slice(_)) {
+                "entries(Slice)"
+            } else {
+                "entries(Vec)"
+            },
             &debug::RichHelper::new(&self.entries, self.header.key),
         );
 
