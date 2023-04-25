@@ -261,32 +261,6 @@ impl<'data> Pe<'data> {
     }
 }
 
-/// Public modification API
-impl<'data> Pe<'data> {
-    pub fn append_section(&mut self, _section: ()) -> Result<()> {
-        if let VecOrSlice::Vec(_v) = &mut self.sections {
-            // v.push(value);
-            Ok(())
-        } else {
-            Err(Error::ImmutableData)
-        }
-    }
-
-    /// Remove a section by name
-    pub fn remove_section(&mut self, _name: &str) {
-        //
-    }
-
-    /// Remove a section by zero-based index
-    ///
-    /// # Panics
-    ///
-    /// If `index` is out of bounds
-    pub fn remove_section_index(&mut self, index: usize) {
-        self.sections[index] = RawSectionHeader::zeroed();
-    }
-}
-
 /// Internal base API
 impl<'data> Pe<'data> {
     /// See [`Pe::from_ptr`] for safety and error details
