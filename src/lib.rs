@@ -396,331 +396,331 @@ mod tests {
         #[cfg(not(miri))]
         {
             insta::assert_debug_snapshot!(pe, @r###"
-        Pe {
-            dos: Dos {
-                dos: Ref(
-                    RawDos {
-                        magic: b"MZ",
-                        last_bytes: 144,
-                        pages: 3,
-                        relocations: 0,
-                        header_size: 4,
-                        min_alloc: 0,
-                        max_alloc: 65535,
-                        initial_ss: 0,
-                        initial_sp: 184,
-                        checksum: 0,
-                        initial_ip: 0,
-                        initial_cs: 0,
-                        relocation_offset: 64,
-                        overlay_num: 0,
-                        _reserved: [0u16; 4],
-                        oem_id: 0,
-                        oem_info: 0,
-                        _reserved2: [0u8; 20],
-                        pe_offset: 272,
-                    },
-                ),
-                stub: DOS code (len 208),
-            },
-            coff: Ref(
-                RawCoff {
-                    machine: MachineType::AMD64,
-                    sections: 6,
-                    time: 1657657359,
-                    sym_offset: 0,
-                    sym_len: 0,
-                    exec_header_size: 240,
-                    file_attributes: CoffFlags(
-                        IMAGE | LARGE_ADDRESS_AWARE,
-                    ),
-                },
-            ),
-            rich: Some(
-                Rich {
-                    header: Ref(
-                        RawRich {
-                            magic: b"Rich",
-                            key: 3516315803,
+            Pe {
+                dos: Dos {
+                    dos: Ref(
+                        RawDos {
+                            magic: b"MZ",
+                            last_bytes: 144,
+                            pages: 3,
+                            relocations: 0,
+                            header_size: 4,
+                            min_alloc: 0,
+                            max_alloc: 65535,
+                            initial_ss: 0,
+                            initial_sp: 184,
+                            checksum: 0,
+                            initial_ip: 0,
+                            initial_cs: 0,
+                            relocation_offset: 64,
+                            overlay_num: 0,
+                            _reserved: [0u16; 4],
+                            oem_id: 0,
+                            oem_info: 0,
+                            _reserved2: [0u8; 20],
+                            pe_offset: 272,
                         },
                     ),
-                    entries: [
-                        RawRichEntry {
-                            id: 17004619,
-                            - product_id: 259,
-                            - build_id: 30795,
-                            count: 9,
-                        },
-                        RawRichEntry {
-                            id: 17135691,
-                            - product_id: 261,
-                            - build_id: 30795,
-                            count: 188,
-                        },
-                        RawRichEntry {
-                            id: 17070155,
-                            - product_id: 260,
-                            - build_id: 30795,
-                            count: 12,
-                        },
-                        RawRichEntry {
-                            id: 16611936,
-                            - product_id: 253,
-                            - build_id: 31328,
-                            count: 5,
-                        },
-                        RawRichEntry {
-                            id: 17136224,
-                            - product_id: 261,
-                            - build_id: 31328,
-                            count: 41,
-                        },
-                        RawRichEntry {
-                            id: 17070688,
-                            - product_id: 260,
-                            - build_id: 31328,
-                            count: 18,
-                        },
-                        RawRichEntry {
-                            id: 17005152,
-                            - product_id: 259,
-                            - build_id: 31328,
-                            count: 10,
-                        },
-                        RawRichEntry {
-                            id: 16873857,
-                            - product_id: 257,
-                            - build_id: 31105,
-                            count: 22,
-                        },
-                        RawRichEntry {
-                            id: 16873547,
-                            - product_id: 257,
-                            - build_id: 30795,
-                            count: 5,
-                        },
-                        RawRichEntry {
-                            id: 65536,
-                            - product_id: 1,
-                            - build_id: 0,
-                            count: 283,
-                        },
-                        RawRichEntry {
-                            id: 17070692,
-                            - product_id: 260,
-                            - build_id: 31332,
-                            count: 148,
-                        },
-                        RawRichEntry {
-                            id: 0,
-                            - product_id: 0,
-                            - build_id: 0,
-                            count: 15,
-                        },
-                        RawRichEntry {
-                            id: 16939620,
-                            - product_id: 258,
-                            - build_id: 31332,
-                            count: 1,
-                        },
-                    ],
+                    stub: DOS code (len 208),
                 },
-            ),
-            exec: Raw64(
-                Ref(
-                    RawExec64 {
-                        standard: RawPeImageStandard {
-                            magic: PE32_64_MAGIC,
-                            linker_major: 14,
-                            linker_minor: 32,
-                            code_size: 7170048,
-                            init_size: 2913792,
-                            uninit_size: 0,
-                            entry_ptr: 6895788,
-                            code_ptr: 4096,
-                        },
-                        image_base: 5368709120,
-                        mem_align: 4096,
-                        disk_align: 512,
-                        os_major: 6,
-                        os_minor: 0,
-                        image_major: 0,
-                        image_minor: 0,
-                        subsystem_major: 6,
-                        subsystem_minor: 0,
-                        _reserved_win32: 0,
-                        image_size: 10096640,
-                        headers_size: 1024,
-                        checksum: 0,
-                        subsystem: Subsystem::WINDOWS_CLI,
-                        dll_attributes: ExecFlags(
-                            HIGH_ENTROPY_VA | DYNAMIC_BASE | NX_COMPAT | TERMINAL_SERVER,
+                coff: Ref(
+                    RawCoff {
+                        machine: MachineType::AMD64,
+                        sections: 6,
+                        time: 1657657359,
+                        sym_offset: 0,
+                        sym_len: 0,
+                        exec_header_size: 240,
+                        file_attributes: CoffFlags(
+                            IMAGE | LARGE_ADDRESS_AWARE,
                         ),
-                        stack_reserve: 1048576,
-                        stack_commit: 4096,
-                        heap_reserve: 1048576,
-                        heap_commit: 4096,
-                        _reserved_loader_attributes: 0,
-                        data_dirs: 16,
                     },
                 ),
-            ),
-            data_dirs: [
-                "Export Table" RawDataDirectory {
-                    address: 0,
-                    size: 0,
-                },
-                "Import Table" RawDataDirectory {
-                    address: 9719132,
-                    size: 260,
-                },
-                "Resource Table" RawDataDirectory {
-                    address: 0,
-                    size: 0,
-                },
-                "Exception Table" RawDataDirectory {
-                    address: 9752576,
-                    size: 276660,
-                },
-                "Certificate Table" RawDataDirectory {
-                    address: 0,
-                    size: 0,
-                },
-                "Base Relocations Table" RawDataDirectory {
-                    address: 10035200,
-                    size: 61240,
-                },
-                "Debug Data" RawDataDirectory {
-                    address: 8757424,
-                    size: 84,
-                },
-                "Architecture" RawDataDirectory {
-                    address: 0,
-                    size: 0,
-                },
-                "Global Ptr" RawDataDirectory {
-                    address: 0,
-                    size: 0,
-                },
-                "Thread Local Storage Table" RawDataDirectory {
-                    address: 8757632,
-                    size: 40,
-                },
-                "Load Config Table" RawDataDirectory {
-                    address: 8757104,
-                    size: 320,
-                },
-                "Bound Import Table" RawDataDirectory {
-                    address: 0,
-                    size: 0,
-                },
-                "IAT" RawDataDirectory {
-                    address: 7176192,
-                    size: 2248,
-                },
-                "Delay Import Descriptor" RawDataDirectory {
-                    address: 0,
-                    size: 0,
-                },
-                "CLR Runtime Header" RawDataDirectory {
-                    address: 0,
-                    size: 0,
-                },
-                "Reserved" RawDataDirectory {
-                    address: 0,
-                    size: 0,
-                },
-            ],
-            sections: Slice(
-                [
-                    RawSectionHeader {
-                        name(str): ".text",
-                        virtual_size: 7169808,
-                        virtual_address: 4096,
-                        raw_size: 7170048,
-                        raw_ptr: 1024,
-                        reloc_ptr: 0,
-                        line_ptr: 0,
-                        num_reloc: 0,
-                        num_lines: 0,
-                        characteristics: SectionFlags(
-                            RESERVED_0 | CODE | EXEC | READ,
+                rich: Some(
+                    Rich {
+                        header: Ref(
+                            RawRich {
+                                magic: b"Rich",
+                                key: 3516315803,
+                            },
                         ),
+                        entries(Slice): [
+                            RawRichEntry {
+                                id: 17004619,
+                                - product_id: 259,
+                                - build_id: 30795,
+                                count: 9,
+                            },
+                            RawRichEntry {
+                                id: 17135691,
+                                - product_id: 261,
+                                - build_id: 30795,
+                                count: 188,
+                            },
+                            RawRichEntry {
+                                id: 17070155,
+                                - product_id: 260,
+                                - build_id: 30795,
+                                count: 12,
+                            },
+                            RawRichEntry {
+                                id: 16611936,
+                                - product_id: 253,
+                                - build_id: 31328,
+                                count: 5,
+                            },
+                            RawRichEntry {
+                                id: 17136224,
+                                - product_id: 261,
+                                - build_id: 31328,
+                                count: 41,
+                            },
+                            RawRichEntry {
+                                id: 17070688,
+                                - product_id: 260,
+                                - build_id: 31328,
+                                count: 18,
+                            },
+                            RawRichEntry {
+                                id: 17005152,
+                                - product_id: 259,
+                                - build_id: 31328,
+                                count: 10,
+                            },
+                            RawRichEntry {
+                                id: 16873857,
+                                - product_id: 257,
+                                - build_id: 31105,
+                                count: 22,
+                            },
+                            RawRichEntry {
+                                id: 16873547,
+                                - product_id: 257,
+                                - build_id: 30795,
+                                count: 5,
+                            },
+                            RawRichEntry {
+                                id: 65536,
+                                - product_id: 1,
+                                - build_id: 0,
+                                count: 283,
+                            },
+                            RawRichEntry {
+                                id: 17070692,
+                                - product_id: 260,
+                                - build_id: 31332,
+                                count: 148,
+                            },
+                            RawRichEntry {
+                                id: 0,
+                                - product_id: 0,
+                                - build_id: 0,
+                                count: 15,
+                            },
+                            RawRichEntry {
+                                id: 16939620,
+                                - product_id: 258,
+                                - build_id: 31332,
+                                count: 1,
+                            },
+                        ],
                     },
-                    RawSectionHeader {
-                        name(str): ".rdata",
-                        virtual_size: 2550960,
-                        virtual_address: 7176192,
-                        raw_size: 2551296,
-                        raw_ptr: 7171072,
-                        reloc_ptr: 0,
-                        line_ptr: 0,
-                        num_reloc: 0,
-                        num_lines: 0,
-                        characteristics: SectionFlags(
-                            RESERVED_0 | INITIALIZED | READ,
-                        ),
+                ),
+                exec: Raw64(
+                    Ref(
+                        RawExec64 {
+                            standard: RawPeImageStandard {
+                                magic: PE32_64_MAGIC,
+                                linker_major: 14,
+                                linker_minor: 32,
+                                code_size: 7170048,
+                                init_size: 2913792,
+                                uninit_size: 0,
+                                entry_ptr: 6895788,
+                                code_ptr: 4096,
+                            },
+                            image_base: 5368709120,
+                            mem_align: 4096,
+                            disk_align: 512,
+                            os_major: 6,
+                            os_minor: 0,
+                            image_major: 0,
+                            image_minor: 0,
+                            subsystem_major: 6,
+                            subsystem_minor: 0,
+                            _reserved_win32: 0,
+                            image_size: 10096640,
+                            headers_size: 1024,
+                            checksum: 0,
+                            subsystem: Subsystem::WINDOWS_CLI,
+                            dll_attributes: ExecFlags(
+                                HIGH_ENTROPY_VA | DYNAMIC_BASE | NX_COMPAT | TERMINAL_SERVER,
+                            ),
+                            stack_reserve: 1048576,
+                            stack_commit: 4096,
+                            heap_reserve: 1048576,
+                            heap_commit: 4096,
+                            _reserved_loader_attributes: 0,
+                            data_dirs: 16,
+                        },
+                    ),
+                ),
+                data_dirs: [
+                    "Export Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
                     },
-                    RawSectionHeader {
-                        name(str): ".data",
-                        virtual_size: 23152,
-                        virtual_address: 9728000,
-                        raw_size: 16384,
-                        raw_ptr: 9722368,
-                        reloc_ptr: 0,
-                        line_ptr: 0,
-                        num_reloc: 0,
-                        num_lines: 0,
-                        characteristics: SectionFlags(
-                            RESERVED_0 | INITIALIZED | READ | WRITE,
-                        ),
+                    "Import Table" RawDataDirectory {
+                        address: 9719132,
+                        size: 260,
                     },
-                    RawSectionHeader {
-                        name(str): ".pdata",
-                        virtual_size: 276660,
-                        virtual_address: 9752576,
-                        raw_size: 276992,
-                        raw_ptr: 9738752,
-                        reloc_ptr: 0,
-                        line_ptr: 0,
-                        num_reloc: 0,
-                        num_lines: 0,
-                        characteristics: SectionFlags(
-                            RESERVED_0 | INITIALIZED | READ,
-                        ),
+                    "Resource Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
                     },
-                    RawSectionHeader {
-                        name(str): "_RDATA",
-                        virtual_size: 348,
-                        virtual_address: 10031104,
-                        raw_size: 512,
-                        raw_ptr: 10015744,
-                        reloc_ptr: 0,
-                        line_ptr: 0,
-                        num_reloc: 0,
-                        num_lines: 0,
-                        characteristics: SectionFlags(
-                            RESERVED_0 | INITIALIZED | READ,
-                        ),
+                    "Exception Table" RawDataDirectory {
+                        address: 9752576,
+                        size: 276660,
                     },
-                    RawSectionHeader {
-                        name(str): ".reloc",
-                        virtual_size: 61240,
-                        virtual_address: 10035200,
-                        raw_size: 61440,
-                        raw_ptr: 10016256,
-                        reloc_ptr: 0,
-                        line_ptr: 0,
-                        num_reloc: 0,
-                        num_lines: 0,
-                        characteristics: SectionFlags(
-                            RESERVED_0 | INITIALIZED | DISCARDABLE | READ,
-                        ),
+                    "Certificate Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Base Relocations Table" RawDataDirectory {
+                        address: 10035200,
+                        size: 61240,
+                    },
+                    "Debug Data" RawDataDirectory {
+                        address: 8757424,
+                        size: 84,
+                    },
+                    "Architecture" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Global Ptr" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Thread Local Storage Table" RawDataDirectory {
+                        address: 8757632,
+                        size: 40,
+                    },
+                    "Load Config Table" RawDataDirectory {
+                        address: 8757104,
+                        size: 320,
+                    },
+                    "Bound Import Table" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Import Address Table" RawDataDirectory {
+                        address: 7176192,
+                        size: 2248,
+                    },
+                    "Delay Import Descriptor" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "CLR Runtime Header" RawDataDirectory {
+                        address: 0,
+                        size: 0,
+                    },
+                    "Reserved" RawDataDirectory {
+                        address: 0,
+                        size: 0,
                     },
                 ],
-            ),
-            _phantom: PhantomData<&u8>,
-        }
+                sections: Slice(
+                    [
+                        RawSectionHeader {
+                            name(str): ".text",
+                            virtual_size: 7169808,
+                            virtual_address: 4096,
+                            raw_size: 7170048,
+                            raw_ptr: 1024,
+                            reloc_ptr: 0,
+                            line_ptr: 0,
+                            num_reloc: 0,
+                            num_lines: 0,
+                            characteristics: SectionFlags(
+                                RESERVED_0 | CODE | EXEC | READ,
+                            ),
+                        },
+                        RawSectionHeader {
+                            name(str): ".rdata",
+                            virtual_size: 2550960,
+                            virtual_address: 7176192,
+                            raw_size: 2551296,
+                            raw_ptr: 7171072,
+                            reloc_ptr: 0,
+                            line_ptr: 0,
+                            num_reloc: 0,
+                            num_lines: 0,
+                            characteristics: SectionFlags(
+                                RESERVED_0 | INITIALIZED | READ,
+                            ),
+                        },
+                        RawSectionHeader {
+                            name(str): ".data",
+                            virtual_size: 23152,
+                            virtual_address: 9728000,
+                            raw_size: 16384,
+                            raw_ptr: 9722368,
+                            reloc_ptr: 0,
+                            line_ptr: 0,
+                            num_reloc: 0,
+                            num_lines: 0,
+                            characteristics: SectionFlags(
+                                RESERVED_0 | INITIALIZED | READ | WRITE,
+                            ),
+                        },
+                        RawSectionHeader {
+                            name(str): ".pdata",
+                            virtual_size: 276660,
+                            virtual_address: 9752576,
+                            raw_size: 276992,
+                            raw_ptr: 9738752,
+                            reloc_ptr: 0,
+                            line_ptr: 0,
+                            num_reloc: 0,
+                            num_lines: 0,
+                            characteristics: SectionFlags(
+                                RESERVED_0 | INITIALIZED | READ,
+                            ),
+                        },
+                        RawSectionHeader {
+                            name(str): "_RDATA",
+                            virtual_size: 348,
+                            virtual_address: 10031104,
+                            raw_size: 512,
+                            raw_ptr: 10015744,
+                            reloc_ptr: 0,
+                            line_ptr: 0,
+                            num_reloc: 0,
+                            num_lines: 0,
+                            characteristics: SectionFlags(
+                                RESERVED_0 | INITIALIZED | READ,
+                            ),
+                        },
+                        RawSectionHeader {
+                            name(str): ".reloc",
+                            virtual_size: 61240,
+                            virtual_address: 10035200,
+                            raw_size: 61440,
+                            raw_ptr: 10016256,
+                            reloc_ptr: 0,
+                            line_ptr: 0,
+                            num_reloc: 0,
+                            num_lines: 0,
+                            characteristics: SectionFlags(
+                                RESERVED_0 | INITIALIZED | DISCARDABLE | READ,
+                            ),
+                        },
+                    ],
+                ),
+                _phantom: PhantomData<&u8>,
+            }
             "###);
 
             insta::assert_debug_snapshot!(small_pe, @r###"
@@ -888,7 +888,7 @@ mod tests {
                                 key: 2320755653,
                             },
                         ),
-                        entries: [
+                        entries(Slice): [
                             RawRichEntry {
                                 id: 0,
                                 - product_id: 0,
@@ -993,7 +993,7 @@ mod tests {
                         address: 0,
                         size: 0,
                     },
-                    "IAT" RawDataDirectory {
+                    "Import Address Table" RawDataDirectory {
                         address: 0,
                         size: 0,
                     },
@@ -1177,7 +1177,7 @@ mod tests {
                         address: 0,
                         size: 0,
                     },
-                    "IAT" RawDataDirectory {
+                    "Import Address Table" RawDataDirectory {
                         address: 0,
                         size: 0,
                     },
@@ -1347,7 +1347,7 @@ mod tests {
                         address: 0,
                         size: 0,
                     },
-                    "IAT" RawDataDirectory {
+                    "Import Address Table" RawDataDirectory {
                         address: 0,
                         size: 0,
                     },
