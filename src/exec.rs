@@ -12,7 +12,7 @@ use crate::{
 /// Executable header, otherwise known as the "optional" header
 ///
 /// Provides an abstraction over the meaningless 32 and 64 bit difference
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ExecHeader<'data> {
     Raw32(OwnedOrRef<'data, RawExec32>),
     Raw64(OwnedOrRef<'data, RawExec64>),
