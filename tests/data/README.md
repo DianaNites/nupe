@@ -11,5 +11,6 @@ References:
 
 - <http://www.phreedom.org/research/tinype/>
 - <https://stackoverflow.com/questions/553029/what-is-the-smallest-possible-windows-pe-executable>
+- <https://github.com/cubiclesoft/windows-pe-artifact-library>
 
 [tiny_pe]: https://github.com/rcx/tinyPE
