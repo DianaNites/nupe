@@ -359,8 +359,17 @@ pub mod debug {
 
 #[cfg(test)]
 mod tests {
+    use core::mem::align_of;
+
     use super::*;
     use crate::internal::test_util::RUSTUP_IMAGE;
+
+    /// Just so we know what to expect.
+    #[test]
+    fn abi() {
+        assert_eq!(size_of::<Dos>(), 104);
+        assert_eq!(align_of::<Dos>(), 8);
+    }
 
     #[test]
     fn dos() -> Result<()> {
