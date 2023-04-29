@@ -2,6 +2,16 @@
 
 This document describes design decisions in Nupe
 
+## Goals / Pipedreams
+
+- `no_std` from the ground up
+- Simple safety invariants in unsafe code
+- Extensive safe API
+- Seamlessly work with (mutable) in memory data, or owned data
+- Miri runs on the entire codebase
+- Should be as fast and small as possible, favoring fast
+- Should be usable entirely without allocating, though may require `alloc` to be linked.
+
 ## Code Layout / Organization
 
 Our design uses roughly 3 conceptual "layers" for describing the

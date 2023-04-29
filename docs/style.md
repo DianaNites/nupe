@@ -16,6 +16,8 @@ and use `doc(alias)`
 
 ### Raw Layer
 
+<!-- TODO: Discuss this -->
+
 Types in the `Raw` layer should be prefixed `Raw`, e.g. `RawDOS`
 for the raw DOS header.
 
