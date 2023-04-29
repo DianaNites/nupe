@@ -9,10 +9,43 @@
 //! of the actual PE headers.
 use core::{fmt, mem::size_of, slice::from_raw_parts};
 
-use crate::{
-    error::{Error, Result},
-    internal::miri_helper,
-};
+use crate::internal::miri_helper;
+
+mod error {
+    use super::*;
+
+    pub type Result<T> = core::result::Result<T, Error>;
+
+    /// Error type for [`RawDos`]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+    pub enum RawDosError {
+        /// Invalid DOS magic
+        InvalidDosMagic([u8; 2]),
+
+        /// Not enough data for operation
+        NotEnoughData,
+    }
+
+    impl fmt::Display for RawDosError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::InvalidDosMagic(m) => {
+                    write!(f, "invalid DOS magic, found {m:?} expected {DOS_MAGIC:?}")
+                }
+                Self::NotEnoughData => write!(f, "not enough data, expected more than received"),
+            }
+        }
+    }
+
+    #[cfg(feature = "std")]
+    impl std::error::Error for RawDosError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            None
+        }
+    }
+}
+pub use error::RawDosError;
+use error::{RawDosError as Error, Result};
 
 /// DOS Magic signature
 pub const DOS_MAGIC: [u8; 2] = *b"MZ";
@@ -195,13 +228,7 @@ impl RawDos {
     ///
     /// # Safety
     ///
-    /// ## Pre-conditions
-    ///
     /// - `data` MUST be valid for reads of `size` bytes.
-    ///
-    /// ## Post-conditions
-    ///
-    /// - Only the documented errors will ever be returned
     pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
         // Safety:
         // - Caller asserts `data` is valid for `size`
@@ -211,17 +238,15 @@ impl RawDos {
 
     /// Get a mutable [`RawDos`] from a mutable pointer to a DOS header
     ///
-    /// See [`RawDos::from_ptr`] for error information and other details.
+    /// # Errors
+    ///
+    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawDos`]
+    /// - [`Error::InvalidDosMagic`] If the [DOS magic][`DOS_MAGIC`] is
+    ///   incorrect
     ///
     /// # Safety
     ///
-    /// ## Pre-conditions
-    ///
     /// - `data` MUST be valid for reads and writes of `size` bytes.
-    ///
-    /// ## Post-conditions
-    ///
-    /// - Only the documented errors will ever be returned
     pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
         // Safety:
         // - caller asserts `data` is valid for writes
@@ -247,7 +272,7 @@ impl RawDos {
         let data = data as *const RawDos;
         let dos = &*data;
         if dos.magic != DOS_MAGIC {
-            return Err(Error::InvalidDosMagic);
+            return Err(Error::InvalidDosMagic(dos.magic));
         }
 
         miri_helper!(data as *const u8, size);
@@ -379,11 +404,13 @@ mod fuzz {
                 }
 
                 // Ensure `InvalidDosMagic` error happens
-                Err(Error::InvalidDosMagic) => {
+                Err(Error::InvalidDosMagic(m)) => {
                     kani::cover!(true, "InvalidDosMagic");
 
                     // Should have gotten NotEnoughData if there wasn't enough
                     assert!(len >= size_of::<RawDos>(), "Invalid InvalidDosMagic len");
+
+                    assert_ne!(m, DOS_MAGIC, "Invalid InvalidDosMagic magic??");
                 }
 
                 // Ensure `NotEnoughData` error happens
@@ -392,12 +419,6 @@ mod fuzz {
 
                     // Should only get this when `len` is too small
                     assert!(len < size_of::<RawDos>());
-                }
-
-                // Ensure no other errors happen
-                Err(e) => {
-                    kani::cover!(false, "Unexpected Error");
-                    unreachable!("{e:#?}");
                 }
             };
         });

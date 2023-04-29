@@ -7,8 +7,6 @@ pub type Result<T> = core::result::Result<T, Error>;
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 #[non_exhaustive]
 pub enum Error {
-    InvalidDosMagic,
-
     /// Invalid Rich Header magic
     InvalidRichMagic,
 
@@ -58,7 +56,6 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidDosMagic => write!(f, "invalid DOS magic"),
             Self::InvalidRichMagic => write!(f, "invalid rich header magic"),
             Self::InvalidRichArrayMagic => write!(f, "invalid rich header array header magic"),
             Self::InvalidPeMagic => write!(f, "invalid PE magic"),
