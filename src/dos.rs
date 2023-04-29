@@ -4,7 +4,7 @@ use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use crate::{
     error::{Error, Result},
-    raw::dos::RawDos,
+    raw::dos::Dos as RawDos,
     OwnedOrRef,
     VecOrSlice,
 };

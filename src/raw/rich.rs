@@ -23,14 +23,80 @@ use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use bstr::{BStr, ByteSlice};
 
-use super::dos::RawDos;
-use crate::{
-    error::{Error, Result},
-    internal::miri_helper,
-    rich::Rich,
-};
+use super::dos::Dos;
+use crate::internal::miri_helper;
 
-/// Undocumented VS-specific rich header signature
+mod error {
+    use super::*;
+
+    pub type Result<T, E = RawRichError> = core::result::Result<T, E>;
+
+    /// Error type for [`RawRich`]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+    pub enum RawRichError {
+        /// Invalid [`RawRich`] magic
+        InvalidRichMagic([u8; 4]),
+
+        /// Not enough data for operation
+        NotEnoughData,
+    }
+
+    impl fmt::Display for RawRichError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::InvalidRichMagic(m) => {
+                    write!(
+                        f,
+                        "invalid rich header magic, found {m:?} expected {RICH_MAGIC:?}"
+                    )
+                }
+                Self::NotEnoughData => write!(f, "not enough data, expected more than received"),
+            }
+        }
+    }
+
+    #[cfg(feature = "std")]
+    impl std::error::Error for RawRichError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            None
+        }
+    }
+
+    /// Error type for [`RawRichArray`]
+    #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+    pub enum RawRichArrayError {
+        /// Invalid [`RawRichArray`] magic
+        InvalidRichArrayMagic([u8; 4]),
+
+        /// Not enough data for operation
+        NotEnoughData,
+    }
+
+    impl fmt::Display for RawRichArrayError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::InvalidRichArrayMagic(m) => {
+                    write!(
+                        f,
+                        "invalid rich array magic, found {m:?} expected {ARRAY_MAGIC:?}"
+                    )
+                }
+                Self::NotEnoughData => write!(f, "not enough data, expected more than received"),
+            }
+        }
+    }
+
+    #[cfg(feature = "std")]
+    impl std::error::Error for RawRichArrayError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            None
+        }
+    }
+}
+pub use error::{RawRichArrayError, RawRichError};
+use error::{RawRichError as Error, Result};
+
+/// Undocumented Microsoft Visual Studio specific "Rich Header" signature
 pub const RICH_MAGIC: [u8; 4] = *b"Rich";
 
 /// Rich Header array magic signature
@@ -89,10 +155,10 @@ fn find_rich_helper(bytes: &[u8], search: [u8; 4]) -> Option<usize> {
 
 /// Microsoft Rich Header
 ///
-/// The actual rich header *precedes* this structure in memory.
+/// The actual rich header entries *precede* this structure in memory.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
-pub struct RawRich {
+pub struct Rich {
     /// Constant of value [`RICH_MAGIC`] identifying the PE executable
     pub magic: [u8; 4],
 
@@ -101,7 +167,7 @@ pub struct RawRich {
 }
 
 /// Public deserialization API
-impl RawRich {
+impl Rich {
     /// Create a new, empty, [`RawRich`].
     ///
     /// Sets the Rich magic and the key to `0`
@@ -119,8 +185,9 @@ impl RawRich {
     ///
     /// # Errors
     ///
-    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawRich`]
-    /// - [`Error::InvalidRichMagic`] If the rich magic is incorrect
+    /// - [`RawRichError::NotEnoughData`] If `size` is not enough to fit a
+    ///   [`RawRich`]
+    /// - [`RawRichError::InvalidRichMagic`] If the rich magic is incorrect
     ///
     /// # Safety
     ///
@@ -157,7 +224,8 @@ impl RawRich {
     ///
     /// # Errors
     ///
-    /// - [`Error::NotEnoughData`] If `size` is not enough to fit a [`RawRich`]
+    /// - [`RawRichError::NotEnoughData`] If `size` is not enough to fit a
+    ///   [`RawRich`]
     ///
     /// # Safety
     ///
@@ -189,22 +257,22 @@ impl RawRich {
 }
 
 /// Internal base API
-impl RawRich {
+impl Rich {
     /// See [`RawRich::from_ptr`]
     unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
         debug_assert!(!data.is_null(), "`data` was null in RawRich::from_ptr");
 
         // Ensure that size is enough
-        size.checked_sub(size_of::<RawRich>())
-            .ok_or(Error::NotEnoughData)?;
+        size.checked_sub(size_of::<Rich>())
+            .ok_or(RawRichError::NotEnoughData)?;
 
         // Safety:
         // - We just checked `data` would fit a `RawRich`
         // - Caller guarantees `data` is valid
-        let data = data as *const RawRich;
+        let data = data as *const Rich;
         let rich = &*data;
         if rich.magic != RICH_MAGIC {
-            return Err(Error::InvalidRichMagic);
+            return Err(RawRichError::InvalidRichMagic(rich.magic));
         }
 
         miri_helper!(data as *const u8, size);
@@ -218,8 +286,8 @@ impl RawRich {
         size: usize,
     ) -> Result<Option<(*const Self, usize)>> {
         // Ensure that size is enough
-        size.checked_sub(size_of::<RawRich>())
-            .ok_or(Error::NotEnoughData)?;
+        size.checked_sub(size_of::<Rich>())
+            .ok_or(RawRichError::NotEnoughData)?;
 
         // Safety: Caller
         let offset = find_rich_helper(from_raw_parts(data, size), RICH_MAGIC);
@@ -242,18 +310,15 @@ impl RawRich {
 
         match rich {
             Ok(p) => Ok(Some((p, offset))),
-            Err(e @ Error::NotEnoughData) => Err(e),
+            Err(e @ RawRichError::NotEnoughData) => Err(e),
 
             // `rfind` guarantees the magic, at least, is valid
-            Err(Error::InvalidRichMagic) => unreachable!(),
-
-            // No other errors are ever returned
-            Err(_) => unreachable!(),
+            Err(RawRichError::InvalidRichMagic(_)) => unreachable!(),
         }
     }
 }
 
-impl fmt::Debug for RawRich {
+impl fmt::Debug for Rich {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct("RawRich");
         if self.magic == RICH_MAGIC {
@@ -272,10 +337,10 @@ impl fmt::Debug for RawRich {
     }
 }
 
-/// Rich Header Array header
+/// [Rich Header][`Rich`] Array header
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
-pub struct RawRichArray {
+pub struct RichArray {
     /// Constant of value [`ARRAY_MAGIC`] identifying the rich array
     pub magic: [u8; 4],
 
@@ -290,7 +355,7 @@ pub struct RawRichArray {
 }
 
 /// Public deserialization API
-impl RawRichArray {
+impl RichArray {
     /// Create a new, empty, [`RawRichArray`].
     ///
     /// Sets the magic
@@ -318,7 +383,10 @@ impl RawRichArray {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+    pub unsafe fn from_ptr<'data>(
+        data: *const u8,
+        size: usize,
+    ) -> Result<&'data Self, RawRichArrayError> {
         Ok(&*(Self::from_ptr_internal(data, size, None)?))
     }
 
@@ -334,7 +402,7 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: u32,
-    ) -> Result<&'data Self> {
+    ) -> Result<&'data Self, RawRichArrayError> {
         Ok(&*(Self::from_ptr_internal(data, size, Some(key))?))
     }
 
@@ -382,7 +450,7 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: u32,
-    ) -> Result<Option<(&'data Self, usize)>> {
+    ) -> Result<Option<(&'data Self, usize)>, RawRichArrayError> {
         match Self::find_array_internal(data, size, Some(key))? {
             Some((r, o)) => Ok(Some((&*r, o))),
             None => Ok(None),
@@ -391,11 +459,11 @@ impl RawRichArray {
 }
 
 /// Public data API
-impl RawRichArray {
+impl RichArray {
     /// Allows calling [`Debug`][`fmt::Debug`] while providing a XOR key,
     /// for printing of correct values in memory without copying.
     pub const fn debug_with_key(&self, key: u32) -> impl fmt::Debug + '_ {
-        struct Helper<'a>(&'a RawRichArray, u32);
+        struct Helper<'a>(&'a RichArray, u32);
         impl<'a> fmt::Debug for Helper<'a> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 self.0.debug_fmt(f, self.1)
@@ -406,7 +474,7 @@ impl RawRichArray {
 }
 
 /// Internal base API
-impl RawRichArray {
+impl RichArray {
     /// See [`RawRichArray::from_ptr`]
     ///
     /// `key` is the XOR key or [`None`]
@@ -414,13 +482,13 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: Option<u32>,
-    ) -> Result<*const Self> {
+    ) -> Result<*const Self, RawRichArrayError> {
         let key = key.unwrap_or(0);
         debug_assert!(!data.is_null(), "`data` was null in RawRichArray::from_ptr");
 
         // Ensure that size is enough
-        size.checked_sub(size_of::<RawRichArray>())
-            .ok_or(Error::NotEnoughData)?;
+        size.checked_sub(size_of::<RichArray>())
+            .ok_or(RawRichArrayError::NotEnoughData)?;
 
         let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
         let magic_xor = magic_xor.to_ne_bytes();
@@ -430,10 +498,13 @@ impl RawRichArray {
         // Safety:
         // - We just checked `data` would fit a `RawRich`
         // - Caller guarantees `data` is valid
-        let arr = &*(data as *const RawRichArray);
+        let arr = &*(data as *const RichArray);
         if arr.magic != magic_xor {
-            return Err(Error::InvalidRichArrayMagic);
+            return Err(RawRichArrayError::InvalidRichArrayMagic(arr.magic));
         }
+
+        // Problem for a higher layer
+        #[cfg(no)]
         if (arr.padding1 ^ key)
             .saturating_add(arr.padding2 ^ key)
             .saturating_add(arr.padding3 ^ key)
@@ -453,12 +524,12 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: Option<u32>,
-    ) -> Result<Option<(*const Self, usize)>> {
+    ) -> Result<Option<(*const Self, usize)>, RawRichArrayError> {
         let key = key.unwrap_or(0);
 
         // Ensure that size is enough
-        size.checked_sub(size_of::<RawRichArray>())
-            .ok_or(Error::NotEnoughData)?;
+        size.checked_sub(size_of::<RichArray>())
+            .ok_or(RawRichArrayError::NotEnoughData)?;
 
         let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
         let magic_xor = magic_xor.to_ne_bytes();
@@ -483,14 +554,10 @@ impl RawRichArray {
         // - `ptr` is guaranteed to be valid for `size - o`
         match Self::from_ptr_internal(ptr, len, Some(key)) {
             Ok(p) => Ok(Some((p, offset))),
-            Err(e @ Error::NotEnoughData) => Err(e),
-            Err(e @ Error::InvalidData) => Err(e),
+            Err(e @ RawRichArrayError::NotEnoughData) => Err(e),
 
             // `rfind` guarantees the magic, at least, is valid
-            Err(Error::InvalidRichArrayMagic) => unreachable!(),
-
-            // No other errors are ever returned
-            Err(_) => unreachable!(),
+            Err(RawRichArrayError::InvalidRichArrayMagic(_)) => unreachable!(),
         }
     }
 
@@ -526,16 +593,16 @@ impl RawRichArray {
     }
 }
 
-impl fmt::Debug for RawRichArray {
+impl fmt::Debug for RichArray {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.debug_fmt(f, 0)
     }
 }
 
-/// An entry in the Rich Header array
+/// An entry in the [Rich Header array][`RichArray`]
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
-pub struct RawRichEntry {
+pub struct RichEntry {
     /// Contains the product/type ID in the high half, and the build id
     ///
     /// Also referred to as the @comp.id, and the fields by ProdID and mCV
@@ -546,7 +613,7 @@ pub struct RawRichEntry {
 }
 
 /// Public data API
-impl RawRichEntry {
+impl RichEntry {
     /// Build ID
     #[inline]
     pub const fn build_id(&self) -> u16 {
@@ -577,7 +644,7 @@ impl RawRichEntry {
     /// Allows calling [`Debug`][`fmt::Debug`] while providing a XOR key,
     /// for printing of correct values in memory without copying.
     pub const fn debug_with_key(&self, key: u32) -> impl fmt::Debug + '_ {
-        struct Helper<'a>(&'a RawRichEntry, u32);
+        struct Helper<'a>(&'a RichEntry, u32);
         impl<'a> fmt::Debug for Helper<'a> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 self.0.debug_fmt(f, self.1)
@@ -601,7 +668,7 @@ impl RawRichEntry {
 }
 
 /// Internal base API
-impl RawRichEntry {
+impl RichEntry {
     /// See [`RawRichEntry::from_ptr`]
     ///
     /// `key` is the XOR key or [`None`]
@@ -609,13 +676,13 @@ impl RawRichEntry {
         data: *const u8,
         size: usize,
         key: Option<u32>,
-    ) -> Result<*const Self> {
+    ) -> Result<*const Self, RawRichArrayError> {
         let key = key.unwrap_or(0);
         debug_assert!(!data.is_null(), "`data` was null in RawRichArray::from_ptr");
 
         // Ensure that size is enough
-        size.checked_sub(size_of::<RawRichArray>())
-            .ok_or(Error::NotEnoughData)?;
+        size.checked_sub(size_of::<RichArray>())
+            .ok_or(RawRichArrayError::NotEnoughData)?;
 
         let n = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
         let n = n.to_ne_bytes();
@@ -623,10 +690,12 @@ impl RawRichEntry {
         // Safety:
         // - We just checked `data` would fit a `RawRich`
         // - Caller guarantees `data` is valid
-        let arr = &*(data as *const RawRichArray);
+        let arr = &*(data as *const RichArray);
         if arr.magic != n {
-            return Err(Error::InvalidRichArrayMagic);
+            return Err(RawRichArrayError::InvalidRichArrayMagic(arr.magic));
         }
+        // Not our problem
+        #[cfg(no)]
         if (arr.padding1 ^ key) + (arr.padding2 ^ key) + (arr.padding3 ^ key) != 0 {
             // TODO: More specific error?
             return Err(Error::InvalidData);
@@ -636,7 +705,7 @@ impl RawRichEntry {
     }
 }
 
-impl fmt::Debug for RawRichEntry {
+impl fmt::Debug for RichEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.debug_fmt(f, 0)
     }
@@ -656,21 +725,20 @@ impl fmt::Debug for RawRichEntry {
 /// position to the [rich header array][`RawRichArray`], summed with every byte
 /// of the DOS header XORed with its offset, except for the last 4 bytes,
 /// followed by every remaining byte, until the [Rich Header][RawRich]
-pub fn calculate_key(dos: &RawDos, stub: &[u8], key: u32) -> u32 {
+pub fn calculate_key(dos: &Dos, stub: &[u8], key: u32) -> u32 {
     // Safety: Trivial
-    let array_hdr_offset = match unsafe { RawRichArray::find_array(stub.as_ptr(), stub.len(), key) }
-    {
+    let array_hdr_offset = match unsafe { RichArray::find_array(stub.as_ptr(), stub.len(), key) } {
         Ok(Some(it)) => it.1,
         _ => return 0,
     };
     // Plus RawDos because our offset is `stub`, not a PE file.
     // FIXME: find_array docs
-    let array_hdr_offset = array_hdr_offset + size_of::<RawDos>();
+    let array_hdr_offset = array_hdr_offset + size_of::<Dos>();
 
     let mut check: u32 = array_hdr_offset as u32;
 
     // Safety: Trivially valid
-    let dos = unsafe { from_raw_parts(dos as *const _ as *const u8, size_of::<RawDos>() - 4) };
+    let dos = unsafe { from_raw_parts(dos as *const _ as *const u8, size_of::<Dos>() - 4) };
     for (i, b) in dos.iter().copied().enumerate() {
         let b = b as u32;
         let i = i as u32;
@@ -682,7 +750,7 @@ pub fn calculate_key(dos: &RawDos, stub: &[u8], key: u32) -> u32 {
         .iter()
         .copied()
         .enumerate()
-        .take(array_hdr_offset - size_of::<RawDos>())
+        .take(array_hdr_offset - size_of::<Dos>())
     {
         let b = b as u32;
         let i = i as u32;
@@ -690,7 +758,7 @@ pub fn calculate_key(dos: &RawDos, stub: &[u8], key: u32) -> u32 {
     }
 
     // Safety: `stub` is trivially valid for `stub.len()`
-    let rich = unsafe { Rich::from_ptr(stub.as_ptr(), stub.len()) };
+    let rich = unsafe { crate::rich::Rich::from_ptr(stub.as_ptr(), stub.len()) };
     let rich = match rich {
         Ok(r) => r,
         _ => return 0,
@@ -714,21 +782,21 @@ mod r_tests {
     /// Ensure expected ABI
     #[test]
     fn abi() {
-        assert!(size_of::<RawRich>() == 8);
-        assert!(align_of::<RawRich>() == 1);
+        assert!(size_of::<Rich>() == 8);
+        assert!(align_of::<Rich>() == 1);
 
-        assert!(size_of::<RawRichArray>() == 16);
-        assert!(align_of::<RawRichArray>() == 1);
+        assert!(size_of::<RichArray>() == 16);
+        assert!(align_of::<RichArray>() == 1);
 
-        assert!(size_of::<RawRichEntry>() == 8);
-        assert!(align_of::<RawRichEntry>() == 1);
+        assert!(size_of::<RichEntry>() == 8);
+        assert!(align_of::<RichEntry>() == 1);
     }
 
     /// Ensure this simple operation passes miri / in general
     #[test]
     fn miri() -> Result<()> {
-        let rich = RawRich::new();
-        let rich2 = unsafe { RawRich::from_ptr(&rich as *const _ as *const u8, 8)? };
+        let rich = Rich::new();
+        let rich2 = unsafe { Rich::from_ptr(&rich as *const _ as *const u8, 8)? };
         assert_eq!(&rich, rich2);
         // TODO: Rest of rich
         Ok(())
@@ -749,7 +817,7 @@ mod fuzz {
             let len = bytes.len();
             let ptr = bytes.as_ptr();
 
-            let d = unsafe { RawRich::from_ptr(ptr, len) };
+            let d = unsafe { Rich::from_ptr(ptr, len) };
 
             match d {
                 // Ensure the `Ok` branch is hit
@@ -759,15 +827,17 @@ mod fuzz {
                     assert_eq!(d.magic, RICH_MAGIC, "Incorrect `Ok` Rich magic");
 
                     // Should only be `Ok` if `len` is enough
-                    assert!(len >= size_of::<RawRich>(), "Invalid `Ok` len");
+                    assert!(len >= size_of::<Rich>(), "Invalid `Ok` len");
                 }
 
                 // Ensure `InvalidRichMagic` error happens
-                Err(Error::InvalidRichMagic) => {
+                Err(Error::InvalidRichMagic(m)) => {
                     kani::cover!(true, "InvalidRichMagic");
 
                     // Should have gotten NotEnoughData if there wasn't enough
-                    assert!(len >= size_of::<RawRich>(), "Invalid InvalidRichMagic len");
+                    assert!(len >= size_of::<Rich>(), "Invalid InvalidRichMagic len");
+
+                    assert_ne!(m, RICH_MAGIC, "Invalid InvalidRichMagic magic??");
                 }
 
                 // Ensure `NotEnoughData` error happens
@@ -775,13 +845,7 @@ mod fuzz {
                     kani::cover!(true, "NotEnoughData");
 
                     // Should only get this when `len` isn't enough
-                    assert!(len < size_of::<RawRich>());
-                }
-
-                // Ensure no other errors happen
-                Err(e) => {
-                    kani::cover!(false, "Unexpected Error");
-                    unreachable!("{e:#?}");
+                    assert!(len < size_of::<Rich>());
                 }
             };
         });
@@ -795,7 +859,7 @@ mod fuzz {
             let len = bytes.len();
             let ptr = bytes.as_ptr();
 
-            let d = unsafe { RawRich::find_rich(ptr, len) };
+            let d = unsafe { Rich::find_rich(ptr, len) };
 
             match d {
                 // Ensure the `Ok(Some)` branch is hit
@@ -805,10 +869,10 @@ mod fuzz {
                     assert_eq!(d.magic, RICH_MAGIC, "Incorrect `Ok(Some)` Rich magic");
 
                     // Should only be `Ok(Some)` if `len` is enough
-                    assert!(len >= size_of::<RawRich>(), "Invalid `Ok(Some)` len");
+                    assert!(len >= size_of::<Rich>(), "Invalid `Ok(Some)` len");
 
                     // Offset has to leave enough space in `len` to fit RawRich
-                    assert!(o <= (len - size_of::<RawRich>()), "Invalid `Ok(Some)` len");
+                    assert!(o <= (len - size_of::<Rich>()), "Invalid `Ok(Some)` len");
                 }
 
                 // Ensure the `Ok(Some)` branch is hit
@@ -816,7 +880,7 @@ mod fuzz {
                     kani::cover!(true, "Ok(None)");
 
                     // Should only be `Ok(None)` if `len` is enough
-                    assert!(len >= size_of::<RawRich>(), "Invalid `Ok(None)` len");
+                    assert!(len >= size_of::<Rich>(), "Invalid `Ok(None)` len");
                 }
 
                 // Ensure `NotEnoughData` error happens
@@ -826,7 +890,7 @@ mod fuzz {
                     // Should only get this when `len` isn't enough
                     // Or when the rich magic is at the end,
                     // but NOT followed by enough bytes for the XOR key.
-                    let too_small = len < size_of::<RawRich>();
+                    let too_small = len < size_of::<Rich>();
                     let no_xor = bytes.ends_with(&RICH_MAGIC);
 
                     if !(too_small || no_xor) {
@@ -858,7 +922,7 @@ mod fuzz {
             let len = bytes.len();
             let ptr = bytes.as_ptr();
 
-            let hdr = unsafe { RawRichArray::from_ptr(ptr, len) };
+            let hdr = unsafe { RichArray::from_ptr(ptr, len) };
 
             match hdr {
                 // Ensure the `Ok` branch is hit
@@ -868,42 +932,30 @@ mod fuzz {
                     assert_eq!(hdr.magic, ARRAY_MAGIC, "Incorrect `Ok` Array magic");
 
                     // Should only be `Ok` if `len` is enough
-                    assert!(len >= size_of::<RawRichArray>(), "Invalid `Ok` len");
-                }
-
-                // Ensure `InvalidData` error happens
-                Err(Error::InvalidData) => {
-                    kani::cover!(true, "InvalidData");
-
-                    // Should only get this when `len` isn't enough
-                    assert!(len >= size_of::<RawRichArray>());
+                    assert!(len >= size_of::<RichArray>(), "Invalid `Ok` len");
                 }
 
                 // Ensure the `InvalidRichArrayMagic` branch is hit
-                Err(Error::InvalidRichArrayMagic) => {
+                Err(RawRichArrayError::InvalidRichArrayMagic(m)) => {
                     kani::cover!(true, "InvalidRichArrayMagic");
 
                     // Should only be `InvalidRichArrayMagic` if `len` is enough
                     assert!(
-                        len >= size_of::<RawRichArray>(),
+                        len >= size_of::<RichArray>(),
                         "Invalid `InvalidRichArrayMagic` len"
                     );
+
+                    assert_ne!(m, ARRAY_MAGIC, "Invalid InvalidRichArrayMagic magic??");
                 }
 
                 // Ensure `NotEnoughData` error happens
-                Err(Error::NotEnoughData) => {
+                Err(RawRichArrayError::NotEnoughData) => {
                     kani::cover!(true, "NotEnoughData");
 
                     // Should only get this when `len` isn't enough
                     // Or when the array magic is at the start,
                     // but NOT followed by enough bytes for the padding
-                    assert!(len < size_of::<RawRichArray>());
-                }
-
-                // Ensure no other errors happen
-                Err(e) => {
-                    kani::cover!(false, "Unexpected Error");
-                    unreachable!("{e:#?}");
+                    assert!(len < size_of::<RichArray>());
                 }
             };
         })
@@ -918,7 +970,7 @@ mod fuzz {
             let ptr = bytes.as_ptr();
             let key = 0;
 
-            let hdr = unsafe { RawRichArray::find_array(ptr, len, key) };
+            let hdr = unsafe { RichArray::find_array(ptr, len, key) };
 
             match hdr {
                 // Ensure the `Ok(Some)` branch is hit
@@ -928,11 +980,11 @@ mod fuzz {
                     assert_eq!(hdr.magic, ARRAY_MAGIC, "Incorrect `Ok(Some)` Rich magic");
 
                     // Should only be `Ok(Some)` if `len` is enough
-                    assert!(len >= size_of::<RawRichArray>(), "Invalid `Ok(Some)` len");
+                    assert!(len >= size_of::<RichArray>(), "Invalid `Ok(Some)` len");
 
                     // Offset has to leave enough space in `len` to fit RawRich
                     assert!(
-                        o <= (len - size_of::<RawRichArray>()),
+                        o <= (len - size_of::<RichArray>()),
                         "Invalid `Ok(Some)` len"
                     );
                 }
@@ -942,25 +994,17 @@ mod fuzz {
                     kani::cover!(true, "Ok(None)");
 
                     // Should only be `Ok(None)` if `len` is enough
-                    assert!(len >= size_of::<RawRichArray>(), "Invalid `Ok(None)` len");
-                }
-
-                // Ensure `InvalidData` error happens
-                Err(Error::InvalidData) => {
-                    kani::cover!(true, "InvalidData");
-
-                    // Should only get this when `len` isn't enough
-                    assert!(len >= size_of::<RawRichArray>());
+                    assert!(len >= size_of::<RichArray>(), "Invalid `Ok(None)` len");
                 }
 
                 // Ensure `NotEnoughData` error happens
-                Err(Error::NotEnoughData) => {
+                Err(RawRichArrayError::NotEnoughData) => {
                     kani::cover!(true, "NotEnoughData");
 
                     // Should only get this when `len` isn't enough
                     // Or when the array magic is found,
                     // but NOT followed by enough bytes for the padding
-                    let too_small = len < size_of::<RawRichArray>();
+                    let too_small = len < size_of::<RichArray>();
                     let no_xor = bytes.ends_with(&ARRAY_MAGIC);
 
                     if !(too_small || no_xor) {

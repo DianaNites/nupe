@@ -3,7 +3,7 @@
 //! # Examples
 //!
 //! ```rust
-//! use nupe::Pe;
+//! //use nupe::Pe;
 //! ```
 //!
 //! // TODO: Examples
@@ -24,148 +24,157 @@
 #![allow(clippy::comparison_chain)]
 extern crate alloc;
 
-pub mod builder;
+mod internal;
+
+pub mod raw;
+
 pub mod dos;
 pub mod error;
 pub mod exec;
-mod internal;
-mod pe;
-pub mod raw;
 pub mod rich;
 
-use raw::{RawDataDirectory, RawSectionHeader};
+#[cfg(no)]
+pub mod builder;
+#[cfg(no)]
+mod pe;
 
 use crate::error::Error;
-pub use crate::{
-    internal::{DataDirIdent, OwnedOrRef, SectionFlags, VecOrSlice},
-    pe::*,
-};
+pub use crate::internal::{DataDirIdent, OwnedOrRef, SectionFlags, VecOrSlice};
 
-/// A PE Section
-#[derive(Debug)]
-pub struct Section<'data> {
-    header: OwnedOrRef<'data, RawSectionHeader>,
-    size: u32,
-    base: Option<(*const u8, usize)>,
-}
+#[cfg(no)]
+mod cruft {
+    use raw::{RawDataDirectory, RawSectionHeader};
 
-impl<'data> Section<'data> {
-    fn new(
+    /// A PE Section
+    #[derive(Debug)]
+    pub struct Section<'data> {
         header: OwnedOrRef<'data, RawSectionHeader>,
-        _file_align: u32,
+        size: u32,
         base: Option<(*const u8, usize)>,
-    ) -> Self {
-        Self {
-            header,
-            size: {
-                // let big = header.raw_size.max(header.virtual_size);
-                // TODO: Calculate size
-                0
-            },
-            base,
-        }
     }
 
-    /// Address to the first byte of the section, relative to the image base.
-    pub fn mem_ptr(&self) -> u32 {
-        self.header.mem_ptr
-    }
-
-    /// Size of the section in memory, zero padded if needed.
-    pub fn mem_size(&self) -> u32 {
-        self.header.mem_size
-    }
-
-    /// Offset of the section data on disk
-    pub fn disk_offset(&self) -> u32 {
-        self.header.disk_offset
-    }
-
-    /// Size of the section data on disk
-    ///
-    /// # WARNING
-    ///
-    /// Be sure this is what you want. This field is a trap.
-    /// You may instead want `Section::virtual_size`
-    ///
-    /// The file_size field is rounded up to a multiple of the file alignment,
-    /// but virtual_size is not. That means file_size includes extra padding not
-    /// actually part of the section, and that virtual_size is the true size.
-    pub fn disk_size(&self) -> u32 {
-        self.header.disk_size
-    }
-
-    /// Actual size of the sections data, without rounding or alignment.
-    pub fn size(&self) -> u32 {
-        self.size
-    }
-
-    /// Name of the section, with nul bytes stripped.
-    ///
-    /// Empty string is returned if invalid ASCII/UTF-8 somehow makes it here.
-    pub fn name(&self) -> &str {
-        self.header.name().unwrap_or_default()
-    }
-
-    /// Section flags/attributes/characteristics
-    pub fn flags(&self) -> SectionFlags {
-        self.header.attributes
-    }
-
-    /// Slice of the section data
-    ///
-    /// Returns [`None`] if not called on a loaded image, or if the section is
-    /// outside the loaded image.
-    pub fn virtual_data(&self) -> Option<&'data [u8]> {
-        if let Some((base, size)) = self.base {
-            if size
-                .checked_sub(self.mem_ptr() as usize)
-                .and_then(|s| s.checked_sub(self.mem_size() as usize))
-                .ok_or(Error::NotEnoughData)
-                .is_err()
-            {
-                return None;
+    impl<'data> Section<'data> {
+        fn new(
+            header: OwnedOrRef<'data, RawSectionHeader>,
+            _file_align: u32,
+            base: Option<(*const u8, usize)>,
+        ) -> Self {
+            Self {
+                header,
+                size: {
+                    // let big = header.raw_size.max(header.virtual_size);
+                    // TODO: Calculate size
+                    0
+                },
+                base,
             }
-            // Safety:
-            // - Base is guaranteed valid for size in `from_ptr_internal`
-            // - from_ptr_internal does the checking to make sure we're a PE file, without
-            //   which we couldnt be here
-            // - 'data lifetime means data is still valid
-            // - We double check to make sure we're in-bounds above
-            Some(unsafe {
-                core::slice::from_raw_parts(
-                    base.wrapping_add(self.mem_ptr() as usize),
-                    self.mem_size() as usize,
-                )
-            })
-        } else {
-            None
+        }
+
+        /// Address to the first byte of the section, relative to the image
+        /// base.
+        pub fn mem_ptr(&self) -> u32 {
+            self.header.mem_ptr
+        }
+
+        /// Size of the section in memory, zero padded if needed.
+        pub fn mem_size(&self) -> u32 {
+            self.header.mem_size
+        }
+
+        /// Offset of the section data on disk
+        pub fn disk_offset(&self) -> u32 {
+            self.header.disk_offset
+        }
+
+        /// Size of the section data on disk
+        ///
+        /// # WARNING
+        ///
+        /// Be sure this is what you want. This field is a trap.
+        /// You may instead want `Section::virtual_size`
+        ///
+        /// The file_size field is rounded up to a multiple of the file
+        /// alignment, but virtual_size is not. That means file_size
+        /// includes extra padding not actually part of the section, and
+        /// that virtual_size is the true size.
+        pub fn disk_size(&self) -> u32 {
+            self.header.disk_size
+        }
+
+        /// Actual size of the sections data, without rounding or alignment.
+        pub fn size(&self) -> u32 {
+            self.size
+        }
+
+        /// Name of the section, with nul bytes stripped.
+        ///
+        /// Empty string is returned if invalid ASCII/UTF-8 somehow makes it
+        /// here.
+        pub fn name(&self) -> &str {
+            self.header.name().unwrap_or_default()
+        }
+
+        /// Section flags/attributes/characteristics
+        pub fn flags(&self) -> SectionFlags {
+            self.header.attributes
+        }
+
+        /// Slice of the section data
+        ///
+        /// Returns [`None`] if not called on a loaded image, or if the section
+        /// is outside the loaded image.
+        pub fn virtual_data(&self) -> Option<&'data [u8]> {
+            if let Some((base, size)) = self.base {
+                if size
+                    .checked_sub(self.mem_ptr() as usize)
+                    .and_then(|s| s.checked_sub(self.mem_size() as usize))
+                    .ok_or(Error::NotEnoughData)
+                    .is_err()
+                {
+                    return None;
+                }
+                // Safety:
+                // - Base is guaranteed valid for size in `from_ptr_internal`
+                // - from_ptr_internal does the checking to make sure we're a PE file, without
+                //   which we couldnt be here
+                // - 'data lifetime means data is still valid
+                // - We double check to make sure we're in-bounds above
+                Some(unsafe {
+                    core::slice::from_raw_parts(
+                        base.wrapping_add(self.mem_ptr() as usize),
+                        self.mem_size() as usize,
+                    )
+                })
+            } else {
+                None
+            }
+        }
+    }
+
+    /// A PE Data Directory
+    #[derive(Debug)]
+    pub struct DataDir<'data> {
+        header: OwnedOrRef<'data, RawDataDirectory>,
+    }
+
+    impl<'data> DataDir<'data> {
+        pub(crate) fn new(header: OwnedOrRef<'data, RawDataDirectory>) -> Self {
+            Self { header }
+        }
+
+        /// Address of the data directory, relative to the image base.
+        pub fn address(&self) -> u32 {
+            self.header.address
+        }
+
+        /// Size of the data directory
+        pub fn size(&self) -> u32 {
+            self.header.size
         }
     }
 }
 
-/// A PE Data Directory
-#[derive(Debug)]
-pub struct DataDir<'data> {
-    header: OwnedOrRef<'data, RawDataDirectory>,
-}
-
-impl<'data> DataDir<'data> {
-    pub(crate) fn new(header: OwnedOrRef<'data, RawDataDirectory>) -> Self {
-        Self { header }
-    }
-
-    /// Address of the data directory, relative to the image base.
-    pub fn address(&self) -> u32 {
-        self.header.address
-    }
-
-    /// Size of the data directory
-    pub fn size(&self) -> u32 {
-        self.header.size
-    }
-}
-
+#[cfg(no)]
 #[cfg(test)]
 mod tests {
     use core::mem::size_of;
@@ -190,7 +199,7 @@ mod tests {
         internal::test_util::*,
         raw::{
             coff::{CoffFlags, MachineType},
-            dos::RawDos,
+            dos::Dos,
             exec::{ExecFlags, RawExec64, Subsystem},
             pe::*,
         },

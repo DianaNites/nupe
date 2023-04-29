@@ -503,7 +503,7 @@ pub(crate) mod debug {
 pub mod test_util {
     //! Utilities helpful across unit tests
 
-    use crate::raw::dos::RawDos;
+    use crate::raw::dos::Dos;
 
     pub static RUSTUP_IMAGE: &[u8] = include_bytes!("../tests/data/rustup-init.exe");
     pub static SMALLEST_PE: &[u8] = include_bytes!("../tests/data/tinyPE/smallest-pe.exe");
@@ -625,8 +625,8 @@ pub mod test_util {
     pub use kani;
 
     #[allow(dead_code)]
-    pub fn kani_raw_dos(magic: [u8; 2]) -> RawDos {
-        RawDos {
+    pub fn kani_raw_dos(magic: [u8; 2]) -> Dos {
+        Dos {
             magic,
             pe_offset: kani::any(),
             last_bytes: kani::any(),
