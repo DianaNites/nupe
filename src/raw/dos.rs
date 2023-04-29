@@ -7,7 +7,7 @@
 //!
 //! The DOS Stub contains one field of interest, the offset to the start
 //! of the actual PE headers.
-use core::{fmt, mem::size_of};
+use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use crate::{
     error::{Error, Result},
@@ -22,6 +22,48 @@ pub const DOS_PAGE: usize = 512;
 
 /// Size of a DOS paragraph
 pub const DOS_PARAGRAPH: usize = 16;
+
+/// Calculate the [DOS checksum][`RawDos::checksum`]
+///
+/// If the checksum in the header is `0`, this will calculate the checksum.
+///
+/// If the checksum in the header is set, and the checksum is valid,
+/// this will be equal to `0`/`!0xFFFF`
+///
+/// # Algorithms
+///
+/// The checksum is the one's of every 16-bit word in the DOS file,
+/// padded with zero to an even number of bytes.
+///
+/// A valid checksum is determined by calculating the checksum
+/// with this set, and seeing if it equals `0xFFFF`
+pub fn calculate_checksum(dos: &RawDos, stub: &[u8]) -> u16 {
+    let mut chk: u16 = 0;
+
+    // Safety: RawDos as byte slice is trivially valid
+    let db = unsafe { from_raw_parts(dos as *const RawDos as *const u8, size_of::<RawDos>()) };
+
+    db.chunks_exact(2)
+        .map(|b| u16::from_ne_bytes([b[0], b[1]]))
+        .for_each(|b| {
+            chk = chk.wrapping_add(b);
+        });
+
+    let mut stub_iter = stub.chunks_exact(2);
+
+    stub_iter
+        .by_ref()
+        .map(|b| u16::from_ne_bytes([b[0], b[1]]))
+        .for_each(|b| {
+            chk = chk.wrapping_add(b);
+        });
+
+    if let Some(b) = stub_iter.remainder().first() {
+        chk = chk.wrapping_add(u16::from_ne_bytes([*b, 0]));
+    }
+
+    !chk
+}
 
 /// Legacy MS-DOS header for executable PE images
 ///
@@ -63,13 +105,7 @@ pub struct RawDos {
 
     /// Checksum
     ///
-    /// One's compliment of every 16-bit word in the file.
-    ///
-    /// If there is an odd number of bytes, pretend there is an additional `0`
-    /// byte.
-    ///
-    /// A valid checksum is determined by calculating the checksum
-    /// with this set, and seeing if it equals `0xFFFF`
+    /// See [`calculate_checksum`]
     pub checksum: u16,
 
     /// Initial IP
