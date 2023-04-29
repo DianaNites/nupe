@@ -22,39 +22,7 @@ pub static DEFAULT_STUB: &[u8] = &[
     0x65, 0x2E, 0x24, 0x00, 0x00, 0x00, 0x00, 0x00,
 ];
 
-/// Calculate the [DOS checksum][`RawDos::checksum`]
-///
-/// If the checksum in the header is `0`, this will calculate the checksum.
-///
-/// If the checksum in the header is set, and the checksum is valid,
-/// this will be equal to `0`/`!0xFFFF`
-pub fn calculate_checksum(dos: &RawDos, stub: &[u8]) -> u16 {
-    let mut chk: u16 = 0;
-
-    // Safety: RawDos as byte slice is trivially valid
-    let db = unsafe { from_raw_parts(dos as *const RawDos as *const u8, size_of::<RawDos>()) };
-
-    db.chunks_exact(2)
-        .map(|b| u16::from_ne_bytes([b[0], b[1]]))
-        .for_each(|b| {
-            chk = chk.wrapping_add(b);
-        });
-
-    let mut stub_iter = stub.chunks_exact(2);
-
-    stub_iter
-        .by_ref()
-        .map(|b| u16::from_ne_bytes([b[0], b[1]]))
-        .for_each(|b| {
-            chk = chk.wrapping_add(b);
-        });
-
-    if let Some(b) = stub_iter.remainder().first() {
-        chk = chk.wrapping_add(u16::from_ne_bytes([*b, 0]));
-    }
-
-    !chk
-}
+pub use crate::raw::dos::calculate_checksum;
 
 #[cfg(no)]
 fn generate_stub() {
