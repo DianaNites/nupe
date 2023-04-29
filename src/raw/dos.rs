@@ -70,11 +70,11 @@ pub const DOS_PARAGRAPH: usize = 16;
 ///
 /// A valid checksum is determined by calculating the checksum
 /// with this set, and seeing if it equals `0xFFFF`
-pub fn calculate_checksum(dos: &RawDos, stub: &[u8]) -> u16 {
+pub fn calculate_checksum(dos: &Dos, stub: &[u8]) -> u16 {
     let mut chk: u16 = 0;
 
     // Safety: RawDos as byte slice is trivially valid
-    let db = unsafe { from_raw_parts(dos as *const RawDos as *const u8, size_of::<RawDos>()) };
+    let db = unsafe { from_raw_parts(dos as *const Dos as *const u8, size_of::<Dos>()) };
 
     db.chunks_exact(2)
         .map(|b| u16::from_ne_bytes([b[0], b[1]]))
@@ -103,10 +103,10 @@ pub fn calculate_checksum(dos: &RawDos, stub: &[u8]) -> u16 {
 /// The only thing really relevant for loading a PE image is
 /// [`RawDos::pe_offset`]
 ///
-/// Most of this headers fields are irrelevant.
+/// Most of this headers fields are irrelevant except in DOS.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C, packed)]
-pub struct RawDos {
+pub struct Dos {
     /// Constant of value [`DOS_MAGIC`] identifying the PE executable
     pub magic: [u8; 2],
 
@@ -177,7 +177,7 @@ pub struct RawDos {
 }
 
 /// Public deserialization API
-impl RawDos {
+impl Dos {
     /// Create a new, empty, [`RawDos`].
     ///
     /// Sets the DOS magic, with all other fields zeroed.
@@ -257,19 +257,19 @@ impl RawDos {
 }
 
 /// Internal base API
-impl RawDos {
+impl Dos {
     /// See [`RawDos::from_ptr`]
     unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
         debug_assert!(!data.is_null(), "`data` was null in RawDos::from_ptr");
 
         // Ensure that size is enough
-        size.checked_sub(size_of::<RawDos>())
+        size.checked_sub(size_of::<Dos>())
             .ok_or(Error::NotEnoughData)?;
 
         // Safety:
         // - We just checked `data` would fit a `RawDos`
         // - Caller guarantees `data` is valid
-        let data = data as *const RawDos;
+        let data = data as *const Dos;
         let dos = &*data;
         if dos.magic != DOS_MAGIC {
             return Err(Error::InvalidDosMagic(dos.magic));
@@ -282,14 +282,14 @@ impl RawDos {
 }
 
 /// Same as [`RawDos::new`]
-impl Default for RawDos {
+impl Default for Dos {
     #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl fmt::Debug for RawDos {
+impl fmt::Debug for Dos {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut s = f.debug_struct("RawDos");
         if self.magic == DOS_MAGIC {
@@ -347,7 +347,7 @@ impl fmt::Debug for RawDos {
 }
 
 #[cfg(all(test, kani))]
-impl kani::Arbitrary for RawDos {
+impl kani::Arbitrary for Dos {
     #[inline(always)]
     fn any() -> Self {
         crate::internal::test_util::kani_raw_dos(kani::any())
@@ -363,15 +363,15 @@ mod r_tests {
     /// Ensure expected ABI
     #[test]
     fn abi() {
-        assert!(size_of::<RawDos>() == 64);
-        assert!(align_of::<RawDos>() == 1);
+        assert!(size_of::<Dos>() == 64);
+        assert!(align_of::<Dos>() == 1);
     }
 
     /// Ensure this simple operation passes miri / in general
     #[test]
     fn miri() -> Result<()> {
-        let dos = RawDos::new();
-        let dos2 = unsafe { RawDos::from_ptr(&dos as *const _ as *const u8, size_of::<RawDos>())? };
+        let dos = Dos::new();
+        let dos2 = unsafe { Dos::from_ptr(&dos as *const _ as *const u8, size_of::<Dos>())? };
         assert_eq!(&dos, dos2);
         Ok(())
     }
@@ -390,7 +390,7 @@ mod fuzz {
             let len = bytes.len();
             let ptr = bytes.as_ptr();
 
-            let d = unsafe { RawDos::from_ptr(ptr, len) };
+            let d = unsafe { Dos::from_ptr(ptr, len) };
 
             match d {
                 // Ensure the `Ok` branch is hit
@@ -400,7 +400,7 @@ mod fuzz {
                     assert_eq!(d.magic, DOS_MAGIC, "Incorrect `Ok` DOS magic");
 
                     // Should only be `Ok` if `len` is this
-                    assert!(len >= size_of::<RawDos>(), "Invalid `Ok` len");
+                    assert!(len >= size_of::<Dos>(), "Invalid `Ok` len");
                 }
 
                 // Ensure `InvalidDosMagic` error happens
@@ -408,7 +408,7 @@ mod fuzz {
                     kani::cover!(true, "InvalidDosMagic");
 
                     // Should have gotten NotEnoughData if there wasn't enough
-                    assert!(len >= size_of::<RawDos>(), "Invalid InvalidDosMagic len");
+                    assert!(len >= size_of::<Dos>(), "Invalid InvalidDosMagic len");
 
                     assert_ne!(m, DOS_MAGIC, "Invalid InvalidDosMagic magic??");
                 }
@@ -418,7 +418,7 @@ mod fuzz {
                     kani::cover!(true, "NotEnoughData");
 
                     // Should only get this when `len` is too small
-                    assert!(len < size_of::<RawDos>());
+                    assert!(len < size_of::<Dos>());
                 }
             };
         });

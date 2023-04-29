@@ -265,14 +265,14 @@ mod tests {
     use core::mem::align_of;
 
     use coff::RawCoff;
-    use dos::RawDos;
+    use dos::Dos;
     use exec::{RawExec, RawExec64};
     use static_assertions::{assert_eq_size, const_assert_eq};
 
     use super::*;
 
     assert_eq_size!(RawCoff, [u8; 20]);
-    assert_eq_size!(RawDos, [u8; 64]);
+    assert_eq_size!(Dos, [u8; 64]);
     assert_eq_size!(RawExec, [u8; 24]);
     assert_eq_size!(RawExec64, [u8; 112]);
     assert_eq_size!(RawDataDirectory, [u8; 8]);

@@ -5,7 +5,7 @@ use core::{fmt, mem::size_of, slice::from_raw_parts};
 use crate::{
     dos::Dos,
     error::{Error, Result},
-    raw::rich::{calculate_key, RawRich, RawRichArray, RawRichEntry},
+    raw::rich::{calculate_key, Rich as RawRich, RichArray, RichEntry},
     OwnedOrRef,
     VecOrSlice,
 };
@@ -13,7 +13,7 @@ use crate::{
 // pub type RichHdrArg<'data> = VecOrSlice<'data, u8>;
 pub type RichHdrArg<'data> = OwnedOrRef<'data, RawRich>;
 
-pub type RichEntryArg<'data> = VecOrSlice<'data, RawRichEntry>;
+pub type RichEntryArg<'data> = VecOrSlice<'data, RichEntry>;
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Rich<'data> {
@@ -78,7 +78,7 @@ impl<'data> Rich<'data> {
     }
 
     #[inline]
-    pub fn entries(&self) -> &[RawRichEntry] {
+    pub fn entries(&self) -> &[RichEntry] {
         &self.entries
     }
 
@@ -94,18 +94,20 @@ impl<'data> Rich<'data> {
     /// See [`Rich::from_ptr`]
     unsafe fn from_ptr_internal(stub_ptr: *const u8, stub_size: usize) -> Result<Self> {
         // Safety: Caller
-        let (rich, rich_offset) =
-            RawRich::find_rich(stub_ptr, stub_size)?.ok_or(Error::MissingRich)?;
+        let (rich, rich_offset) = RawRich::find_rich(stub_ptr, stub_size)
+            .map_err(|_| Error::MissingRich)?
+            .ok_or(Error::MissingRich)?;
 
         // Safety: Caller
         // Note that, as this is in memory, fields will need to be XORed.
-        let (_, array_header_offset) = RawRichArray::find_array(stub_ptr, stub_size, rich.key)?
+        let (_, array_header_offset) = RichArray::find_array(stub_ptr, stub_size, rich.key)
+            .map_err(|_| Error::MissingRichArray)?
             .ok_or(Error::MissingRichArray)?;
 
-        let entry_offset = array_header_offset + size_of::<RawRichArray>();
+        let entry_offset = array_header_offset + size_of::<RichArray>();
         let array_size = rich_offset.saturating_sub(entry_offset);
 
-        if array_size % size_of::<RawRichEntry>() != 0 {
+        if array_size % size_of::<RichEntry>() != 0 {
             return Err(Error::NotEnoughData);
         }
 
@@ -113,8 +115,8 @@ impl<'data> Rich<'data> {
         // - `entry_offset` is guaranteed to be valid via `find_array`
         // - If `array_size` is not a multiple of `RawRichEntry`, it gets rounded down.
         let entries = from_raw_parts(
-            stub_ptr.add(entry_offset) as *const RawRichEntry,
-            array_size / size_of::<RawRichEntry>(),
+            stub_ptr.add(entry_offset) as *const RichEntry,
+            array_size / size_of::<RichEntry>(),
         );
 
         let entries = VecOrSlice::Slice(entries);
@@ -148,14 +150,14 @@ mod debug {
     //! [`fmt::Debug`] helper types
     use core::fmt;
 
-    use crate::{internal::VecOrSlice, raw::rich::RawRichEntry};
+    use crate::{internal::VecOrSlice, raw::rich::RichEntry};
 
-    pub struct RichHelper<'a>(&'a VecOrSlice<'a, RawRichEntry>, u32);
+    pub struct RichHelper<'a>(&'a VecOrSlice<'a, RichEntry>, u32);
 
     impl<'a> RichHelper<'a> {}
 
     impl<'a> RichHelper<'a> {
-        pub const fn new(data: &'a VecOrSlice<'_, RawRichEntry>, key: u32) -> Self {
+        pub const fn new(data: &'a VecOrSlice<'_, RichEntry>, key: u32) -> Self {
             Self(data, key)
         }
     }
