@@ -1,6 +1,7 @@
 miri_base := "\
 -Zmiri-strict-provenance \
 -Zmiri-symbolic-alignment-check \
+-Zmiri-tree-borrows \
 "
 
 miri_isolation := miri_base + " -Zmiri-isolation-error=warn-nobacktrace"
