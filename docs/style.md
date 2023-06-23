@@ -50,6 +50,10 @@ None of the explanations are required.
 Unsafe functions and methods should have a `# Safety` section explaining
 what pre-conditions they rely on.
 
+Each function or method should fully list its applicable safety requirements, not refer to other methods or documentation.
+
+The rationale for this is that it is easier for the user, who does not have to hunt down different bits of documentation, and more compatible with IDE hover documentation.
+
 ## Documentation
 
 Documentation should be provided for all public items and fields,
