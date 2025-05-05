@@ -70,9 +70,9 @@ impl<'data> Pe<'data> {
     ///   - Other data, such as sections and data directories, remains untrusted
     ///     and must be validated later
     /// - All magic values and signatures are correct
-    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
+    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> { unsafe {
         Self::from_ptr_internal(data, size)
-    }
+    }}
 
     /// Get a [`Pe`] that references a PE file `bytes`,
     /// while ensuring its validity.
@@ -264,7 +264,7 @@ impl<'data> Pe<'data> {
 /// Internal base API
 impl<'data> Pe<'data> {
     /// See [`Pe::from_ptr`] for safety and error details
-    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> {
+    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> { unsafe {
         // Safety: Caller
         let dos = Dos::from_ptr(data, input_size)?;
         let stub = dos.stub();
@@ -365,7 +365,7 @@ impl<'data> Pe<'data> {
             sections: VecOrSlice::Slice(sections),
             _phantom: PhantomData,
         })
-    }
+    }}
 
     /// Create a [`Pe`] with a mutable pointer
     ///
@@ -375,9 +375,9 @@ impl<'data> Pe<'data> {
     ///
     /// - See [`Pe::from_ptr_internal`]
     /// - `data` MUST be a legitimate mutable pointer
-    unsafe fn from_ptr_internal_mut(data: *mut u8, size: usize) -> Result<Self> {
+    unsafe fn from_ptr_internal_mut(data: *mut u8, size: usize) -> Result<Self> { unsafe {
         Self::from_ptr_internal(data.cast_const(), size)
-    }
+    }}
 }
 
 impl<'data> fmt::Debug for Pe<'data> {

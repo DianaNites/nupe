@@ -229,12 +229,12 @@ impl RawDos {
     /// # Safety
     ///
     /// - `data` MUST be valid for reads of `size` bytes.
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> { unsafe {
         // Safety:
         // - Caller asserts `data` is valid for `size`
         // - `RawDos` has no alignment requirements or invalid values.
         Ok(&*(Self::from_ptr_internal(data, size)?))
-    }
+    }}
 
     /// Get a mutable [`RawDos`] from a mutable pointer to a DOS header
     ///
@@ -247,19 +247,19 @@ impl RawDos {
     /// # Safety
     ///
     /// - `data` MUST be valid for reads and writes of `size` bytes.
-    pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
+    pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> { unsafe {
         // Safety:
         // - caller asserts `data` is valid for writes
         // - const casting pointers like has no safety requirements besides the above
         // - `RawDos` has no alignment requirements or invalid values.
         Ok(&mut *(Self::from_ptr_internal(data.cast_const(), size)?).cast_mut())
-    }
+    }}
 }
 
 /// Internal base API
 impl RawDos {
     /// See [`RawDos::from_ptr`]
-    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
+    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> { unsafe {
         debug_assert!(!data.is_null(), "`data` was null in RawDos::from_ptr");
 
         // Ensure that size is enough
@@ -278,7 +278,7 @@ impl RawDos {
         miri_helper!(data as *const u8, size);
 
         Ok(data)
-    }
+    }}
 }
 
 /// Same as [`RawDos::new`]

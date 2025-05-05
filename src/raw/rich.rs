@@ -131,12 +131,12 @@ impl RawRich {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> { unsafe {
         // Safety:
         // - Caller asserts `data` is valid for `size`
         // - `RawRich` has no alignment requirements or invalid values.
         Ok(&*(Self::from_ptr_internal(data, size)?))
-    }
+    }}
 
     /// Find the Rich Header given a pointer to the
     /// [DOS stub code][`crate::dos::Dos::stub`]
@@ -174,7 +174,7 @@ impl RawRich {
     pub unsafe fn find_rich<'data>(
         data: *const u8,
         size: usize,
-    ) -> Result<Option<(&'data Self, usize)>> {
+    ) -> Result<Option<(&'data Self, usize)>> { unsafe {
         match Self::find_rich_internal(data, size)? {
             Some((r, o)) => {
                 debug_assert!(o < size, "RawRich::find_rich guarantee violated");
@@ -185,13 +185,13 @@ impl RawRich {
             }
             None => Ok(None),
         }
-    }
+    }}
 }
 
 /// Internal base API
 impl RawRich {
     /// See [`RawRich::from_ptr`]
-    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
+    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> { unsafe {
         debug_assert!(!data.is_null(), "`data` was null in RawRich::from_ptr");
 
         // Ensure that size is enough
@@ -210,13 +210,13 @@ impl RawRich {
         miri_helper!(data as *const u8, size);
 
         Ok(data.cast())
-    }
+    }}
 
     /// See [`RawRich::find_rich`]
     unsafe fn find_rich_internal(
         data: *const u8,
         size: usize,
-    ) -> Result<Option<(*const Self, usize)>> {
+    ) -> Result<Option<(*const Self, usize)>> { unsafe {
         // Ensure that size is enough
         size.checked_sub(size_of::<RawRich>())
             .ok_or(Error::NotEnoughData)?;
@@ -250,7 +250,7 @@ impl RawRich {
             // No other errors are ever returned
             Err(_) => unreachable!(),
         }
-    }
+    }}
 }
 
 impl fmt::Debug for RawRich {
@@ -318,9 +318,9 @@ impl RawRichArray {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> { unsafe {
         Ok(&*(Self::from_ptr_internal(data, size, None)?))
-    }
+    }}
 
     /// The same as [`RawRichArray::from_ptr`], but XORs `key` before attempting
     /// to read fields.
@@ -334,9 +334,9 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: u32,
-    ) -> Result<&'data Self> {
+    ) -> Result<&'data Self> { unsafe {
         Ok(&*(Self::from_ptr_internal(data, size, Some(key))?))
-    }
+    }}
 
     /// Find the Rich Header Array given a pointer to the first byte after the
     /// DOS Header [`RawDOS`].
@@ -382,12 +382,12 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: u32,
-    ) -> Result<Option<(&'data Self, usize)>> {
+    ) -> Result<Option<(&'data Self, usize)>> { unsafe {
         match Self::find_array_internal(data, size, Some(key))? {
             Some((r, o)) => Ok(Some((&*r, o))),
             None => Ok(None),
         }
-    }
+    }}
 }
 
 /// Public data API
@@ -414,7 +414,7 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: Option<u32>,
-    ) -> Result<*const Self> {
+    ) -> Result<*const Self> { unsafe {
         let key = key.unwrap_or(0);
         debug_assert!(!data.is_null(), "`data` was null in RawRichArray::from_ptr");
 
@@ -444,7 +444,7 @@ impl RawRichArray {
         }
 
         Ok(data.cast())
-    }
+    }}
 
     /// See [`RawRichArray::find_array`]
     ///
@@ -453,7 +453,7 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: Option<u32>,
-    ) -> Result<Option<(*const Self, usize)>> {
+    ) -> Result<Option<(*const Self, usize)>> { unsafe {
         let key = key.unwrap_or(0);
 
         // Ensure that size is enough
@@ -492,7 +492,7 @@ impl RawRichArray {
             // No other errors are ever returned
             Err(_) => unreachable!(),
         }
-    }
+    }}
 
     fn debug_fmt(&self, f: &mut fmt::Formatter<'_>, key: u32) -> fmt::Result {
         let n = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
@@ -609,7 +609,7 @@ impl RawRichEntry {
         data: *const u8,
         size: usize,
         key: Option<u32>,
-    ) -> Result<*const Self> {
+    ) -> Result<*const Self> { unsafe {
         let key = key.unwrap_or(0);
         debug_assert!(!data.is_null(), "`data` was null in RawRichArray::from_ptr");
 
@@ -633,7 +633,7 @@ impl RawRichEntry {
         }
 
         Ok(data.cast())
-    }
+    }}
 }
 
 impl fmt::Debug for RawRichEntry {

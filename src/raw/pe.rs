@@ -50,9 +50,9 @@ impl RawPe {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> { unsafe {
         Ok(&*(Self::from_ptr_internal(data, size)?))
-    }
+    }}
 
     /// Get a mutable [`RawPe`] from a pointer to the PE signature
     ///
@@ -67,9 +67,9 @@ impl RawPe {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned.
-    pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> {
+    pub unsafe fn from_ptr_mut<'data>(data: *mut u8, size: usize) -> Result<&'data mut Self> { unsafe {
         Ok(&mut *(Self::from_ptr_internal(data.cast_const(), size)?).cast_mut())
-    }
+    }}
 }
 
 /// Internal base API

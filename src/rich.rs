@@ -64,9 +64,9 @@ impl<'data> Rich<'data> {
     /// [`Dos`]: `crate::dos::Dos`
     /// [`RawRich::find_rich`]: `crate::raw::rich::RawRich::find_rich`
     /// [`RawRichArray::find_array`]: `crate::raw::rich::RawRichArray::find_array`
-    pub unsafe fn from_ptr(stub_ptr: *const u8, stub_size: usize) -> Result<Self> {
+    pub unsafe fn from_ptr(stub_ptr: *const u8, stub_size: usize) -> Result<Self> { unsafe {
         Self::from_ptr_internal(stub_ptr, stub_size)
-    }
+    }}
 }
 
 /// Public Data API
@@ -92,7 +92,7 @@ impl<'data> Rich<'data> {
 /// Internal API
 impl<'data> Rich<'data> {
     /// See [`Rich::from_ptr`]
-    unsafe fn from_ptr_internal(stub_ptr: *const u8, stub_size: usize) -> Result<Self> {
+    unsafe fn from_ptr_internal(stub_ptr: *const u8, stub_size: usize) -> Result<Self> { unsafe {
         // Safety: Caller
         let (rich, rich_offset) =
             RawRich::find_rich(stub_ptr, stub_size)?.ok_or(Error::MissingRich)?;
@@ -123,7 +123,7 @@ impl<'data> Rich<'data> {
             header: OwnedOrRef::Ref(rich),
             entries,
         })
-    }
+    }}
 }
 
 impl<'data> fmt::Debug for Rich<'data> {

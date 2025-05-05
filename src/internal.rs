@@ -615,8 +615,8 @@ pub mod test_util {
         #[allow(unused_macros)]
         macro_rules! cover {
             () => {};
-            ($cond:expr $(,)?) => {};
-            ($cond:expr, $msg:literal) => {};
+            ($cond:expr_2021 $(,)?) => {};
+            ($cond:expr_2021, $msg:literal) => {};
         }
         pub(crate) use cover;
     }
@@ -653,7 +653,7 @@ pub mod test_util {
 /// Help miri/tests catch invalid `size`, since we otherwise will never go
 /// beyond Self
 macro_rules! miri_helper {
-    ($data:expr, $size:expr) => {
+    ($data:expr_2021, $size:expr_2021) => {
         #[cfg(any(miri, test))]
         // Safety: miri
         let _ = unsafe { ::core::slice::from_raw_parts($data, $size) };

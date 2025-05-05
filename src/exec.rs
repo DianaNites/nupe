@@ -230,7 +230,7 @@ impl<'data> ExecHeader<'data> {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned.
-    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
+    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> { unsafe {
         debug_assert!(!data.is_null(), "`data` was null in ExecHeader::from_ptr");
 
         // Safety: Caller
@@ -250,7 +250,7 @@ impl<'data> ExecHeader<'data> {
         } else {
             Err(Error::InvalidPeMagic)
         }
-    }
+    }}
 }
 
 #[cfg(test)]

@@ -314,9 +314,9 @@ impl RawExec {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned.
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> { unsafe {
         Ok(&*(Self::from_ptr_internal(data, size)?))
-    }
+    }}
 }
 
 /// Internal API
@@ -533,9 +533,9 @@ impl RawExec32 {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned.
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> { unsafe {
         Ok(&*(Self::from_ptr_internal(data, size)?))
-    }
+    }}
 
     /// Get a [`RawExec32`] from `bytes`. Checks for the magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {
@@ -725,9 +725,9 @@ impl RawExec64 {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned.
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> { unsafe {
         Ok(&*(Self::from_ptr_internal(data, size)?))
-    }
+    }}
 
     /// Get a [`RawExec64`] from `bytes`. Checks for the magic.
     pub fn from_bytes(bytes: &[u8]) -> Result<&Self> {

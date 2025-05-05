@@ -201,9 +201,9 @@ impl<'data> Dos<'data> {
     /// - Only the documented errors will ever be returned
     /// - [`Dos::stub().len()`][`slice::len`] will always be less than `size`
     /// - [`RawDos::pe_offset`] will always be less than or equal to `size`
-    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
+    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> { unsafe {
         Self::from_ptr_internal(data, size)
-    }
+    }}
 }
 
 /// Public Data API
@@ -257,7 +257,7 @@ impl<'data> Dos<'data> {
 /// Internal API
 impl<'data> Dos<'data> {
     /// See [`Dos::from_ptr`]
-    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> {
+    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> { unsafe {
         let dos = RawDos::from_ptr(data, input_size).map_err(|_| Error::MissingDOS)?;
 
         // Pointer to the DOS stub code, and size of the code before the PE header
@@ -287,7 +287,7 @@ impl<'data> Dos<'data> {
             dos: OwnedOrRef::Ref(dos),
             stub: VecOrSlice::Slice(stub),
         })
-    }
+    }}
 }
 
 impl<'data> fmt::Debug for Dos<'data> {
