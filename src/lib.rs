@@ -401,7 +401,7 @@ mod tests {
         // But we only care about UB, which can only happen above.
         #[cfg(not(miri))]
         {
-            insta::assert_debug_snapshot!(pe, @r###"
+            insta::assert_debug_snapshot!(pe, @r#"
             Pe {
                 dos: Dos {
                     dos: Ref(
@@ -650,7 +650,7 @@ mod tests {
                             num_reloc: 0,
                             num_lines: 0,
                             characteristics: SectionFlags(
-                                RESERVED_0 | CODE | EXEC | READ,
+                                CODE | EXEC | READ,
                             ),
                         },
                         RawSectionHeader {
@@ -664,7 +664,7 @@ mod tests {
                             num_reloc: 0,
                             num_lines: 0,
                             characteristics: SectionFlags(
-                                RESERVED_0 | INITIALIZED | READ,
+                                INITIALIZED | READ,
                             ),
                         },
                         RawSectionHeader {
@@ -678,7 +678,7 @@ mod tests {
                             num_reloc: 0,
                             num_lines: 0,
                             characteristics: SectionFlags(
-                                RESERVED_0 | INITIALIZED | READ | WRITE,
+                                INITIALIZED | READ | WRITE,
                             ),
                         },
                         RawSectionHeader {
@@ -692,7 +692,7 @@ mod tests {
                             num_reloc: 0,
                             num_lines: 0,
                             characteristics: SectionFlags(
-                                RESERVED_0 | INITIALIZED | READ,
+                                INITIALIZED | READ,
                             ),
                         },
                         RawSectionHeader {
@@ -706,7 +706,7 @@ mod tests {
                             num_reloc: 0,
                             num_lines: 0,
                             characteristics: SectionFlags(
-                                RESERVED_0 | INITIALIZED | READ,
+                                INITIALIZED | READ,
                             ),
                         },
                         RawSectionHeader {
@@ -720,14 +720,14 @@ mod tests {
                             num_reloc: 0,
                             num_lines: 0,
                             characteristics: SectionFlags(
-                                RESERVED_0 | INITIALIZED | DISCARDABLE | READ,
+                                INITIALIZED | DISCARDABLE | READ,
                             ),
                         },
                     ],
                 ),
                 _phantom: PhantomData<&u8>,
             }
-            "###);
+            "#);
 
             insta::assert_debug_snapshot!(small_pe, @r###"
         Pe {
@@ -845,7 +845,7 @@ mod tests {
         }
             "###);
 
-            insta::assert_debug_snapshot!(nothing, @r###"
+            insta::assert_debug_snapshot!(nothing, @r#"
             Pe {
                 dos: Dos {
                     dos: Ref(
@@ -1029,7 +1029,7 @@ mod tests {
                             num_reloc: 0,
                             num_lines: 0,
                             characteristics: SectionFlags(
-                                RESERVED_0 | CODE | EXEC | READ,
+                                CODE | EXEC | READ,
                             ),
                         },
                         RawSectionHeader {
@@ -1043,16 +1043,16 @@ mod tests {
                             num_reloc: 0,
                             num_lines: 0,
                             characteristics: SectionFlags(
-                                RESERVED_0 | INITIALIZED | READ,
+                                INITIALIZED | READ,
                             ),
                         },
                     ],
                 ),
                 _phantom: PhantomData<&u8>,
             }
-            "###);
+            "#);
 
-            insta::assert_debug_snapshot!(smallest_sections, @r###"
+            insta::assert_debug_snapshot!(smallest_sections, @r#"
             Pe {
                 dos: Dos {
                     dos: Ref(
@@ -1213,14 +1213,14 @@ mod tests {
                             num_reloc: 0,
                             num_lines: 0,
                             characteristics: SectionFlags(
-                                RESERVED_0 | CODE | EXEC | READ,
+                                CODE | EXEC | READ,
                             ),
                         },
                     ],
                 ),
                 _phantom: PhantomData<&u8>,
             }
-            "###);
+            "#);
 
             insta::assert_debug_snapshot!(smallest_no_overlap, @r###"
             Pe {
