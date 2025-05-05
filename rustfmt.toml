@@ -1,7 +1,23 @@
+# Use unstable features, format on nightly
 unstable_features = true
 
-wrap_comments = true
+## Stable Options
+
+## Unstable options
 imports_layout = "HorizontalVertical"
+
+# Prefer collapsing imports
 imports_granularity = "Crate"
-normalize_comments = true
+
+# Group imports together
 group_imports = "StdExternalCrate"
+
+# Prefer line comments, not block comments
+# <https://github.com/rust-lang/rustfmt/issues/3350>
+normalize_comments = true
+
+# Make comments fit on line
+wrap_comments = true
+
+# Format macros
+format_macro_matchers = true
