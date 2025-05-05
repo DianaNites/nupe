@@ -5,6 +5,14 @@ edition = "2021"
 license = "EUPL-1.2"
 description = "reserved"
 
+[lints.rust.unexpected_cfgs]
+level = "deny"
+check-cfg = [
+    #
+    'cfg(no)',
+    'cfg(kani)',
+]
+
 [dependencies]
 bitflags = "2.1.0"
 bstr = { version = "1.4.0", default-features = false }
