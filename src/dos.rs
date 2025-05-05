@@ -3,10 +3,10 @@
 use core::{fmt, mem::size_of, slice::from_raw_parts};
 
 use crate::{
-    error::{Error, Result},
-    raw::dos::RawDos,
     OwnedOrRef,
     VecOrSlice,
+    error::{Error, Result},
+    raw::dos::RawDos,
 };
 
 /// Default DOS Stub, header and code, for prepending to PE files.
@@ -201,9 +201,9 @@ impl<'data> Dos<'data> {
     /// - Only the documented errors will ever be returned
     /// - [`Dos::stub().len()`][`slice::len`] will always be less than `size`
     /// - [`RawDos::pe_offset`] will always be less than or equal to `size`
-    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> { unsafe {
-        Self::from_ptr_internal(data, size)
-    }}
+    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
+        unsafe { Self::from_ptr_internal(data, size) }
+    }
 }
 
 /// Public Data API
@@ -257,37 +257,39 @@ impl<'data> Dos<'data> {
 /// Internal API
 impl<'data> Dos<'data> {
     /// See [`Dos::from_ptr`]
-    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> { unsafe {
-        let dos = RawDos::from_ptr(data, input_size).map_err(|_| Error::MissingDOS)?;
+    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> {
+        unsafe {
+            let dos = RawDos::from_ptr(data, input_size).map_err(|_| Error::MissingDOS)?;
 
-        // Pointer to the DOS stub code, and size of the code before the PE header
-        // The Rich header may be hidden somewhere in here
-        let stub_size: usize = dos
-            .pe_offset
-            .saturating_sub(size_of::<RawDos>() as u32)
-            .try_into()
-            .map_err(|_| Error::TooMuchData)?;
+            // Pointer to the DOS stub code, and size of the code before the PE header
+            // The Rich header may be hidden somewhere in here
+            let stub_size: usize = dos
+                .pe_offset
+                .saturating_sub(size_of::<RawDos>() as u32)
+                .try_into()
+                .map_err(|_| Error::TooMuchData)?;
 
-        // Ensure that `input_size` is enough for the DOS stub
-        input_size
-            .checked_sub(size_of::<RawDos>())
-            .ok_or(Error::MissingDOS)?
-            .checked_sub(stub_size)
-            .ok_or(Error::MissingDOS)?;
+            // Ensure that `input_size` is enough for the DOS stub
+            input_size
+                .checked_sub(size_of::<RawDos>())
+                .ok_or(Error::MissingDOS)?
+                .checked_sub(stub_size)
+                .ok_or(Error::MissingDOS)?;
 
-        // This operation MUST be done after size is checked, otherwise
-        // it is unsound.
-        let stub_ptr = data.add(size_of::<RawDos>());
+            // This operation MUST be done after size is checked, otherwise
+            // it is unsound.
+            let stub_ptr = data.add(size_of::<RawDos>());
 
-        // Safety:
-        // - We ensure `stub_size` can never exceed `input_size`
-        let stub = from_raw_parts(stub_ptr, stub_size);
+            // Safety:
+            // - We ensure `stub_size` can never exceed `input_size`
+            let stub = from_raw_parts(stub_ptr, stub_size);
 
-        Ok(Self {
-            dos: OwnedOrRef::Ref(dos),
-            stub: VecOrSlice::Slice(stub),
-        })
-    }}
+            Ok(Self {
+                dos: OwnedOrRef::Ref(dos),
+                stub: VecOrSlice::Slice(stub),
+            })
+        }
+    }
 }
 
 impl<'data> fmt::Debug for Dos<'data> {

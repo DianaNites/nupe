@@ -246,66 +246,72 @@ mod tests {
         {
             pe.section({
                 let sec = in_pe.section(".text").unwrap();
-                SectionBuilder::new()
-                    .name(".text")
+                let mut s = SectionBuilder::new();
+                s.name(".text")
                     .data({
                         &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
                     .mem_size(sec.mem_size())
                     .disk_offset(1024)
-                    .attributes(SectionFlags::CODE | SectionFlags::EXEC | SectionFlags::READ)
+                    .attributes(SectionFlags::CODE | SectionFlags::EXEC | SectionFlags::READ);
+                s
             })
             .section({
                 let sec = in_pe.section(".rdata").unwrap();
-                SectionBuilder::new()
-                    .name(".rdata")
+                let mut s = SectionBuilder::new();
+                s.name(".rdata")
                     .data({
                         &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
                     .mem_size(sec.mem_size())
-                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ)
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ);
+                s
             })
             .section({
                 let sec = in_pe.section(".data").unwrap();
-                SectionBuilder::new()
-                    .name(".data")
+                let mut s = SectionBuilder::new();
+                s.name(".data")
                     .data(&RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize])
                     .mem_size(sec.mem_size())
                     .attributes(
                         SectionFlags::INITIALIZED | SectionFlags::READ | SectionFlags::WRITE,
-                    )
+                    );
+                s
             })
             .section({
                 let sec = in_pe.section(".pdata").unwrap();
-                SectionBuilder::new()
-                    .name(".pdata")
+                let mut s = SectionBuilder::new();
+                s.name(".pdata")
                     .data({
                         &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
                     .mem_size(sec.mem_size())
-                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ)
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ);
+                s
             })
             .section({
                 let sec = in_pe.section("_RDATA").unwrap();
-                SectionBuilder::new()
-                    .name("_RDATA")
+                let mut s = SectionBuilder::new();
+                s.name("_RDATA")
                     .data({
                         &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
                     .mem_size(sec.mem_size())
-                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ)
+                    .attributes(SectionFlags::INITIALIZED | SectionFlags::READ);
+                s
             })
             .section({
                 let sec = in_pe.section(".reloc").unwrap();
-                SectionBuilder::new()
-                    .name(".reloc")
+                let mut s = SectionBuilder::new();
+                s.name(".reloc")
                     .data({
                         &RUSTUP_IMAGE[sec.disk_offset() as usize..][..sec.disk_size() as usize]
                     })
                     .mem_size(sec.mem_size())
                     .attributes(
                         SectionFlags::INITIALIZED | SectionFlags::READ | SectionFlags::DISCARDABLE,
-                    )
+                    );
+                s
             });
         }
         // NOTE: Rustup's value isn't correct

@@ -4,9 +4,9 @@
 use core::{mem::size_of, ptr::addr_of, slice::from_raw_parts};
 
 use crate::{
-    error::{Error, Result},
-    raw::exec::{ExecFlags, RawExec, RawExec32, RawExec64, Subsystem, PE32_64_MAGIC, PE32_MAGIC},
     OwnedOrRef,
+    error::{Error, Result},
+    raw::exec::{ExecFlags, PE32_64_MAGIC, PE32_MAGIC, RawExec, RawExec32, RawExec64, Subsystem},
 };
 
 /// Executable header, otherwise known as the "optional" header
@@ -230,27 +230,29 @@ impl<'data> ExecHeader<'data> {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned.
-    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> { unsafe {
-        debug_assert!(!data.is_null(), "`data` was null in ExecHeader::from_ptr");
+    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
+        unsafe {
+            debug_assert!(!data.is_null(), "`data` was null in ExecHeader::from_ptr");
 
-        // Safety: Caller
-        let exec = RawExec::from_ptr(data, size)?;
-        let magic = exec.magic;
-
-        if magic == PE32_64_MAGIC {
             // Safety: Caller
-            let opt = RawExec64::from_ptr(data, size)?;
+            let exec = RawExec::from_ptr(data, size)?;
+            let magic = exec.magic;
 
-            Ok(ExecHeader::Raw64(OwnedOrRef::Ref(opt)))
-        } else if magic == PE32_MAGIC {
-            // Safety: Caller
-            let opt = RawExec32::from_ptr(data, size)?;
+            if magic == PE32_64_MAGIC {
+                // Safety: Caller
+                let opt = RawExec64::from_ptr(data, size)?;
 
-            Ok(ExecHeader::Raw32(OwnedOrRef::Ref(opt)))
-        } else {
-            Err(Error::InvalidPeMagic)
+                Ok(ExecHeader::Raw64(OwnedOrRef::Ref(opt)))
+            } else if magic == PE32_MAGIC {
+                // Safety: Caller
+                let opt = RawExec32::from_ptr(data, size)?;
+
+                Ok(ExecHeader::Raw32(OwnedOrRef::Ref(opt)))
+            } else {
+                Err(Error::InvalidPeMagic)
+            }
         }
-    }}
+    }
 }
 
 #[cfg(test)]

@@ -448,7 +448,7 @@ pub(crate) mod debug {
     //! Debug/Display helpers
     use core::fmt;
 
-    use crate::{raw::RawDataDirectory, DataDirIdent, VecOrSlice};
+    use crate::{DataDirIdent, VecOrSlice, raw::RawDataDirectory};
 
     struct Helper2<'data>(usize, &'data RawDataDirectory);
     impl<'data> fmt::Debug for Helper2<'data> {
@@ -500,6 +500,7 @@ pub(crate) mod debug {
 }
 
 #[cfg(test)]
+#[allow(clippy::items_after_test_module)]
 pub mod test_util {
     //! Utilities helpful across unit tests
 
@@ -655,6 +656,7 @@ pub mod test_util {
 macro_rules! miri_helper {
     ($data:expr_2021, $size:expr_2021) => {
         #[cfg(any(miri, test))]
+        #[allow(unused_unsafe)]
         // Safety: miri
         let _ = unsafe { ::core::slice::from_raw_parts($data, $size) };
     };

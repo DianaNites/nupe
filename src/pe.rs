@@ -2,10 +2,12 @@
 use core::{fmt, marker::PhantomData, mem::size_of};
 
 use crate::{
+    DataDir,
+    Section,
     dos::Dos,
     error::{Error, Result},
     exec::ExecHeader,
-    internal::{debug::RawDataDirectoryHelper, DataDirIdent, OwnedOrRef, VecOrSlice},
+    internal::{DataDirIdent, OwnedOrRef, VecOrSlice, debug::RawDataDirectoryHelper},
     raw::{
         coff::{CoffFlags, MachineType, RawCoff},
         dos::RawDos,
@@ -14,8 +16,6 @@ use crate::{
         *,
     },
     rich::Rich,
-    DataDir,
-    Section,
 };
 
 /// An executable PE file following Microsoft Windows conventions
@@ -70,9 +70,9 @@ impl<'data> Pe<'data> {
     ///   - Other data, such as sections and data directories, remains untrusted
     ///     and must be validated later
     /// - All magic values and signatures are correct
-    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> { unsafe {
-        Self::from_ptr_internal(data, size)
-    }}
+    pub unsafe fn from_ptr(data: *const u8, size: usize) -> Result<Self> {
+        unsafe { Self::from_ptr_internal(data, size) }
+    }
 
     /// Get a [`Pe`] that references a PE file `bytes`,
     /// while ensuring its validity.
@@ -264,25 +264,22 @@ impl<'data> Pe<'data> {
 /// Internal base API
 impl<'data> Pe<'data> {
     /// See [`Pe::from_ptr`] for safety and error details
-    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> { unsafe {
+    unsafe fn from_ptr_internal(data: *const u8, input_size: usize) -> Result<Self> {
         // Safety: Caller
-        let dos = Dos::from_ptr(data, input_size)?;
+        let dos = unsafe { Dos::from_ptr(data, input_size)? };
         let stub = dos.stub();
         let off = dos.pe_offset().try_into().map_err(|_| Error::TooMuchData)?;
 
         // Safety: slice is trivially valid
-        let rich = match Rich::from_ptr(stub.as_ptr(), stub.len()) {
-            Ok(it) => Some(it),
-            Err(_) => None,
-        };
+        let rich = unsafe { Rich::from_ptr(stub.as_ptr(), stub.len()) }.ok();
 
         // Pointer to the PE signature, and the size of the remainder of the input after
         // the DOS stub.
-        let pe_ptr = data.add(off);
+        let pe_ptr = unsafe { data.add(off) };
         let pe_size = input_size - off;
 
         // PE signature and COFF header
-        let pe = RawPe::from_ptr(pe_ptr, pe_size).map_err(|_| Error::MissingPE)?;
+        let pe = unsafe { RawPe::from_ptr(pe_ptr, pe_size) }.map_err(|_| Error::MissingPE)?;
 
         // Pointer to the exec header, and its size.
         // let (exec_ptr, exec_size) = read_exec(&pe.coff, pe_ptr, pe_size)?;
@@ -296,10 +293,10 @@ impl<'data> Pe<'data> {
             .checked_sub(exec_size)
             .ok_or(Error::MissingExecHeader)?;
 
-        let exec_ptr = pe_ptr.add(size_of::<RawPe>());
+        let exec_ptr = unsafe { pe_ptr.add(size_of::<RawPe>()) };
 
-        let exec =
-            ExecHeader::from_ptr(exec_ptr, exec_size).map_err(|_| Error::MissingExecHeader)?;
+        let exec = unsafe { ExecHeader::from_ptr(exec_ptr, exec_size) }
+            .map_err(|_| Error::MissingExecHeader)?;
 
         // Pointer to data directory, and its size in elements.
         let (data_ptr, data_size) = {
@@ -324,7 +321,7 @@ impl<'data> Pe<'data> {
             //
             // Safety:
             // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
-            let data_ptr = exec_ptr.add(exec.size_of()) as *const RawDataDirectory;
+            let data_ptr = unsafe { exec_ptr.add(exec.size_of()) } as *const RawDataDirectory;
 
             (data_ptr, elems)
         };
@@ -348,7 +345,7 @@ impl<'data> Pe<'data> {
             //
             // Safety:
             // - `exec_ptr` and this operation is guaranteed to be valid by earlier code.
-            let section_ptr = exec_ptr.add(exec_size) as *const RawSectionHeader;
+            let section_ptr = unsafe { exec_ptr.add(exec_size) } as *const RawSectionHeader;
 
             (section_ptr, sections)
         };
@@ -365,7 +362,7 @@ impl<'data> Pe<'data> {
             sections: VecOrSlice::Slice(sections),
             _phantom: PhantomData,
         })
-    }}
+    }
 
     /// Create a [`Pe`] with a mutable pointer
     ///
@@ -375,9 +372,10 @@ impl<'data> Pe<'data> {
     ///
     /// - See [`Pe::from_ptr_internal`]
     /// - `data` MUST be a legitimate mutable pointer
-    unsafe fn from_ptr_internal_mut(data: *mut u8, size: usize) -> Result<Self> { unsafe {
-        Self::from_ptr_internal(data.cast_const(), size)
-    }}
+    unsafe fn from_ptr_internal_mut(data: *mut u8, size: usize) -> Result<Self> {
+        // Safety: Caller
+        unsafe { Self::from_ptr_internal(data.cast_const(), size) }
+    }
 }
 
 impl<'data> fmt::Debug for Pe<'data> {

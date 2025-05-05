@@ -131,12 +131,14 @@ impl RawRich {
     /// ## Post-conditions
     ///
     /// - Only the documented errors will ever be returned
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> { unsafe {
-        // Safety:
-        // - Caller asserts `data` is valid for `size`
-        // - `RawRich` has no alignment requirements or invalid values.
-        Ok(&*(Self::from_ptr_internal(data, size)?))
-    }}
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        unsafe {
+            // Safety:
+            // - Caller asserts `data` is valid for `size`
+            // - `RawRich` has no alignment requirements or invalid values.
+            Ok(&*(Self::from_ptr_internal(data, size)?))
+        }
+    }
 
     /// Find the Rich Header given a pointer to the
     /// [DOS stub code][`crate::dos::Dos::stub`]
@@ -174,83 +176,89 @@ impl RawRich {
     pub unsafe fn find_rich<'data>(
         data: *const u8,
         size: usize,
-    ) -> Result<Option<(&'data Self, usize)>> { unsafe {
-        match Self::find_rich_internal(data, size)? {
-            Some((r, o)) => {
-                debug_assert!(o < size, "RawRich::find_rich guarantee violated");
-                // Safety:
-                // - Caller asserts `data` is valid for `size`
-                // - `RawRich` has no alignment requirements or invalid values.
-                Ok(Some((&*r, o)))
+    ) -> Result<Option<(&'data Self, usize)>> {
+        unsafe {
+            match Self::find_rich_internal(data, size)? {
+                Some((r, o)) => {
+                    debug_assert!(o < size, "RawRich::find_rich guarantee violated");
+                    // Safety:
+                    // - Caller asserts `data` is valid for `size`
+                    // - `RawRich` has no alignment requirements or invalid values.
+                    Ok(Some((&*r, o)))
+                }
+                None => Ok(None),
             }
-            None => Ok(None),
         }
-    }}
+    }
 }
 
 /// Internal base API
 impl RawRich {
     /// See [`RawRich::from_ptr`]
-    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> { unsafe {
-        debug_assert!(!data.is_null(), "`data` was null in RawRich::from_ptr");
+    unsafe fn from_ptr_internal(data: *const u8, size: usize) -> Result<*const Self> {
+        unsafe {
+            debug_assert!(!data.is_null(), "`data` was null in RawRich::from_ptr");
 
-        // Ensure that size is enough
-        size.checked_sub(size_of::<RawRich>())
-            .ok_or(Error::NotEnoughData)?;
+            // Ensure that size is enough
+            size.checked_sub(size_of::<RawRich>())
+                .ok_or(Error::NotEnoughData)?;
 
-        // Safety:
-        // - We just checked `data` would fit a `RawRich`
-        // - Caller guarantees `data` is valid
-        let data = data as *const RawRich;
-        let rich = &*data;
-        if rich.magic != RICH_MAGIC {
-            return Err(Error::InvalidRichMagic);
+            // Safety:
+            // - We just checked `data` would fit a `RawRich`
+            // - Caller guarantees `data` is valid
+            let data = data as *const RawRich;
+            let rich = &*data;
+            if rich.magic != RICH_MAGIC {
+                return Err(Error::InvalidRichMagic);
+            }
+
+            miri_helper!(data as *const u8, size);
+
+            Ok(data.cast())
         }
-
-        miri_helper!(data as *const u8, size);
-
-        Ok(data.cast())
-    }}
+    }
 
     /// See [`RawRich::find_rich`]
     unsafe fn find_rich_internal(
         data: *const u8,
         size: usize,
-    ) -> Result<Option<(*const Self, usize)>> { unsafe {
-        // Ensure that size is enough
-        size.checked_sub(size_of::<RawRich>())
-            .ok_or(Error::NotEnoughData)?;
+    ) -> Result<Option<(*const Self, usize)>> {
+        unsafe {
+            // Ensure that size is enough
+            size.checked_sub(size_of::<RawRich>())
+                .ok_or(Error::NotEnoughData)?;
 
-        // Safety: Caller
-        let offset = find_rich_helper(from_raw_parts(data, size), RICH_MAGIC);
+            // Safety: Caller
+            let offset = find_rich_helper(from_raw_parts(data, size), RICH_MAGIC);
 
-        let offset = match offset {
-            Some(o) => o,
-            None => return Ok(None),
-        };
+            let offset = match offset {
+                Some(o) => o,
+                None => return Ok(None),
+            };
 
-        // Safety:
-        // - `o` is guaranteed to be within bounds by `rfind`
-        let ptr = data.add(offset);
-        let len = size - offset;
+            // Safety:
+            // - `o` is guaranteed to be within bounds by `rfind`
+            let ptr = data.add(offset);
+            let len = size - offset;
 
-        miri_helper!(ptr, len);
+            miri_helper!(ptr, len);
 
-        // Safety:
-        // - `ptr` is guaranteed to be valid for `size - offset`
-        let rich = Self::from_ptr_internal(ptr, len);
+            // Safety:
+            // - `ptr` is guaranteed to be valid for `size - offset`
+            let rich = Self::from_ptr_internal(ptr, len);
 
-        match rich {
-            Ok(p) => Ok(Some((p, offset))),
-            Err(e @ Error::NotEnoughData) => Err(e),
+            match rich {
+                Ok(p) => Ok(Some((p, offset))),
+                Err(e @ Error::NotEnoughData) => Err(e),
 
-            // `rfind` guarantees the magic, at least, is valid
-            Err(Error::InvalidRichMagic) => unreachable!(),
+                // `rfind` guarantees the magic, at least, is valid
+                Err(Error::InvalidRichMagic) => unreachable!(),
 
-            // No other errors are ever returned
-            Err(_) => unreachable!(),
+                // No other errors are ever returned
+                Err(_) => unreachable!(),
+            }
         }
-    }}
+    }
 }
 
 impl fmt::Debug for RawRich {
@@ -318,9 +326,9 @@ impl RawRichArray {
     /// # Safety
     ///
     /// - `data` MUST be valid for `size` bytes.
-    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> { unsafe {
-        Ok(&*(Self::from_ptr_internal(data, size, None)?))
-    }}
+    pub unsafe fn from_ptr<'data>(data: *const u8, size: usize) -> Result<&'data Self> {
+        unsafe { Ok(&*(Self::from_ptr_internal(data, size, None)?)) }
+    }
 
     /// The same as [`RawRichArray::from_ptr`], but XORs `key` before attempting
     /// to read fields.
@@ -334,9 +342,9 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: u32,
-    ) -> Result<&'data Self> { unsafe {
-        Ok(&*(Self::from_ptr_internal(data, size, Some(key))?))
-    }}
+    ) -> Result<&'data Self> {
+        unsafe { Ok(&*(Self::from_ptr_internal(data, size, Some(key))?)) }
+    }
 
     /// Find the Rich Header Array given a pointer to the first byte after the
     /// DOS Header [`RawDOS`].
@@ -382,12 +390,14 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: u32,
-    ) -> Result<Option<(&'data Self, usize)>> { unsafe {
-        match Self::find_array_internal(data, size, Some(key))? {
-            Some((r, o)) => Ok(Some((&*r, o))),
-            None => Ok(None),
+    ) -> Result<Option<(&'data Self, usize)>> {
+        unsafe {
+            match Self::find_array_internal(data, size, Some(key))? {
+                Some((r, o)) => Ok(Some((&*r, o))),
+                None => Ok(None),
+            }
         }
-    }}
+    }
 }
 
 /// Public data API
@@ -414,37 +424,39 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: Option<u32>,
-    ) -> Result<*const Self> { unsafe {
-        let key = key.unwrap_or(0);
-        debug_assert!(!data.is_null(), "`data` was null in RawRichArray::from_ptr");
+    ) -> Result<*const Self> {
+        unsafe {
+            let key = key.unwrap_or(0);
+            debug_assert!(!data.is_null(), "`data` was null in RawRichArray::from_ptr");
 
-        // Ensure that size is enough
-        size.checked_sub(size_of::<RawRichArray>())
-            .ok_or(Error::NotEnoughData)?;
+            // Ensure that size is enough
+            size.checked_sub(size_of::<RawRichArray>())
+                .ok_or(Error::NotEnoughData)?;
 
-        let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
-        let magic_xor = magic_xor.to_ne_bytes();
+            let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
+            let magic_xor = magic_xor.to_ne_bytes();
 
-        miri_helper!(data, size);
+            miri_helper!(data, size);
 
-        // Safety:
-        // - We just checked `data` would fit a `RawRich`
-        // - Caller guarantees `data` is valid
-        let arr = &*(data as *const RawRichArray);
-        if arr.magic != magic_xor {
-            return Err(Error::InvalidRichArrayMagic);
+            // Safety:
+            // - We just checked `data` would fit a `RawRich`
+            // - Caller guarantees `data` is valid
+            let arr = &*(data as *const RawRichArray);
+            if arr.magic != magic_xor {
+                return Err(Error::InvalidRichArrayMagic);
+            }
+            if (arr.padding1 ^ key)
+                .saturating_add(arr.padding2 ^ key)
+                .saturating_add(arr.padding3 ^ key)
+                != 0
+            {
+                // TODO: More specific error?
+                return Err(Error::InvalidData);
+            }
+
+            Ok(data.cast())
         }
-        if (arr.padding1 ^ key)
-            .saturating_add(arr.padding2 ^ key)
-            .saturating_add(arr.padding3 ^ key)
-            != 0
-        {
-            // TODO: More specific error?
-            return Err(Error::InvalidData);
-        }
-
-        Ok(data.cast())
-    }}
+    }
 
     /// See [`RawRichArray::find_array`]
     ///
@@ -453,46 +465,48 @@ impl RawRichArray {
         data: *const u8,
         size: usize,
         key: Option<u32>,
-    ) -> Result<Option<(*const Self, usize)>> { unsafe {
-        let key = key.unwrap_or(0);
+    ) -> Result<Option<(*const Self, usize)>> {
+        unsafe {
+            let key = key.unwrap_or(0);
 
-        // Ensure that size is enough
-        size.checked_sub(size_of::<RawRichArray>())
-            .ok_or(Error::NotEnoughData)?;
+            // Ensure that size is enough
+            size.checked_sub(size_of::<RawRichArray>())
+                .ok_or(Error::NotEnoughData)?;
 
-        let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
-        let magic_xor = magic_xor.to_ne_bytes();
+            let magic_xor = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
+            let magic_xor = magic_xor.to_ne_bytes();
 
-        // FIXME: Technically this can be "fooled"? because it searches from the end
-        // but the signature is supposed to be at the start
-        // so it could think its an entry.
-        let offset = find_rich_helper(from_raw_parts(data, size), magic_xor);
-        let offset = match offset {
-            Some(o) => o,
-            None => return Ok(None),
-        };
+            // FIXME: Technically this can be "fooled"? because it searches from the end
+            // but the signature is supposed to be at the start
+            // so it could think its an entry.
+            let offset = find_rich_helper(from_raw_parts(data, size), magic_xor);
+            let offset = match offset {
+                Some(o) => o,
+                None => return Ok(None),
+            };
 
-        // Safety:
-        // - `o` is guaranteed in-bounds by `rfind`
-        let ptr = data.add(offset);
-        let len = size - offset;
+            // Safety:
+            // - `o` is guaranteed in-bounds by `rfind`
+            let ptr = data.add(offset);
+            let len = size - offset;
 
-        miri_helper!(ptr, len);
+            miri_helper!(ptr, len);
 
-        // Safety:
-        // - `ptr` is guaranteed to be valid for `size - o`
-        match Self::from_ptr_internal(ptr, len, Some(key)) {
-            Ok(p) => Ok(Some((p, offset))),
-            Err(e @ Error::NotEnoughData) => Err(e),
-            Err(e @ Error::InvalidData) => Err(e),
+            // Safety:
+            // - `ptr` is guaranteed to be valid for `size - o`
+            match Self::from_ptr_internal(ptr, len, Some(key)) {
+                Ok(p) => Ok(Some((p, offset))),
+                Err(e @ Error::NotEnoughData) => Err(e),
+                Err(e @ Error::InvalidData) => Err(e),
 
-            // `rfind` guarantees the magic, at least, is valid
-            Err(Error::InvalidRichArrayMagic) => unreachable!(),
+                // `rfind` guarantees the magic, at least, is valid
+                Err(Error::InvalidRichArrayMagic) => unreachable!(),
 
-            // No other errors are ever returned
-            Err(_) => unreachable!(),
+                // No other errors are ever returned
+                Err(_) => unreachable!(),
+            }
         }
-    }}
+    }
 
     fn debug_fmt(&self, f: &mut fmt::Formatter<'_>, key: u32) -> fmt::Result {
         let n = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
@@ -609,31 +623,33 @@ impl RawRichEntry {
         data: *const u8,
         size: usize,
         key: Option<u32>,
-    ) -> Result<*const Self> { unsafe {
-        let key = key.unwrap_or(0);
-        debug_assert!(!data.is_null(), "`data` was null in RawRichArray::from_ptr");
+    ) -> Result<*const Self> {
+        unsafe {
+            let key = key.unwrap_or(0);
+            debug_assert!(!data.is_null(), "`data` was null in RawRichArray::from_ptr");
 
-        // Ensure that size is enough
-        size.checked_sub(size_of::<RawRichArray>())
-            .ok_or(Error::NotEnoughData)?;
+            // Ensure that size is enough
+            size.checked_sub(size_of::<RawRichArray>())
+                .ok_or(Error::NotEnoughData)?;
 
-        let n = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
-        let n = n.to_ne_bytes();
+            let n = u32::from_ne_bytes(ARRAY_MAGIC) ^ key;
+            let n = n.to_ne_bytes();
 
-        // Safety:
-        // - We just checked `data` would fit a `RawRich`
-        // - Caller guarantees `data` is valid
-        let arr = &*(data as *const RawRichArray);
-        if arr.magic != n {
-            return Err(Error::InvalidRichArrayMagic);
+            // Safety:
+            // - We just checked `data` would fit a `RawRich`
+            // - Caller guarantees `data` is valid
+            let arr = &*(data as *const RawRichArray);
+            if arr.magic != n {
+                return Err(Error::InvalidRichArrayMagic);
+            }
+            if (arr.padding1 ^ key) + (arr.padding2 ^ key) + (arr.padding3 ^ key) != 0 {
+                // TODO: More specific error?
+                return Err(Error::InvalidData);
+            }
+
+            Ok(data.cast())
         }
-        if (arr.padding1 ^ key) + (arr.padding2 ^ key) + (arr.padding3 ^ key) != 0 {
-            // TODO: More specific error?
-            return Err(Error::InvalidData);
-        }
-
-        Ok(data.cast())
-    }}
+    }
 }
 
 impl fmt::Debug for RawRichEntry {

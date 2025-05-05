@@ -3,24 +3,24 @@ use alloc::{vec, vec::Vec};
 use core::{fmt, marker::PhantomData, mem::size_of, slice::from_raw_parts};
 
 use crate::{
-    dos::debug::DosHelper,
-    error::{Error, Result},
-    exec::ExecHeader,
-    internal::debug::RawDataDirectoryHelper,
-    raw::{
-        coff::{CoffFlags, MachineType, RawCoff},
-        dos::RawDos,
-        exec::*,
-        pe::*,
-        RawDataDirectory,
-        RawSectionHeader,
-    },
     DataDirIdent,
     OwnedOrRef,
     Pe,
     Section,
     SectionFlags,
     VecOrSlice,
+    dos::debug::DosHelper,
+    error::{Error, Result},
+    exec::ExecHeader,
+    internal::debug::RawDataDirectoryHelper,
+    raw::{
+        RawDataDirectory,
+        RawSectionHeader,
+        coff::{CoffFlags, MachineType, RawCoff},
+        dos::RawDos,
+        exec::*,
+        pe::*,
+    },
 };
 
 /// Default image base to use
@@ -241,7 +241,7 @@ impl<'data> PeBuilder<'data, states::Machine> {
     }
 
     /// Append a section
-    pub fn section(&mut self, section: &mut SectionBuilder) -> &mut Self {
+    pub fn section(&mut self, section: SectionBuilder) -> &mut Self {
         let header = section.to_raw_section(
             self.next_mem_ptr(),
             self.next_disk_offset(),

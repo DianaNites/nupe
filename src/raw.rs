@@ -41,8 +41,8 @@
 use core::fmt;
 
 use crate::{
-    error::{Error, Result},
     SectionFlags,
+    error::{Error, Result},
 };
 
 pub mod coff;

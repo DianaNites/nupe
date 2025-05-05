@@ -13,7 +13,7 @@ pub enum Error {
     /// Invalid Rich Header Array Header magic
     InvalidRichArrayMagic,
 
-    ///
+    /// Invalid PE Magic
     InvalidPeMagic,
 
     /// Expected more data than received
